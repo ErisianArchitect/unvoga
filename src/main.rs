@@ -218,7 +218,8 @@ fn main_menu(
                             x | (y << 4)
                         }
                         for i in (0..256) {
-                            material.lightmap[i] = rand::random::<f32>().rem_euclid(1.0);
+                            let level = rand::random::<u8>().rem_euclid(16) as f32 / 15.0;
+                            material.lightmap[i] = level;
                         }
                         // material.lightmap[mapindex(0, 0)] = rand::random::<f32>().rem_euclid(1.0);
                         // material.lightmap[mapindex(1, 0)] = rand::random::<f32>().rem_euclid(1.0);
@@ -296,7 +297,7 @@ fn on_enter_main_menu(
         vec2(0.0, 0.0), vec2(16.0, 0.0),
         vec2(0.0, 16.0), vec2(16.0, 16.0),
     ];
-    let tex_indices: Vec<u32> = (0..8).map(|i| if i < 4 { 0 } else { 4 }).collect();
+    let tex_indices: Vec<u32> = (0..8).map(|i| if i < 4 { 0 } else { 8 }).collect();
     let indices = Indices::U32(vec![
         0, 2, 1, 1, 2, 3,// First
         4, 6, 5, 5, 6, 7,// Second
