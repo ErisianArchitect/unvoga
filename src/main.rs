@@ -101,8 +101,8 @@ impl LoadingState {
                 return false;
             }
         }
-        // As more stuff is added to LoadingState, add the checks for it here.
         true
+        // As more stuff is added to LoadingState, add the checks for it here.
     }
 }
 

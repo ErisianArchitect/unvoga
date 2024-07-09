@@ -14,5 +14,8 @@ opt-level = 3
 # https://bevyengine.org/learn/quick-start/getting-started/setup/#enable-fast-compiles-optional
 bevy = { version = "0.13.2", features = ["dynamic_linking"] }
 bevy_egui = "0.27.1"
+image = "0.25.1"
 itertools = "0.13.0"
 rand = "0.8.5"
+rollgrid = { git = "https://github.com/ErisianArchitect/rollgrid.git" }
+thiserror = "1.0.61"
