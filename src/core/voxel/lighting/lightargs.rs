@@ -28,8 +28,3 @@ impl LightArgs {
         self.0 >> 4
     }
 }
-
-#[test]
-fn bittest() {
-    assert_eq!(0xF0 >> 4, 0xF);
-}

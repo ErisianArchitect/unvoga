@@ -1,33 +1,48 @@
-use super::{coord::Coord, direction::Direction, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape};
+use std::any::Any;
+use super::{blockregistry::BlockRegistry, blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape, world::world::World};
 
-pub trait Block {
-    fn occlusion_shapes(&self) -> &Faces<OcclusionShape>;
-    fn light_args() -> LightArgs;
+pub trait Block: Any {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn name(&self) -> &str;
+    fn occlusion_shapes(&self) -> &Faces<OcclusionShape> {
+        const FULL_FACES: Faces<OcclusionShape> = Faces {
+            neg_x: OcclusionShape::Full,
+            neg_y: OcclusionShape::Full,
+            neg_z: OcclusionShape::Full,
+            pos_x: OcclusionShape::Full,
+            pos_y: OcclusionShape::Full,
+            pos_z: OcclusionShape::Full,
+        };
+        &FULL_FACES
+    }
+    fn light_args(&self) -> LightArgs { LightArgs::new(15, 0) }
     fn neighbor_updated(
         &self,
-        world: &mut (/* Gotta make the world first */),
+        world: &mut World,
         coord: Coord,
         neighbor_coord: Coord,
         direction: Direction,
-    );
+    ) {}
     fn on_place(
         &self,
-        world: &mut (),
+        world: &mut World,
         coord: Coord,
-        state: (),
-    );
+        state: StateRef,
+    ) {}
     fn on_remove(
         &self,
-        world: &mut (),
+        world: &mut World,
         coord: Coord,
-        state: (),
-    );
+        state: StateRef,
+    ) {}
     fn push_mesh(
         &self,
         mesh_builder: &mut (),
         coord: Coord,
-        state: (),
-    );
+        state: StateRef,
+    ) {}
+    fn default_state(&self) -> BlockState;
 
 }
 

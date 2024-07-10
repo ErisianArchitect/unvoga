@@ -1,10 +1,10 @@
-use super::direction::Direction;
+use super::direction::{Cardinal, Direction};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Coord {
-    x: i32,
-    y: i32,
-    z: i32
+    pub x: i32,
+    pub y: i32,
+    pub z: i32
 }
 
 impl Coord {
@@ -89,6 +89,49 @@ impl std::ops::Add<Direction> for Coord {
             Direction::PosY => Coord::new(self.x, self.y + 1, self.z),
             Direction::PosZ => Coord::new(self.x, self.y, self.z + 1),
         }
+    }
+}
+
+impl std::ops::Add<Cardinal> for Coord {
+    type Output = Coord;
+
+    fn add(self, rhs: Cardinal) -> Self::Output {
+        match rhs {
+            Cardinal::West => Coord::new(self.x - 1, self.y, self.z),
+            Cardinal::East => Coord::new(self.x + 1, self.y, self.z),
+            Cardinal::North => Coord::new(self.x, self.y, self.z - 1),
+            Cardinal::South => Coord::new(self.x, self.y, self.z + 1),
+        }
+    }
+}
+
+impl From<Cardinal> for Coord {
+    fn from(value: Cardinal) -> Self {
+        match value {
+            Cardinal::West  => Coord::new(-1,  0,  0),
+            Cardinal::East  => Coord::new( 1,  0,  0),
+            Cardinal::North => Coord::new( 0,  0, -1),
+            Cardinal::South => Coord::new( 0,  0,  1),
+        }
+    }
+}
+
+impl From<Direction> for Coord {
+    fn from(value: Direction) -> Self {
+        match value {
+            Direction::NegX => Coord::new(-1,  0,  0),
+            Direction::NegY => Coord::new( 0, -1,  0),
+            Direction::NegZ => Coord::new( 0,  0, -1),
+            Direction::PosX => Coord::new( 1,  0,  0),
+            Direction::PosY => Coord::new( 0,  1,  0),
+            Direction::PosZ => Coord::new( 0,  0,  1),
+        }
+    }
+}
+
+impl std::fmt::Display for Coord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {}, {})", self.x, self.y, self.z)
     }
 }
 
