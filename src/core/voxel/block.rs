@@ -24,6 +24,13 @@ pub trait Block: Any {
         neighbor_coord: Coord,
         direction: Direction,
     ) {}
+    fn light_updated(
+        &self,
+        world: &mut World,
+        coord: Coord,
+        old_level: u8,
+        new_level: u8,
+    ) {}
     fn on_place(
         &self,
         world: &mut World,

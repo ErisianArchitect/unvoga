@@ -3,7 +3,7 @@ use rollgrid::RollGrid2D;
 
 use crate::core::voxel::{blocks::StateRef, coord::Coord, engine::VoxelEngine};
 
-use super::chunk::Chunk;
+use super::chunk::{Chunk, LightChange};
 
 // Make sure this value is always a multiple of 16 and
 // preferably a multiple of 128.
@@ -86,26 +86,34 @@ impl World {
         old
     }
 
-    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> u8 {
+    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> LightChange {
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
-        let old = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
+        let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
             chunk.set_block_light(coord, level)
         } else {
             panic!("Out of bounds");
         };
-        old
+        if change.new_max != change.old_max {
+            let block = self.get_block(coord);
+            block.block().light_updated(self, coord, change.old_max, change.new_max);
+        }
+        change
     }
 
-    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> u8 {
+    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> LightChange {
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
-        let old = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
+        let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
             chunk.set_sky_light(coord, level)
         } else {
             panic!("Out of bounds");
         };
-        old
+        if change.new_max != change.old_max {
+            let block = self.get_block(coord);
+            block.block().light_updated(self, coord, change.old_max, change.new_max);
+        }
+        change
     }
 }
 

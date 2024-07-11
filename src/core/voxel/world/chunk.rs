@@ -89,6 +89,13 @@ impl Section {
         old
     }
 
+    /// Returns the maximum of the block light and sky light.
+    pub fn get_light(&self, coord: Coord) -> u8 {
+        let block_light = self.get_block_light(coord);
+        let sky_light = self.get_sky_light(coord);
+        block_light.max(sky_light)
+    }
+
     pub fn get_block_light(&self, coord: Coord) -> u8 {
         if let Some(block_light) = &self.block_light {
             let index = Section::index(coord);
@@ -100,38 +107,58 @@ impl Section {
         }
     }
 
-    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> u8 {
+    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> LightChange {
         let level = level.min(15);
+        let index = Section::index(coord);
+        let mask_index = index / 2;
+        let sub_index = (index & 1);
+        let shift = sub_index * 4;
+        let sky_light = if let Some(sky_light) = &self.sky_light {
+            (sky_light[mask_index] & (0xF << shift)) >> shift
+        } else {
+            0
+        };
         if self.block_light.is_none() {
             if level != 0 {
                 self.block_light = Some(make_empty_section_light());
             } else {
-                return 0;
+                return LightChange {
+                    old_max: sky_light,
+                    old_level: 0,
+                    new_level: 0,
+                    new_max: sky_light,
+                };
             }
         }
         let Some(block_light) = &mut self.block_light else {
             panic!("Should be valid");
         };
-        let index = Section::index(coord);
-        let mask_index = index / 2;
-        let sub_index = (index & 1);
         let other_index = (sub_index - 1) & 1;
         let other_shift = other_index * 4;
-        let shift = sub_index * 4;
-        let old = (block_light[mask_index] & (0xF << shift)) >> shift;
+        let old_level = (block_light[mask_index] & (0xF << shift)) >> shift;
+        let old_max = sky_light.max(old_level);
+        let change = LightChange {
+            old_max,
+            old_level,
+            new_level: level,
+            new_max: old_max.max(level),
+        };
+        if level == old_level {
+            return change;
+        }
         let other = block_light[mask_index] & (0xF << other_shift);
         block_light[mask_index] = other | (level << shift);
 
-        if level != 0 && old == 0 {
+        if level != 0 && old_level == 0 {
             self.block_light_count += 1;
-        } else if level == 0 && old != 0 {
+        } else if level == 0 && old_level != 0 {
             self.block_light_count -= 1;
             if self.block_light_count == 0 {
                 self.block_light = None;
             }
         }
 
-        old
+        change
     }
 
     pub fn get_sky_light(&self, coord: Coord) -> u8 {
@@ -145,36 +172,56 @@ impl Section {
         }
     }
 
-    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> u8 {
+    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> LightChange {
         let level = level.min(15);
+        let index = Section::index(coord);
+        let mask_index = index / 2;
+        let sub_index = (index & 1);
+        let shift = sub_index * 4;
+        let block_light = if let Some(block_light) = &self.block_light {
+            (block_light[mask_index] & (0xF << shift)) >> shift
+        } else {
+            0
+        };
         if self.sky_light.is_none() {
             if level != 0 {
                 self.sky_light = Some(make_empty_section_light());
             } else {
-                return 0;
+                return LightChange {
+                    old_max: block_light,
+                    old_level: 0,
+                    new_level: 0,
+                    new_max: block_light,
+                };
             }
         }
         let Some(sky_light) = &mut self.sky_light else {
             panic!("Should be valid");
         };
-        let index = Section::index(coord);
-        let mask_index = index / 2;
-        let sub_index = (index & 1);
         let other_index = (sub_index - 1) & 1;
         let other_shift = other_index * 4;
-        let shift = sub_index * 4;
-        let old = (sky_light[mask_index] & (0xF << shift)) >> shift;
+        let old_level = (sky_light[mask_index] & (0xF << shift)) >> shift;
+        let old_max = block_light.max(old_level);
+        let change = LightChange {
+            old_max,
+            old_level,
+            new_level: level,
+            new_max: old_max.max(level),
+        };
+        if level == old_level {
+            return change;
+        }
         let other = sky_light[mask_index] & (0xF << other_shift);
         sky_light[mask_index] = other | (level << shift);
-        if level != 0 && old == 0 {
+        if level != 0 && old_level == 0 {
             self.sky_light_count += 1;
-        } else if level == 0 && old != 0 {
+        } else if level == 0 && old_level != 0 {
             self.sky_light_count -= 1;
             if self.sky_light_count == 0 {
                 self.sky_light = None;
             }
         }
-        old
+        change
     }
 }
 
@@ -210,6 +257,12 @@ impl Chunk {
         self.heightmap.set(coord, nonair);
         self.sections[section_index].set(coord, value)
     }
+    
+    /// Returns the maximum of the block light and sky light.
+    pub fn get_light(&self, coord: Coord) -> u8 {
+        let section_index = coord.y as usize / 16;
+        self.sections[section_index].get_light(coord)
+    }
 
     pub fn get_block_light(&self, coord: Coord) -> u8 {
         let section_index = coord.y as usize / 16;
@@ -221,18 +274,32 @@ impl Chunk {
         self.sections[section_index].get_sky_light(coord)
     }
 
-    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> u8 {
+    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> LightChange {
         let section_index = coord.y as usize / 16;
         self.sections[section_index].set_block_light(coord, level)
     }
 
-    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> u8 {
+    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> LightChange {
         let section_index = coord.y as usize / 16;
         self.sections[section_index].set_sky_light(coord, level)
     }
 
     pub fn height(&self, x: i32, z: i32) -> i32 {
         self.heightmap.height(x, z)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LightChange {
+    pub old_max: u8,
+    pub old_level: u8,
+    pub new_max: u8,
+    pub new_level: u8,
+}
+
+impl LightChange {
+    pub fn changed(self) -> bool {
+        self.new_level != self.old_level
     }
 }
 
