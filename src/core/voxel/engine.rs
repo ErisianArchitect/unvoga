@@ -1,23 +1,23 @@
 use std::{borrow::Borrow, cell::{Ref, RefCell, RefMut}};
 
-use crate::{blockstate, core::voxel::{block::Block, blockregistry::{BlockId, StateId}, blockstate::State, coord::Coord, direction::{Cardinal, Direction}, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape}};
+use crate::{blockstate, core::voxel::{block::Block, blockstate::State, coord::Coord, direction::{Cardinal, Direction}, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape}};
 
-use super::{blockregistry::BlockRegistry, world::world::World};
+use super::{world::world::World};
 
 pub struct VoxelEngine {
-    blocks: RefCell<BlockRegistry>,
+    // blocks: RefCell<BlockRegistry>,
     world: RefCell<World>,
     event_queue: (),
 }
 
 impl VoxelEngine {
-    pub fn blocks(&self) -> Ref<BlockRegistry> {
-        self.blocks.borrow()
-    }
+    // pub fn blocks(&self) -> Ref<BlockRegistry> {
+    //     self.blocks.borrow()
+    // }
 
-    pub fn blocks_mut(&self) -> RefMut<BlockRegistry> {
-        self.blocks.borrow_mut()
-    }
+    // pub fn blocks_mut(&self) -> RefMut<BlockRegistry> {
+    //     self.blocks.borrow_mut()
+    // }
 
     pub fn world(&self) -> Ref<World> {
         self.world.borrow()

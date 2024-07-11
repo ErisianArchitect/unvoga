@@ -2,11 +2,13 @@ use std::{borrow::Borrow, ops::{Deref, Index}, sync::{atomic::{AtomicBool, Order
 
 use bevy::utils::hashbrown::HashMap;
 
-use super::{block::Block, blockstate::{BlockState, State}};
+use crate::{blockstate, core::voxel::blockstate};
+
+use super::{block::Block, blockstate::{BlockState, State}, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape};
 
 struct RegistryEntry {
     state: BlockState,
-    block_id: BlockRef,
+    block_ref: BlockRef,
 }
 
 static mut STATES: OnceLock<Vec<RegistryEntry>> = OnceLock::new();
@@ -26,6 +28,8 @@ fn init() -> bool {
         BLOCKS.set(Vec::new());
         ID_LOOKUP.set(HashMap::new());
         BLOCK_LOOKUP.set(HashMap::new());
+        register_block(AirBlock);
+        register_state(blockstate!(air));
         true
     }
 }
@@ -47,7 +51,7 @@ pub fn register_state<B: Borrow<BlockState>>(state: B) -> StateRef {
         let states = STATES.get_mut().expect("Failed to get");
         let id = states.len() as u32;
         id_lookup.insert(state.clone(), StateRef(id));
-        states.push(RegistryEntry { block_id, state });
+        states.push(RegistryEntry { block_ref: block_id, state });
         StateRef(id)
     }
 }
@@ -88,6 +92,13 @@ pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockRef> {
     }
 }
 
+pub fn get_block_ref(id: StateRef) -> BlockRef {
+    unsafe {
+        let states = STATES.get().expect("Failed to get");
+        states[id.0 as usize].block_ref
+    }
+}
+
 pub fn get_state(id: StateRef) -> &'static BlockState {
     // StateRef is only issued by the registry, so this doesn't need
     // to call init because it can be assumed that init has already
@@ -113,7 +124,7 @@ pub fn get_block(id: BlockRef) -> &'static dyn Block {
 pub fn get_block_for(id: StateRef) -> &'static dyn Block {
     unsafe {
         let states = STATES.get().expect("Failed to get");
-        let block_id = states[id.0 as usize].block_id;
+        let block_id = states[id.0 as usize].block_ref;
         let blocks = BLOCKS.get().expect("Failed to get");
         blocks[block_id.0 as usize].as_ref()
     }
@@ -122,7 +133,7 @@ pub fn get_block_for(id: StateRef) -> &'static dyn Block {
 pub fn get_state_and_block(id: StateRef) -> (&'static BlockState, &'static dyn Block) {
     unsafe {
         let states = STATES.get().expect("Failed to get");
-        let block_id = states[id.0 as usize].block_id;
+        let block_id = states[id.0 as usize].block_ref;
         let state = &states[id.0 as usize].state;
         let blocks = BLOCKS.get().expect("Failed to get");
         let block = blocks[block_id.0 as usize].as_ref();
@@ -137,19 +148,32 @@ pub struct StateRef(u32);
 pub struct BlockRef(u32);
 
 impl StateRef {
+    pub const AIR: Self = StateRef(0);
     /// Make sure you don't register any states while this reference is held.
-    pub unsafe fn state(self) -> &'static BlockState {
+    pub unsafe fn unsafe_state(self) -> &'static BlockState {
         get_state(self)
     }
 
     /// Make sure you don't register any blocks while this reference is held.
-    pub unsafe fn block(self) -> &'static dyn Block {
+    pub unsafe fn unsafe_block(self) -> &'static dyn Block {
         get_block_for(self)
     }
 
+    pub fn block(self) -> BlockRef {
+        get_block_ref(self)
+    }
+
     /// Don't register anything while these references are held.
-    pub unsafe fn state_and_block(self) -> (&'static BlockState, &'static dyn Block) {
+    pub unsafe fn unsafe_state_and_block(self) -> (&'static BlockState, &'static dyn Block) {
         get_state_and_block(self)
+    }
+
+    pub fn id(self) -> u32 {
+        self.0
+    }
+
+    pub fn is_air(self) -> bool {
+        self.0 == 0
     }
 }
 
@@ -163,8 +187,12 @@ impl<S: AsRef<str>> Index<S> for StateRef {
 }
 
 impl BlockRef {
-    pub fn get(self) -> &'static dyn Block {
+    pub unsafe fn unsafe_block(self) -> &'static dyn Block {
         get_block(self)
+    }
+
+    pub fn id(self) -> u32 {
+        self.0
     }
 }
 
@@ -193,5 +221,34 @@ impl Deref for BlockRef {
 impl std::fmt::Display for StateRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.write_fmt(f)
+    }
+}
+
+pub struct AirBlock;
+
+impl Block for AirBlock {
+    
+    fn name(&self) -> &str {
+        "air"
+    }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
+    fn light_args(&self) -> LightArgs {
+        LightArgs::new(1, 0)
+    }
+
+    fn occlusion_shapes(&self) -> &super::faces::Faces<super::occlusion_shape::OcclusionShape> {
+        &OcclusionShape::EMPTY_FACES
+    }
+
+    fn default_state(&self) -> BlockState {
+        blockstate!(air)
     }
 }

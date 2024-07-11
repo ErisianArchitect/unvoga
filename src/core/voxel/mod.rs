@@ -7,7 +7,7 @@ pub mod coord;
 pub mod direction;
 pub mod world;
 pub mod engine;
-pub mod blockregistry;
+// pub mod blockregistry;
 pub mod blockstate;
 pub mod blocks;
 
@@ -15,7 +15,7 @@ pub mod blocks;
 mod tests {
     use std::any::Any;
 
-    use crate::{blockstate, core::voxel::block::Block};
+    use crate::{blockstate, core::voxel::{block::Block, coord::Coord, world::world::World}};
 
     use super::blocks;
 
@@ -84,8 +84,9 @@ mod tests {
         let test = blocks::register_state(blockstate!(air, test = "Hello, world"));
         let test2 = blocks::register_state(blockstate!(air, test = "test"));
         let test3 = blocks::register_state(blockstate!(air, test = "test3"));
-        
-        println!("{}", air);
+        // let mut world = World {};
+        // world.set_block(Coord::new(1, 2, 3), air);
+        println!("{}", air.block().light_args().filter());
         println!("{}", test2);
     }
 }

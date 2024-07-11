@@ -8,6 +8,8 @@ If you're making an occluder on the Z axis, use X for X and Y for Y.
 If you want to rotate an occluder, good luck.
 */
 
+use super::faces::Faces;
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OcclusionShape16x16([u16; 16]);
 
@@ -174,6 +176,22 @@ pub enum OcclusionShape {
 }
 
 impl OcclusionShape {
+    pub const FULL_FACES: Faces<OcclusionShape> = Faces {
+        neg_x: OcclusionShape::Full,
+        neg_y: OcclusionShape::Full,
+        neg_z: OcclusionShape::Full,
+        pos_x: OcclusionShape::Full,
+        pos_y: OcclusionShape::Full,
+        pos_z: OcclusionShape::Full,
+    };
+    pub const EMPTY_FACES: Faces<OcclusionShape> = Faces {
+        neg_x: OcclusionShape::None,
+        neg_y: OcclusionShape::None,
+        neg_z: OcclusionShape::None,
+        pos_x: OcclusionShape::None,
+        pos_y: OcclusionShape::None,
+        pos_z: OcclusionShape::None,
+    };
     pub fn is_none(&self) -> bool {
         matches!(self, OcclusionShape::None)
     }

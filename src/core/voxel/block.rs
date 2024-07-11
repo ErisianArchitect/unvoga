@@ -1,5 +1,5 @@
 use std::any::Any;
-use super::{blockregistry::BlockRegistry, blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape, world::world::World};
+use super::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape, world::world::World};
 
 pub trait Block: Any {
     fn as_any(&self) -> &dyn Any;
