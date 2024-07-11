@@ -2,7 +2,7 @@ use bevy::prelude::state_changed;
 
 use crate::core::voxel::{blocks::StateRef, coord::Coord};
 
-use super::{heightmap::Heightmap, world::WORLD_HEIGHT};
+use super::{dirty::Dirty, heightmap::Heightmap, world::WORLD_HEIGHT};
 
 pub struct SectionBlocks {
     blocks: Box<[StateRef]>
@@ -26,12 +26,16 @@ fn make_empty_section_light() -> Box<[u8]> {
 
 // 20480 bytes
 pub struct Section {
-    blocks: Option<Box<[StateRef]>>,
-    block_light: Option<Box<[u8]>>,
-    sky_light: Option<Box<[u8]>>,
-    block_count: u16,
-    block_light_count: u16,
-    sky_light_count: u16,
+    pub blocks: Option<Box<[StateRef]>>,
+    pub block_light: Option<Box<[u8]>>,
+    pub sky_light: Option<Box<[u8]>>,
+    pub block_count: u16,
+    pub block_light_count: u16,
+    pub sky_light_count: u16,
+    pub blocks_dirty: Dirty,
+    pub block_light_dirty: Dirty,
+    pub sky_light_dirty: Dirty,
+    pub section_dirty: Dirty,
 }
 
 impl Section {
@@ -43,6 +47,10 @@ impl Section {
             block_count: 0,
             block_light_count: 0,
             sky_light_count: 0,
+            blocks_dirty: Dirty::new(),
+            block_light_dirty: Dirty::new(),
+            sky_light_dirty: Dirty::new(),
+            section_dirty: Dirty::new(),
         }
     }
 
@@ -62,13 +70,13 @@ impl Section {
         }
     }
 
-    pub fn set(&mut self, coord: Coord, state: StateRef) -> StateRef {
+    pub fn set(&mut self, coord: Coord, state: StateRef) -> SectionUpdate<StateChange> {
         let index = Section::index(coord);
         if self.blocks.is_none() {
             if !state.is_air() {
                 self.blocks = Some(make_empty_section_blocks());
             } else {
-                return StateRef::AIR;
+                return SectionUpdate::new(StateChange::Unchanged);
             }
         }
         let Some(blocks) = &mut self.blocks else {
@@ -85,8 +93,15 @@ impl Section {
                     self.blocks = None;
                 }
             }
+            self.blocks_dirty.mark();
+            if self.section_dirty.mark() {
+                SectionUpdate::new_dirty(StateChange::Changed(old))
+            } else {
+                SectionUpdate::new(StateChange::Changed(old))
+            }
+        } else {
+            SectionUpdate::new(StateChange::Unchanged)
         }
-        old
     }
 
     /// Returns the maximum of the block light and sky light.
@@ -107,7 +122,7 @@ impl Section {
         }
     }
 
-    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> LightChange {
+    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
         let level = level.min(15);
         let index = Section::index(coord);
         let mask_index = index / 2;
@@ -122,12 +137,12 @@ impl Section {
             if level != 0 {
                 self.block_light = Some(make_empty_section_light());
             } else {
-                return LightChange {
+                return SectionUpdate::new(LightChange {
                     old_max: sky_light,
                     old_level: 0,
                     new_level: 0,
                     new_max: sky_light,
-                };
+                });
             }
         }
         let Some(block_light) = &mut self.block_light else {
@@ -144,7 +159,7 @@ impl Section {
             new_max: old_max.max(level),
         };
         if level == old_level {
-            return change;
+            return SectionUpdate::new(change);
         }
         let other = block_light[mask_index] & (0xF << other_shift);
         block_light[mask_index] = other | (level << shift);
@@ -157,8 +172,13 @@ impl Section {
                 self.block_light = None;
             }
         }
+        self.block_light_dirty.mark();
+        if self.section_dirty.mark() {
+            SectionUpdate::new_dirty(change)
+        } else {
+            SectionUpdate::new(change)
+        }
 
-        change
     }
 
     pub fn get_sky_light(&self, coord: Coord) -> u8 {
@@ -172,7 +192,7 @@ impl Section {
         }
     }
 
-    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> LightChange {
+    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
         let level = level.min(15);
         let index = Section::index(coord);
         let mask_index = index / 2;
@@ -187,12 +207,12 @@ impl Section {
             if level != 0 {
                 self.sky_light = Some(make_empty_section_light());
             } else {
-                return LightChange {
+                return SectionUpdate::new(LightChange {
                     old_max: block_light,
                     old_level: 0,
                     new_level: 0,
                     new_max: block_light,
-                };
+                });
             }
         }
         let Some(sky_light) = &mut self.sky_light else {
@@ -209,7 +229,7 @@ impl Section {
             new_max: old_max.max(level),
         };
         if level == old_level {
-            return change;
+            return SectionUpdate::new(change);
         }
         let other = sky_light[mask_index] & (0xF << other_shift);
         sky_light[mask_index] = other | (level << shift);
@@ -221,15 +241,20 @@ impl Section {
                 self.sky_light = None;
             }
         }
-        change
+        self.sky_light_dirty.mark();
+        if self.section_dirty.mark() {
+            SectionUpdate::new_dirty(change)
+        } else {
+            SectionUpdate::new(change)
+        }
     }
 }
 
 pub struct Chunk {
-    sections: Box<[Section]>,
-    heightmap: Heightmap,
+    pub sections: Box<[Section]>,
+    pub heightmap: Heightmap,
     /// The offset block coordinate.
-    offset: Coord,
+    pub offset: Coord,
 }
 
 impl Chunk {
@@ -245,47 +270,47 @@ impl Chunk {
     pub fn get(&self, coord: Coord) -> StateRef {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
-        let section_index = coord.y as usize / 16;
+        let section_index = (coord.y - self.offset.y) as usize / 16;
         self.sections[section_index].get(coord)
     }
 
-    pub fn set(&mut self, coord: Coord, value: StateRef) -> StateRef {
+    pub fn set(&mut self, coord: Coord, value: StateRef) -> SectionUpdate<StateChange> {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
-        let section_index = coord.y as usize / 16;
+        let section_index = (coord.y - self.offset.y) as usize / 16;
         let nonair = value != StateRef::AIR;
-        self.heightmap.set(coord, nonair);
+        self.heightmap.set(Coord::new(coord.x, coord.y - self.offset.y, coord.z), nonair);
         self.sections[section_index].set(coord, value)
     }
     
     /// Returns the maximum of the block light and sky light.
     pub fn get_light(&self, coord: Coord) -> u8 {
-        let section_index = coord.y as usize / 16;
+        let section_index = (coord.y - self.offset.y) as usize / 16;
         self.sections[section_index].get_light(coord)
     }
 
     pub fn get_block_light(&self, coord: Coord) -> u8 {
-        let section_index = coord.y as usize / 16;
+        let section_index = (coord.y - self.offset.y) as usize / 16;
         self.sections[section_index].get_block_light(coord)
     }
 
     pub fn get_sky_light(&self, coord: Coord) -> u8 {
-        let section_index = coord.y as usize / 16;
+        let section_index = (coord.y - self.offset.y) as usize / 16;
         self.sections[section_index].get_sky_light(coord)
     }
 
-    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> LightChange {
-        let section_index = coord.y as usize / 16;
+    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
+        let section_index = (coord.y - self.offset.y) as usize / 16;
         self.sections[section_index].set_block_light(coord, level)
     }
 
-    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> LightChange {
-        let section_index = coord.y as usize / 16;
+    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
+        let section_index = (coord.y - self.offset.y) as usize / 16;
         self.sections[section_index].set_sky_light(coord, level)
     }
 
     pub fn height(&self, x: i32, z: i32) -> i32 {
-        self.heightmap.height(x, z)
+        self.heightmap.height(x, z) + self.offset.y
     }
 }
 
@@ -298,8 +323,50 @@ pub struct LightChange {
 }
 
 impl LightChange {
+    #[inline]
     pub fn changed(self) -> bool {
         self.new_level != self.old_level
+    }
+
+    #[inline]
+    pub fn max_changed(self) -> bool {
+        self.new_max != self.old_max
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum StateChange {
+    Unchanged,
+    Changed(StateRef)
+}
+
+impl StateChange {
+    pub fn changed(self) -> bool {
+        matches!(self, StateChange::Changed(_))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SectionUpdate<T: Clone + Copy + PartialEq + Eq + std::hash::Hash> {
+    /// Determines if the section was marked dirty during this update.
+    pub marked_dirty: bool,
+    pub change: T,
+}
+
+impl<T: Clone + Copy + PartialEq + Eq + std::hash::Hash> SectionUpdate<T> {
+    pub fn new_dirty(change: T) -> Self {
+        Self {
+            marked_dirty: true,
+            change
+        }
+    }
+
+    /// Not marked dirty
+    pub fn new(change: T) -> Self {
+        Self {
+            marked_dirty: false,
+            change
+        }
     }
 }
 
