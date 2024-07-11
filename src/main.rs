@@ -2,6 +2,7 @@
 
 // Unnamed Voxel Game
 
+use core::voxel::{block::Block, blocks, coord::Coord};
 use std::fmt::{Debug, Display};
 
 use bevy::{
@@ -35,6 +36,7 @@ mod cleanup {
 }
 
 fn main() {
+
     // TODO: Read from configuration file.
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {

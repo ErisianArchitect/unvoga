@@ -1,6 +1,6 @@
-use bevy::prelude::state_changed;
+use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh};
 
-use crate::core::voxel::{blocks::StateRef, coord::Coord};
+use crate::core::voxel::{blocks::StateRef, coord::Coord, rendering::voxel_material::VoxelMaterial};
 
 use super::{dirty::Dirty, heightmap::Heightmap, world::WORLD_HEIGHT};
 
@@ -33,8 +33,7 @@ pub struct Section {
     pub block_light_count: u16,
     pub sky_light_count: u16,
     pub blocks_dirty: Dirty,
-    pub block_light_dirty: Dirty,
-    pub sky_light_dirty: Dirty,
+    pub light_dirty: Dirty,
     pub section_dirty: Dirty,
 }
 
@@ -48,8 +47,7 @@ impl Section {
             block_light_count: 0,
             sky_light_count: 0,
             blocks_dirty: Dirty::new(),
-            block_light_dirty: Dirty::new(),
-            sky_light_dirty: Dirty::new(),
+            light_dirty: Dirty::new(),
             section_dirty: Dirty::new(),
         }
     }
@@ -128,6 +126,7 @@ impl Section {
         let mask_index = index / 2;
         let sub_index = (index & 1);
         let shift = sub_index * 4;
+        // Get the sky light to compare for the max/old max
         let sky_light = if let Some(sky_light) = &self.sky_light {
             (sky_light[mask_index] & (0xF << shift)) >> shift
         } else {
@@ -148,7 +147,7 @@ impl Section {
         let Some(block_light) = &mut self.block_light else {
             panic!("Should be valid");
         };
-        let other_index = (sub_index - 1) & 1;
+        let other_index = ((sub_index as i32 - 1) & 1) as usize;
         let other_shift = other_index * 4;
         let old_level = (block_light[mask_index] & (0xF << shift)) >> shift;
         let old_max = sky_light.max(old_level);
@@ -172,13 +171,16 @@ impl Section {
                 self.block_light = None;
             }
         }
-        self.block_light_dirty.mark();
-        if self.section_dirty.mark() {
-            SectionUpdate::new_dirty(change)
+        if change.new_max != change.old_max {
+            self.light_dirty.mark();
+            if self.section_dirty.mark() {
+                SectionUpdate::new_dirty(change)
+            } else {
+                SectionUpdate::new(change)
+            }
         } else {
             SectionUpdate::new(change)
         }
-
     }
 
     pub fn get_sky_light(&self, coord: Coord) -> u8 {
@@ -198,6 +200,7 @@ impl Section {
         let mask_index = index / 2;
         let sub_index = (index & 1);
         let shift = sub_index * 4;
+        // Get the block light to compare for the max/old max
         let block_light = if let Some(block_light) = &self.block_light {
             (block_light[mask_index] & (0xF << shift)) >> shift
         } else {
@@ -218,7 +221,7 @@ impl Section {
         let Some(sky_light) = &mut self.sky_light else {
             panic!("Should be valid");
         };
-        let other_index = (sub_index - 1) & 1;
+        let other_index = ((sub_index as i32 - 1) & 1) as usize;
         let other_shift = other_index * 4;
         let old_level = (sky_light[mask_index] & (0xF << shift)) >> shift;
         let old_max = block_light.max(old_level);
@@ -241,12 +244,37 @@ impl Section {
                 self.sky_light = None;
             }
         }
-        self.sky_light_dirty.mark();
-        if self.section_dirty.mark() {
-            SectionUpdate::new_dirty(change)
+        if change.new_max != change.old_max {
+            self.light_dirty.mark();
+            if self.section_dirty.mark() {
+                SectionUpdate::new_dirty(change)
+            } else {
+                SectionUpdate::new(change)
+            }
         } else {
             SectionUpdate::new(change)
         }
+    }
+
+    /// Copy max block/sky light into dest (where dest is 4096 slot lightmap stored yzx order).
+    pub fn copy_lightmap(&self, dest: &mut [u8]) {
+        (0..4096).for_each(|i| {
+            let mask_index = i / 2;
+            let sub_index = (i & 1);
+            let shift = sub_index * 4;
+            let block_light = if let Some(block_light) = &self.block_light {
+                (block_light[mask_index] & (0xF << shift)) >> shift
+            } else {
+                0
+            };
+            let sky_light = if let Some(sky_light) = &self.sky_light {
+                (sky_light[mask_index] & (0xF << shift)) >> shift
+            } else {
+                0
+            };
+            let light = block_light.max(sky_light);
+            dest[i] = light;
+        });
     }
 }
 
@@ -314,7 +342,7 @@ impl Chunk {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LightChange {
     pub old_max: u8,
     pub old_level: u8,

@@ -10,6 +10,7 @@ pub mod engine;
 // pub mod blockregistry;
 pub mod blockstate;
 pub mod blocks;
+pub mod rendering;
 
 #[cfg(test)]
 mod tests {

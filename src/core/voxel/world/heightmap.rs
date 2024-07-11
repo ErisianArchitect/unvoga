@@ -40,6 +40,7 @@ impl HeightmapColumn {
         old
     }
 
+    /// Calculates the height by iterating through the bitmasks in the column and counting the leading zeros.
     pub fn height(&self) -> usize {
         for i in (0..self.masks.len()).rev() {
             if self.masks[i] == 0 {
@@ -102,14 +103,16 @@ impl Heightmap {
         let col_index = (x | z << 4) as usize;
         let height = self.heightmap[col_index];
         let old = self.columns[col_index].set(coord.y as usize, value);
-        if value {
-            if coord.y + 1 > height as i32 {
-                self.heightmap[col_index] = (coord.y + 1) as u16;
-            }
-        } else {
-            if coord.y + 1 == height as i32 {
-                let new_height = self.columns[col_index].height();
-                self.heightmap[col_index] = new_height as u16;
+        if value != old {
+            if value {
+                if coord.y + 1 > height as i32 {
+                    self.heightmap[col_index] = (coord.y + 1) as u16;
+                }
+            } else {
+                if coord.y + 1 == height as i32 {
+                    let new_height = self.columns[col_index].height();
+                    self.heightmap[col_index] = new_height as u16;
+                }
             }
         }
         old
