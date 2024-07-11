@@ -15,32 +15,14 @@ pub mod blocks;
 mod tests {
     use std::any::Any;
 
-    use crate::{blockstate, core::voxel::{block::Block, coord::Coord, world::world::World}};
+    use crate::{blockstate, core::voxel::{block::Block, blocks::StateRef, coord::Coord, world::world::World}};
 
     use super::blocks;
 
     #[test]
     fn registry_test() {
-        struct AirBlock;
         struct DirtBlock;
         struct StoneBlock;
-        impl Block for AirBlock {
-            fn as_any(&self) -> &dyn Any {
-                self
-            }
-
-            fn as_any_mut(&mut self) -> &mut dyn Any {
-                self
-            }
-
-            fn name(&self) -> &str {
-                "air"
-            }
-
-            fn default_state(&self) -> super::blockstate::BlockState {
-                blockstate!(air)
-            }
-        }
         impl Block for DirtBlock {
             fn as_any(&self) -> &dyn Any {
                 self
@@ -75,10 +57,9 @@ mod tests {
                 blockstate!(stone)
             }
         }
-        let air_block = blocks::register_block(AirBlock);
         let dirt_block = blocks::register_block(DirtBlock);
         let stone_block = blocks::register_block(StoneBlock);
-        let air = blocks::register_state(air_block.default_state());
+        let air = StateRef::AIR;
         let dirt = blocks::register_state(dirt_block.default_state());
         let stone = blocks::register_state(stone_block.default_state());
         let test = blocks::register_state(blockstate!(air, test = "Hello, world"));
@@ -86,6 +67,7 @@ mod tests {
         let test3 = blocks::register_state(blockstate!(air, test = "test3"));
         // let mut world = World {};
         // world.set_block(Coord::new(1, 2, 3), air);
+        println!("{}", air.block().name());
         println!("{}", air.block().light_args().filter());
         println!("{}", test2);
     }
