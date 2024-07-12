@@ -6,32 +6,6 @@ use crate::core::voxel::direction::Direction;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Rotation(u8);
 
-#[test]
-fn backward_gen() -> std::io::Result<()> {
-    use std::fs::File;
-    use std::io::Write;
-    // use std::fmt::Write;
-    let mut file = File::create("./codegen.rs")?;
-    // let mut file = String::new();
-    writeln!(file, "use Direction::*;")?;
-    writeln!(file, "match self.up() {{")?;
-    let i = "    ";
-    Direction::iter().try_for_each(|dir| {
-        writeln!(file, "{i}{dir:?} => match self.rotation() {{")?;
-        (0..4).try_for_each(|rot| {
-            writeln!(file, "{i}{i}{rot} => match destination {{")?;
-            Direction::iter().try_for_each(|dest| {
-                writeln!(file, "{i}{i}{i}{dest:?} => {:?},", Rotation::new(dir, rot).source_face(dest))
-            });
-            writeln!(file, "{i}{i}}}")
-        });
-        writeln!(file, "{i}{i}_ => unreachable!()\n    }}")
-    });
-    writeln!(file, "}}")?;
-    println!("Code written to file.");
-    Ok(())
-}
-
 impl Rotation {
     pub const fn new(up: Direction, rotation: i32) -> Self {
         let up = up as u8;
@@ -593,7 +567,7 @@ impl Rotation {
                 }
                 _ => unreachable!()
             }
-        }            
+        }
     }
 }
 
@@ -758,5 +732,33 @@ mod tests {
         let rot = Rotation::new(Direction::PosZ, 0);
         let find = rot.source_face(Direction::PosY);
         println!("{find:?}");
+    }
+
+    #[test]
+    fn bootstrap_gen() -> std::io::Result<()> {
+        use std::fs::File;
+        use std::io::BufWriter;
+        use std::io::Write;
+        // use std::fmt::Write;
+        let mut file = File::create("./codegen.rs")?;
+        let mut file = BufWriter::new(file);
+        // let mut file = String::new();
+        writeln!(file, "use Direction::*;")?;
+        writeln!(file, "match self.up() {{")?;
+        let i = "    ";
+        Direction::iter().try_for_each(|dir| {
+            writeln!(file, "{i}{dir:?} => match self.rotation() {{")?;
+            (0..4).try_for_each(|rot| {
+                writeln!(file, "{i}{i}{rot} => match destination {{")?;
+                Direction::iter().try_for_each(|dest| {
+                    writeln!(file, "{i}{i}{i}{dest:?} => {:?},", Rotation::new(dir, rot).source_face(dest))
+                });
+                writeln!(file, "{i}{i}}}")
+            });
+            writeln!(file, "{i}{i}_ => unreachable!()\n    }}")
+        });
+        writeln!(file, "}}")?;
+        println!("Code written to file.");
+        Ok(())
     }
 }
