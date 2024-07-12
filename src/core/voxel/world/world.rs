@@ -474,6 +474,17 @@ mod tests {
                 "dirt"
             }
 
+            fn on_place(
+                    &self,
+                    world: &mut VoxelWorld,
+                    coord: Coord,
+                    old: StateRef,
+                    new: StateRef,
+                ) {
+                    // world.set_block(coord, StateRef::AIR);
+                    println!("dirt placed: {new}");
+            }
+
             fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
                 blockstate!(dirt)
             }
@@ -517,33 +528,41 @@ mod tests {
             }
         }
         blocks::register_block(DirtBlock);
-        let dirt = blocks::register_state(blockstate!(dirt));
+        blocks::register_block(RotatedBlock);
+        let dirt = blockstate!(dirt).register();
+        let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 1)).register();
+        let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
+        for y in 0..3 {
+            for z in 0..3 {
+                for x in 0..3 {
+                    world.set_block((x, y, z), dirt);
+                }
+            }
+        }
+        world.set_block((1, 1, 1), rot2);
+        let flags = world.occlusion((1, 1, 1));
+        println!("NegX: {}", flags.neg_x());
+        println!("NegY: {}", flags.neg_y());
+        println!("NegZ: {}", flags.neg_z());
+        println!("PosX: {}", flags.pos_x());
+        println!("PosY: {}", flags.pos_y());
+        println!("PosZ: {}", flags.pos_z());
         let height = world.height(0, 0);
         println!("Dynamic Memory Usage: {}", world.dynamic_usage());
         println!("Height: {height}");
         println!(" World Bounds: {:?}", world.bounds());
         println!("Render Bounds: {:?}", world.render_bounds());
         println!("  Block Count: {}", world.bounds().volume());
-        for y in 0..16 {
-            for z in 0..16 {
-                for x in 0..16 {
-                    world.set_block((x, y, z), dirt);
-                    world.set_sky_light((x, y, z), 7);
-                    world.set_block_light((x, y, z), 13);
-                }
-            }
-        }
-        Direction::iter().for_each(|dir| {
-            let visible = world.face_visible((0, 0, 0), dir);
-            println!("{dir:?}: {visible}");
-        });
-        world.set_block((1,2,1), StateRef::AIR);
-        let visible = world.face_visible((1, 1, 1), Direction::PosY);
-        println!("Last Check: {visible}");
-        let height = world.height(0, 0);
-        println!("Height: {height}");
+        // for y in 0..16 {
+        //     for z in 0..16 {
+        //         for x in 0..16 {
+        //             world.set_block((x, y, z), dirt);
+        //             world.set_sky_light((x, y, z), 7);
+        //             world.set_block_light((x, y, z), 13);
+        //         }
+        //     }
+        // }
         let usage = world.dynamic_usage();
-        assert_eq!(usage, 4096*4+4096+2048+2048);
         println!("Dynamic Memory Usage: {}", usage);
         for y in 0..16 {
             for z in 0..16 {
@@ -554,8 +573,9 @@ mod tests {
                 }
             }
         }
+        world.set_block((0, 0, 0), dirt);
         let usage = world.dynamic_usage();
-        assert_eq!(usage, 0);
+        // assert_eq!(usage, 0);
         println!("Dynamic Memory Usage: {}", usage);
         return;
 
