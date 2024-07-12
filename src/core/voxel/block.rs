@@ -1,4 +1,6 @@
 use std::any::Any;
+use crate::core::math::coordmap::Rotation;
+
 use super::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape, world::world::VoxelWorld};
 
 pub trait Block: Any {
@@ -15,6 +17,9 @@ pub trait Block: Any {
             OcclusionShape::Full,
         );
         &FULL_FACES
+    }
+    fn block_rotation(&self, state: StateRef) -> Rotation {
+        Rotation::new(Direction::PosY, 0)
     }
     fn light_args(&self) -> LightArgs { LightArgs::new(15, 0) }
     fn neighbor_updated(

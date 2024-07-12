@@ -176,14 +176,16 @@ impl VoxelWorld {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
                 let block = state.block();
+                let my_rotation = block.block_rotation(state);
                 block.on_place(self, coord, state);
                 let my_occluder = block.occlusion_shapes();
                 let neighbors = self.neighbors(coord);
                 Direction::iter().for_each(|dir| {
                     let inv = dir.invert();
                     let neighbor_block = neighbors[dir].block();
-                    let neighbor_occluder = &neighbor_block.occlusion_shapes()[inv];
-                    let face_occluder = &my_occluder[dir];
+                    let neighbor_rotation = neighbor_block.block_rotation(neighbors[dir]);
+                    let face_occluder = &my_occluder[my_rotation.source_face(dir)];
+                    let neighbor_occluder = &neighbor_block.occlusion_shapes()[neighbor_rotation.source_face(inv)];
                     let neighbor_coord = coord + dir;
                     if neighbor_occluder.occluded_by(face_occluder) {
                         self.hide_face(neighbor_coord, inv);
