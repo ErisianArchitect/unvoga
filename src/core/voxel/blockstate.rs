@@ -1,8 +1,8 @@
-use std::{fmt::Debug, ops::{Index, IndexMut}};
+use std::{borrow::Borrow, fmt::Debug, ops::{Index, IndexMut}};
 
 use crate::core::util::traits::StrToOwned;
 
-use super::{coord::Coord, direction::{Cardinal, Direction}};
+use super::{blocks::{self, StateRef}, coord::Coord, direction::{Cardinal, Direction}};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockState {
@@ -76,6 +76,16 @@ impl BlockState {
         } else {
             None
         }
+    }
+
+    /// Registers this [BlockState] with this block registry.
+    pub fn register(&self) -> StateRef {
+        blocks::register_state(self)
+    }
+
+    /// Finds the [BlockState] in the block registry.
+    pub fn find(&self) -> Option<StateRef> {
+        blocks::find_state(self)
     }
 }
 
@@ -161,6 +171,17 @@ macro_rules! blockstate {
             )*)?
         ])
     };
+}
+
+impl<B: Borrow<BlockState>> From<B> for StateRef {
+    fn from(value: B) -> Self {
+        blocks::register_state(value)
+    }
+}
+
+#[test]
+fn quick() {
+    let state: StateRef = blockstate!(air).into();
 }
 
 impl std::fmt::Display for State {

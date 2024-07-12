@@ -4195,6 +4195,7 @@ dependencies = [
  "bevy_egui",
  "image 0.25.1",
  "itertools 0.13.0",
+ "paste",
  "rand",
  "rollgrid",
  "thiserror",

@@ -1,3 +1,5 @@
+use rollgrid::rollgrid3d::Bounds3D;
+
 use crate::core::math::grid;
 
 use super::{direction::{Cardinal, Direction}, world::chunkcoord::ChunkCoord};
@@ -56,11 +58,13 @@ impl Coord {
         })
     }
 
+    /// Divides X and Z by 16 and returns them as ChunkCoord.
     #[inline]
     pub const fn chunk_coord(self) -> ChunkCoord {
         ChunkCoord::new(self.x / 16, self.z / 16)
     }
 
+    /// Divides each component by 16.
     #[inline]
     pub const fn section_coord(self) -> Coord {
         Self::new(self.x / 16, self.y / 16, self.z / 16)
@@ -89,6 +93,63 @@ impl Coord {
             y: grid::snap(self.y, snap, offset),
             z: grid::snap(self.z, snap, offset)
         }
+    }
+
+    #[inline]
+    pub fn clamp(self, bounds: Bounds3D) -> Self {
+        Self::new(
+            self.x.min(bounds.max.0).max(bounds.min.0),
+            self.y.min(bounds.max.1).max(bounds.min.1),
+            self.z.min(bounds.max.2).max(bounds.min.2),
+        )
+    }
+
+    #[inline]
+    pub fn clamp_x(self, min: i32, max: i32) -> Self {
+        Self::new(
+            self.x.min(max).max(min),
+            self.y,
+            self.z
+        )
+    }
+
+    #[inline]
+    pub fn clamp_y(self, min: i32, max: i32) -> Self {
+        Self::new(
+            self.x,
+            self.y.min(max).max(min),
+            self.z
+        )
+    }
+
+    #[inline]
+    pub fn clamp_z(self, min: i32, max: i32) -> Self {
+        Self::new(
+            self.x,
+            self.y,
+            self.z.min(max).max(min)
+        )
+    }
+
+    pub fn checked_add(self, rhs: Coord) -> Option<Self> {
+        Some(Self::new(
+            self.x.checked_add(rhs.x)?,
+            self.y.checked_add(rhs.y)?,
+            self.z.checked_add(rhs.z)?,
+        ))
+    }
+
+    pub fn checked_sub(self, rhs: Coord) -> Option<Self> {
+        Some(Self::new(
+            self.x.checked_sub(rhs.x)?,
+            self.y.checked_sub(rhs.y)?,
+            self.z.checked_sub(rhs.z)?,
+        ))
+    }
+
+    pub fn checked_neighbor(self, direction: Direction) -> Option<Self> {
+        let dir: Coord = direction.into();
+        self.checked_add(dir)
     }
 }
 

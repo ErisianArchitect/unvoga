@@ -176,22 +176,22 @@ pub enum OcclusionShape {
 }
 
 impl OcclusionShape {
-    pub const FULL_FACES: Faces<OcclusionShape> = Faces {
-        neg_x: OcclusionShape::Full,
-        neg_y: OcclusionShape::Full,
-        neg_z: OcclusionShape::Full,
-        pos_x: OcclusionShape::Full,
-        pos_y: OcclusionShape::Full,
-        pos_z: OcclusionShape::Full,
-    };
-    pub const EMPTY_FACES: Faces<OcclusionShape> = Faces {
-        neg_x: OcclusionShape::None,
-        neg_y: OcclusionShape::None,
-        neg_z: OcclusionShape::None,
-        pos_x: OcclusionShape::None,
-        pos_y: OcclusionShape::None,
-        pos_z: OcclusionShape::None,
-    };
+    pub const FULL_FACES: Faces<OcclusionShape> = Faces::new(
+        OcclusionShape::Full,
+        OcclusionShape::Full,
+        OcclusionShape::Full,
+        OcclusionShape::Full,
+        OcclusionShape::Full,
+        OcclusionShape::Full,
+    );
+    pub const EMPTY_FACES: Faces<OcclusionShape> = Faces::new(
+        OcclusionShape::None,
+        OcclusionShape::None,
+        OcclusionShape::None,
+        OcclusionShape::None,
+        OcclusionShape::None,
+        OcclusionShape::None,
+    );
     pub fn is_none(&self) -> bool {
         matches!(self, OcclusionShape::None)
     }

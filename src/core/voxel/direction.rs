@@ -25,6 +25,10 @@ pub enum Cardinal {
 }
 
 impl Cardinal {
+    pub const FORWARD: Cardinal = Cardinal::North;
+    pub const BACKWARD: Cardinal = Cardinal::South;
+    pub const RIGHT: Cardinal = Cardinal::East;
+    pub const LEFT: Cardinal = Cardinal::West;
     /// Ordered: West, East, North, South
     /// West and East, North and South are grouped together for certain desirable effects.
     pub const ALL: [Cardinal; 4] = [
@@ -78,6 +82,12 @@ impl Direction {
         Direction::PosY,
         Direction::PosZ
     ];
+    pub const LEFT: Direction = Direction::NegX;
+    pub const DOWN: Direction = Direction::NegY;
+    pub const FORWARD: Direction = Direction::NegZ;
+    pub const RIGHT: Direction = Direction::PosX;
+    pub const UP: Direction = Direction::PosY;
+    pub const BACKWARD: Direction = Direction::PosZ;
 
     pub const fn invert(self) -> Self {
         match self {

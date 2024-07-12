@@ -1,18 +1,43 @@
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh};
 
-use crate::core::voxel::{blocks::StateRef, coord::Coord, rendering::voxelmaterial::VoxelMaterial};
+use crate::core::voxel::{blocks::StateRef, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial};
 
 use super::{dirty::Dirty, heightmap::Heightmap, world::WORLD_HEIGHT};
 
-pub struct SectionBlocks {
-    blocks: Box<[StateRef]>
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OcclusionFlags(u8);
+
+impl OcclusionFlags {
+    pub const UNOCCLUDED: Self = OcclusionFlags(0b111111);
+    pub const OCCLUDED: Self = OcclusionFlags(0);
+    const FLAGS_MASK: u8 = 0b111111;
+    #[inline]
+    pub fn hide(&mut self, face: Direction) -> bool {
+        let bit = face.bit();
+        let old = self.0 & bit == bit;
+        self.0 = self.0 & !bit;
+        old
+    }
+
+    #[inline]
+    pub fn show(&mut self, face: Direction) -> bool {
+        let bit = face.bit();
+        let old = self.0 & bit == bit;
+        self.0 = self.0 | bit;
+        old
+    }
+
+    #[inline]
+    pub fn visible(self, face: Direction) -> bool {
+        let bit = face.bit();
+        self.0 & bit == bit
+    }
 }
 
-impl SectionBlocks {
-    pub fn new() -> Self {
-        Self {
-            blocks: (0..4096).map(|_| StateRef::AIR).collect()
-        }
+impl std::ops::BitAnd<Direction> for OcclusionFlags {
+    type Output = bool;
+    fn bitand(self, rhs: Direction) -> Self::Output {
+        self.visible(rhs)
     }
 }
 
@@ -27,9 +52,11 @@ fn make_empty_section_light() -> Box<[u8]> {
 // 20480 bytes
 pub struct Section {
     pub blocks: Option<Box<[StateRef]>>,
+    pub occlusion: Option<Box<[OcclusionFlags]>>,
     pub block_light: Option<Box<[u8]>>,
     pub sky_light: Option<Box<[u8]>>,
     pub block_count: u16,
+    pub occlusion_count: u16,
     pub block_light_count: u16,
     pub sky_light_count: u16,
     pub blocks_dirty: Dirty,
@@ -41,15 +68,34 @@ impl Section {
     pub fn new() -> Self {
         Self {
             blocks: None,
+            occlusion: None,
             block_light: None,
             sky_light: None,
             block_count: 0,
+            occlusion_count: 0,
             block_light_count: 0,
             sky_light_count: 0,
             blocks_dirty: Dirty::new(),
             light_dirty: Dirty::new(),
             section_dirty: Dirty::new(),
         }
+    }
+
+    pub fn dynamic_usage(&self) -> usize {
+        let mut size = 0;
+        if self.blocks.is_some() {
+            size += 4096 * std::mem::size_of::<StateRef>();
+        }
+        if self.occlusion.is_some() {
+            size += 4096 * std::mem::size_of::<OcclusionFlags>();
+        }
+        if self.block_light.is_some() {
+            size += 2048;
+        }
+        if self.sky_light.is_some() {
+            size += 2048;
+        }
+        size
     }
 
     fn index(coord: Coord) -> usize {
@@ -60,16 +106,24 @@ impl Section {
     }
 
     pub fn get(&self, coord: Coord) -> StateRef {
-        let index = Section::index(coord);
         if let Some(blocks) = &self.blocks {
+            let index = Section::index(coord);
             blocks[index]
         } else {
             StateRef::AIR
         }
     }
 
+    pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
+        if let Some(occlusion) = &self.occlusion {
+            let index = Section::index(coord);
+            occlusion[index].visible(face)
+        } else {
+            true
+        }
+    }
+
     pub fn set(&mut self, coord: Coord, state: StateRef) -> SectionUpdate<StateChange> {
-        let index = Section::index(coord);
         if self.blocks.is_none() {
             if !state.is_air() {
                 self.blocks = Some(make_empty_section_blocks());
@@ -77,6 +131,7 @@ impl Section {
                 return SectionUpdate::new(StateChange::Unchanged);
             }
         }
+        let index = Section::index(coord);
         let Some(blocks) = &mut self.blocks else {
             panic!("Should have been valid");
         };
@@ -100,6 +155,54 @@ impl Section {
         } else {
             SectionUpdate::new(StateChange::Unchanged)
         }
+    }
+
+    pub fn show_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
+        if self.occlusion.is_none() {
+            return SectionUpdate::new(true);
+        }
+        let Some(occlusion) = &mut self.occlusion else {
+            unreachable!()
+        };
+        let index = Section::index(coord);
+        let old_flags = occlusion[index];
+        let old = occlusion[index].show(face);
+        let new_flags = occlusion[index];
+        if new_flags == OcclusionFlags::UNOCCLUDED && old_flags != OcclusionFlags::UNOCCLUDED {
+            self.occlusion_count -= 1;
+            if self.occlusion_count == 0 {
+                self.occlusion = None;
+            }
+        }
+        if !old {
+            self.blocks_dirty.mark();
+            if self.section_dirty.mark() {
+                return SectionUpdate::new_dirty(old);
+            }
+        }
+        SectionUpdate::new(old)
+    }
+
+    pub fn hide_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
+        if self.occlusion.is_none() {
+            self.occlusion = Some((0..4096).map(|_| OcclusionFlags::UNOCCLUDED).collect());
+        }
+        let Some(occlusion) = &mut self.occlusion else {
+            unreachable!()
+        };
+        let index = Section::index(coord);
+        let old_flags = occlusion[index];
+        let old = occlusion[index].hide(face);
+        if old_flags == OcclusionFlags::UNOCCLUDED {
+            self.occlusion_count += 1;
+        }
+        if old {
+            self.blocks_dirty.mark();
+            if self.section_dirty.mark() {
+                return SectionUpdate::new_dirty(old);
+            }
+        }
+        SectionUpdate::new(old)
     }
 
     /// Returns the maximum of the block light and sky light.
@@ -295,11 +398,20 @@ impl Chunk {
         }
     }
 
+    pub fn dynamic_usage(&self) -> usize {
+        self.sections.iter().map(|section| section.dynamic_usage()).sum()
+    }
+
     pub fn get(&self, coord: Coord) -> StateRef {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
         let section_index = (coord.y - self.offset.y) as usize / 16;
         self.sections[section_index].get(coord)
+    }
+
+    pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
+        let section_index = (coord.y - self.offset.y) as usize / 16;
+        self.sections[section_index].face_visible(coord, face)
     }
 
     pub fn set(&mut self, coord: Coord, value: StateRef) -> SectionUpdate<StateChange> {
@@ -309,6 +421,16 @@ impl Chunk {
         let nonair = value != StateRef::AIR;
         self.heightmap.set(Coord::new(coord.x, coord.y - self.offset.y, coord.z), nonair);
         self.sections[section_index].set(coord, value)
+    }
+
+    pub fn show_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
+        let section_index = (coord.y - self.offset.y) as usize / 16;
+        self.sections[section_index].show_face(coord, face)
+    }
+
+    pub fn hide_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
+        let section_index = (coord.y - self.offset.y) as usize / 16;
+        self.sections[section_index].hide_face(coord, face)
     }
     
     /// Returns the maximum of the block light and sky light.
@@ -398,9 +520,29 @@ impl<T: Clone + Copy + PartialEq + Eq + std::hash::Hash> SectionUpdate<T> {
     }
 }
 
-#[test]
-fn wrap_test() {
-    let neg = -235i32;
-    let wrap = neg & 0xF;
-    println!("{wrap} -> {}", neg.rem_euclid(16));
+#[cfg(test)]
+mod tests {
+    use crate::core::voxel::{direction::Direction, world::chunk::OcclusionFlags};
+
+
+    #[test]
+    fn wrap_test() {
+        let neg = -235i32;
+        let wrap = neg & 0xF;
+        println!("{wrap} -> {}", neg.rem_euclid(16));
+    }
+    
+    #[test]
+    fn occlusion_test() {
+        let mut flags = OcclusionFlags::default();
+        Direction::iter().for_each(|dir| {
+            assert!(!flags.visible(dir));
+            flags.show(dir);
+            assert!(flags.visible(dir));
+            flags.hide(dir);
+            assert!(!flags.visible(dir));
+        });
+        assert_eq!(flags.0, 0);
+    }
+    
 }

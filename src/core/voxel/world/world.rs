@@ -4,49 +4,73 @@ use std::collections::VecDeque;
 use bevy::{asset::Handle, render::mesh::Mesh};
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 
-use crate::core::voxel::{blocks::StateRef, coord::Coord, engine::VoxelEngine, rendering::voxelmaterial::VoxelMaterial};
+use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::StateRef, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 
 use super::chunk::{Chunk, LightChange, Section, StateChange};
 
 // Make sure this value is always a multiple of 16 and
 // preferably a multiple of 128.
 pub const WORLD_HEIGHT: usize = 640;
-pub const WORLD_BOTTOM: i32 = -400;
 pub const WORLD_TOP: i32 = WORLD_BOTTOM + WORLD_HEIGHT as i32;
-pub const WORLD_SIZE_MAX: usize = 20;
+pub const WORLD_BOTTOM: i32 = -400;
+pub const WORLD_SIZE_MAX: usize = 64;
 /// The pad size is the added chunk width for light updates.
 /// If WORLD_SIZE_MAX is the range that is visible to the player,
 /// PADDED_WORLD_SIZE_MAX is the range that  has light updates (since
 /// light updates can span multple chunks).
-pub const WORLD_SIZE_MAX_PAD: usize = 2;
-pub const PADDED_WORLD_SIZE_MAX: usize = WORLD_SIZE_MAX + WORLD_SIZE_MAX_PAD;
+pub const WORLD_SIZE_PAD: usize = 2;
+pub const PADDED_WORLD_SIZE_MAX: usize = WORLD_SIZE_MAX + WORLD_SIZE_PAD;
 
-pub struct World {
+macro_rules! cast_coord {
+    ($name:ident) => {
+        let $name: (i32, i32, i32) = $name.into();
+        let $name: Coord = $name.into();
+    };
+}
+
+pub struct VoxelWorld {
     chunks: RollGrid2D<Chunk>,
     render_chunks: RollGrid3D<RenderChunk>,
     dirty_sections: Vec<Coord>,
 }
 
-impl World {
+impl VoxelWorld {
     pub fn new(render_distance: usize, center: Coord) -> Self {
-        if render_distance > PADDED_WORLD_SIZE_MAX {
+        let mut center = center;
+        // clamp Y to world Y range
+        center.y = center.y.min(WORLD_TOP).max(WORLD_BOTTOM);
+        if render_distance + WORLD_SIZE_PAD > PADDED_WORLD_SIZE_MAX {
             panic!("Size greater than {PADDED_WORLD_SIZE_MAX} (PADDED_WORLD_SIZE_MAX)");
         }
-        let full_size = render_distance * 2;
-        let size = render_distance as i32;
-        let (x, y, z) = (center.x, center.y, center.z);
-        let (offx, offy, offz) = (x - 8, y - 8, z - 8);
-        let size_offset = (size - 1) * 16;
-        let (newx, newy, newz) = (
-            (offx & !0xF) - size_offset,
-            (offy & !0xF) - size_offset,
-            (offz & !0xF) - size_offset
-        );
+        let pad_distance = (render_distance + WORLD_SIZE_PAD);
+        let pad_size = pad_distance * 2;
+        let render_size = render_distance * 2;
+        // let pad_half = pad_distance as i32;
+        // let render_half = render_distance as i32;
+        // let (x, y, z) = (center.x, center.y, center.z);
+        // let (offx, offy, offz) = (x - 8, y - 8, z - 8);
+        // let pad_offset = (pad_half - 1) * 16;
+        // let render_offset = (render_half - 1) * 16;
+        // let (padx, pady, padz) = (
+        //     (offx & !0xF) - pad_offset,
+        //     (offy & !0xF) - pad_offset,
+        //     (offz & !0xF) - pad_offset
+        // );
+        // let (rendx, rendy, rendz) = (
+        //     (offx & !0xF) - render_offset,
+        //     (offy & !0xF) - render_offset,
+        //     (offz & !0xF) - render_offset
+        // );
+        // let clamp_top = WORLD_TOP - render_size as i32;
+        // let rendy = rendy.min(clamp_top).max(WORLD_BOTTOM);
+        let render_height = (render_distance * 2).max(WORLD_HEIGHT);
+        let (chunk_x, chunk_z) = calculate_center_offset(pad_distance as i32, center).chunk_coord().xz();
+        let (render_x, render_y, render_z) = calculate_center_offset(render_distance as i32, center).clamp_y(WORLD_BOTTOM, WORLD_TOP - render_height as i32).section_coord().xyz();
         Self {
-            chunks: RollGrid2D::new_with_init(full_size, full_size, (newx / 16, newz / 16), |(x, z): (i32, i32)| {
+            chunks: RollGrid2D::new_with_init(pad_size, pad_size, (chunk_x, chunk_z), |(x, z): (i32, i32)| {
                 Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
             }),
-            render_chunks: RollGrid3D::new_with_init(full_size, full_size, full_size, (newx / 16, newy / 16, newz / 16), |pos: Coord| {
+            render_chunks: RollGrid3D::new_with_init(render_size, render_size.min(WORLD_HEIGHT / 16), render_size, (render_x, render_y, render_z), |pos: Coord| {
                 Some(RenderChunk {
                     mesh: Handle::default(),
                     material: Handle::default(),
@@ -89,7 +113,9 @@ impl World {
         Some(&mut chunk.sections[y as usize])
     }
 
-    pub fn get_block(&self, coord: Coord) -> StateRef {
+    pub fn get_block<C: Into<(i32, i32, i32)>>(&self, coord: C) -> StateRef {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
@@ -99,7 +125,9 @@ impl World {
         }
     }
 
-    pub fn get_block_light(&self, coord: Coord) -> u8 {
+    pub fn get_block_light<C: Into<(i32, i32, i32)>>(&self, coord: C) -> u8 {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
@@ -109,7 +137,9 @@ impl World {
         }
     }
 
-    pub fn get_sky_light(&self, coord: Coord) -> u8 {
+    pub fn get_sky_light<C: Into<(i32, i32, i32)>>(&self, coord: C) -> u8 {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
@@ -119,8 +149,22 @@ impl World {
         }
     }
 
-    pub fn set_block(&mut self, coord: Coord, state: StateRef) -> StateRef {
-        // let blocks = engine.blocks();
+    pub fn face_visible<C: Into<(i32, i32, i32)>>(&self, coord: C, face: Direction) -> bool {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        let chunk_x = coord.x / 16;
+        let chunk_z = coord.z / 16;
+        if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
+            chunk.face_visible(coord, face)
+        } else {
+            true
+        }
+    }
+
+    pub fn set_block<C: Into<(i32, i32, i32)>, S: Into<StateRef>>(&mut self, coord: C, state: S) -> StateRef {
+        let state: StateRef = state.into();
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
@@ -131,18 +175,79 @@ impl World {
         match change.change {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
-                state.block().on_place(self, coord, state);
+                let block = state.block();
+                block.on_place(self, coord, state);
+                let my_occluder = block.occlusion_shapes();
+                let neighbors = self.neighbors(coord);
+                Direction::iter().for_each(|dir| {
+                    let inv = dir.invert();
+                    let neighbor_block = neighbors[dir].block();
+                    let neighbor_occluder = &neighbor_block.occlusion_shapes()[inv];
+                    let face_occluder = &my_occluder[dir];
+                    let neighbor_coord = coord + dir;
+                    if neighbor_occluder.occluded_by(face_occluder) {
+                        self.hide_face(neighbor_coord, inv);
+                    } else {
+                        self.show_face(neighbor_coord, inv);
+                    }
+                    if face_occluder.occluded_by(neighbor_occluder) {
+                        self.hide_face(coord, dir);
+                    } else {
+                        self.show_face(coord, dir);
+                    }
+                });
                 if change.marked_dirty {
-                    let section_coord = coord.section_coord();
-                    
-                    self.dirty_sections.push(section_coord);
+                    if self.render_bounds().contains(coord.xyz()) {
+                        let section_coord = coord.section_coord();
+                        self.dirty_sections.push(section_coord);
+                    }
                 }
                 old
             },
         }
     }
 
-    pub fn set_block_light(&mut self, coord: Coord, level: u8) -> LightChange {
+    pub fn show_face<C: Into<(i32, i32, i32)>>(&mut self, coord: C, face: Direction) -> bool {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        let chunk_x = coord.x / 16;
+        let chunk_z = coord.z / 16;
+        let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
+            chunk.show_face(coord, face)
+        } else {
+            return true;
+        };
+        if change.marked_dirty {
+            if self.render_bounds().contains(coord.xyz()) {
+                let section_coord = coord.section_coord();
+                self.dirty_sections.push(section_coord);
+            }
+        }
+        change.change
+    }
+
+    pub fn hide_face<C: Into<(i32, i32, i32)>>(&mut self, coord: C, face: Direction) -> bool {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        let chunk_x = coord.x / 16;
+        let chunk_z = coord.z / 16;
+        let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
+            chunk.hide_face(coord, face)
+        } else {
+            return true;
+        };
+        if change.marked_dirty {
+            if self.render_bounds().contains(coord.xyz()) {
+                let section_coord = coord.section_coord();
+                self.dirty_sections.push(section_coord);
+            }
+        }
+        change.change
+    }
+
+    pub fn set_block_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
@@ -151,8 +256,10 @@ impl World {
             return LightChange::default();
         };
         if change.marked_dirty {
-            let section_coord = coord.section_coord();
-            self.dirty_sections.push(section_coord);
+            if self.render_bounds().contains(coord.xyz()) {
+                let section_coord = coord.section_coord();
+                self.dirty_sections.push(section_coord);
+            }
         }
         if change.change.new_max != change.change.old_max {
             let block = self.get_block(coord);
@@ -161,7 +268,9 @@ impl World {
         change.change
     }
 
-    pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> LightChange {
+    pub fn set_sky_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
@@ -170,8 +279,10 @@ impl World {
             return LightChange::default();
         };
         if change.marked_dirty {
-            let section_coord = coord.section_coord();
-            self.dirty_sections.push(section_coord);
+            if self.render_bounds().contains(coord.xyz()) {
+                let section_coord = coord.section_coord();
+                self.dirty_sections.push(section_coord);
+            }
         }
         if change.change.new_max != change.change.old_max {
             let block = self.get_block(coord);
@@ -189,6 +300,81 @@ impl World {
             None
         }
     }
+
+    pub fn neighbors<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Faces<StateRef> {
+        cast_coord!(coord);
+        use Direction::*;
+        macro_rules! get_faces {
+            ($(@$dir:expr),*) => {
+                Faces::new(
+                    $(
+                        if let Some(next) = coord.checked_neighbor($dir) {
+                            self.get_block(next)
+                        } else {
+                            StateRef::AIR
+                        },
+                    )*
+                )
+            };
+        }
+        get_faces!(
+            @NegX,
+            @NegY,
+            @NegZ,
+            @PosX,
+            @PosY,
+            @PosZ
+        )
+    }
+
+    pub fn bounds(&self) -> Bounds3D {
+        let bounds = self.chunks.bounds();
+        let (min_x, min_z) = bounds.min;
+        let (max_x, max_z) = bounds.max;
+        let (min_x, min_z) = (
+            min_x * 16,
+            min_z * 16
+        );
+        let (maxx, maxz) = (
+            max_x * 16,
+            max_z * 16
+        );
+        let min_y = WORLD_BOTTOM;
+        let max_y = WORLD_TOP;
+        Bounds3D::new(
+            (min_x, min_y, min_z),
+            (maxx, max_y, maxz)
+        )
+    }
+
+    pub fn render_bounds(&self) -> Bounds3D {
+        let bounds = self.render_chunks.bounds();
+        let (min_x, min_y, min_z) = bounds.min;
+        let (max_x, max_y, max_z) = bounds.max;
+        let (min_x, min_y, min_z) = (
+            min_x * 16,
+            min_y * 16,
+            min_z * 16
+        );
+        let (max_x, max_y, max_z) = (
+            max_x * 16,
+            max_y * 16,
+            max_z * 16
+        );
+        Bounds3D::new(
+            (min_x, min_y, min_z),
+            (max_x, max_y, max_z)
+        )
+    }
+
+    pub fn dynamic_usage(&self) -> usize {
+        self.chunks.iter().map(|(_, chunk)| {
+            let Some(chunk) = chunk else {
+                return 0;
+            };
+            chunk.dynamic_usage()
+        }).sum()
+    }
 }
 
 struct RenderChunk {
@@ -198,9 +384,9 @@ struct RenderChunk {
 
 #[cfg(test)]
 mod tests {
-    use crate::{blockstate, core::voxel::{block::Block, blocks::{self, StateRef}, coord::Coord, world::world::WORLD_TOP}};
+    use crate::{blockstate, core::voxel::{block::Block, blocks::{self, StateRef}, coord::Coord, direction::Direction, world::world::WORLD_TOP}};
 
-    use super::World;
+    use super::VoxelWorld;
 
     #[test]
     fn center_test() {
@@ -217,7 +403,7 @@ mod tests {
     #[test]
     fn world_test() {
         println!("World Test");
-        let mut world = World::new(16, Coord::new(0, 0, 0));
+        let mut world = VoxelWorld::new(32, Coord::new(0, -10000, 0));
         struct DirtBlock;
         impl Block for DirtBlock {
             fn as_any(&self) -> &dyn std::any::Any {
@@ -238,6 +424,27 @@ mod tests {
         }
         blocks::register_block(DirtBlock);
         let dirt = blocks::register_state(blockstate!(dirt));
+        let height = world.get_height(0, 0).unwrap();
+        println!("Height: {height}");
+        println!(" World Bounds: {:?}", world.bounds());
+        println!("Render Bounds: {:?}", world.render_bounds());
+        println!("  Block Count: {}", world.bounds().volume());
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    world.set_block((x, y, z), dirt);
+                }
+            }
+        }
+        Direction::iter().for_each(|dir| {
+            let visible = world.face_visible((0, 0, 0), dir);
+            println!("{dir:?}: {visible}");
+        });
+        world.set_block((1,2,1), StateRef::AIR);
+        let visible = world.face_visible((1, 1, 1), Direction::PosY);
+        println!("Last Check: {visible}");
+        println!("Height: {height}");
+        return;
 
         let now = std::time::Instant::now();
         for y in 0..64 {
