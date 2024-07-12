@@ -18,7 +18,7 @@ pub trait Block: Any {
         );
         &FULL_FACES
     }
-    fn block_rotation(&self, state: StateRef) -> Rotation {
+    fn rotation(&self, state: StateRef) -> Rotation {
         Rotation::new(Direction::PosY, 0)
     }
     fn light_args(&self, state: StateRef) -> LightArgs {
