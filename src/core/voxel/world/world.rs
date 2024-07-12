@@ -221,7 +221,7 @@ impl VoxelWorld {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
                 let block = state.block();
-                let my_rotation = block.block_rotation(state);
+                let my_rotation = block.rotation(state);
                 if old != StateRef::AIR {
                     let old_block = old.block();
                     old_block.on_remove(self, coord, old, state);
@@ -235,7 +235,7 @@ impl VoxelWorld {
                     let inv = dir.invert();
                     let neighbor = neighbors[dir];
                     let neighbor_block = neighbor.block();
-                    let neighbor_rotation = neighbor_block.block_rotation(neighbors[dir]);
+                    let neighbor_rotation = neighbor_block.rotation(neighbors[dir]);
                     let face_occluder = &my_occluder[my_rotation.source_face(dir)];
                     let neighbor_occluder = &neighbor_block.occlusion_shapes(neighbor)[neighbor_rotation.source_face(inv)];
                     let neighbor_coord = coord + dir;
@@ -519,7 +519,7 @@ mod tests {
                 blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0))
             }
 
-            fn block_rotation(&self, state: StateRef) -> Rotation {
+            fn rotation(&self, state: StateRef) -> Rotation {
                 if let Some(&State::Rotation(rotation)) = state.get_property("rotation") {
                     rotation
                 } else {
@@ -540,6 +540,7 @@ mod tests {
             }
         }
         world.set_block((1, 1, 1), rot2);
+        println!("Block at (1, 1, 1): {}", world.get_block((1, 1, 1)));
         let flags = world.occlusion((1, 1, 1));
         println!("NegX: {}", flags.neg_x());
         println!("NegY: {}", flags.neg_y());
