@@ -163,6 +163,10 @@ impl StateRef {
         get_block_ref(self)
     }
 
+    pub fn light_args(self) -> LightArgs {
+        self.block().light_args(self)
+    }
+
     /// Don't register anything while these references are held.
     pub unsafe fn unsafe_state_and_block(self) -> (&'static BlockState, &'static dyn Block) {
         get_state_and_block(self)
@@ -240,11 +244,11 @@ impl Block for AirBlock {
         self
     }
 
-    fn light_args(&self) -> LightArgs {
+    fn light_args(&self, state: StateRef) -> LightArgs {
         LightArgs::new(1, 0)
     }
 
-    fn occlusion_shapes(&self) -> &super::faces::Faces<super::occlusion_shape::OcclusionShape> {
+    fn occlusion_shapes(&self, state: StateRef) -> &super::faces::Faces<super::occlusion_shape::OcclusionShape> {
         &OcclusionShape::EMPTY_FACES
     }
 

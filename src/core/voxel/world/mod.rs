@@ -4,3 +4,4 @@ pub mod heightmap;
 pub mod dirty;
 pub mod chunkprovider;
 pub mod chunkcoord;
+pub mod blockdata;

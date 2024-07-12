@@ -161,6 +161,16 @@ impl VoxelWorld {
         }
     }
 
+    pub fn height(&self, x: i32, z: i32) -> i32 {
+        let chunk_x = x / 16;
+        let chunk_z = z / 16;
+        if let Some(chunk) = self.chunks.get((x, z)) {
+            chunk.height(x, z)
+        } else {
+            WORLD_BOTTOM
+        }
+    }
+
     pub fn set_block<C: Into<(i32, i32, i32)>, S: Into<StateRef>>(&mut self, coord: C, state: S) -> StateRef {
         let state: StateRef = state.into();
         let coord: (i32, i32, i32) = coord.into();
@@ -177,15 +187,22 @@ impl VoxelWorld {
             StateChange::Changed(old) => {
                 let block = state.block();
                 let my_rotation = block.block_rotation(state);
-                block.on_place(self, coord, state);
-                let my_occluder = block.occlusion_shapes();
+                if old != StateRef::AIR {
+                    let old_block = old.block();
+                    old_block.on_remove(self, coord, old, state);
+                }
+                if state != StateRef::AIR {
+                    block.on_place(self, coord, old, state);
+                }
+                let my_occluder = block.occlusion_shapes(state);
                 let neighbors = self.neighbors(coord);
                 Direction::iter().for_each(|dir| {
                     let inv = dir.invert();
-                    let neighbor_block = neighbors[dir].block();
+                    let neighbor = neighbors[dir];
+                    let neighbor_block = neighbor.block();
                     let neighbor_rotation = neighbor_block.block_rotation(neighbors[dir]);
                     let face_occluder = &my_occluder[my_rotation.source_face(dir)];
-                    let neighbor_occluder = &neighbor_block.occlusion_shapes()[neighbor_rotation.source_face(inv)];
+                    let neighbor_occluder = &neighbor_block.occlusion_shapes(neighbor)[neighbor_rotation.source_face(inv)];
                     let neighbor_coord = coord + dir;
                     if neighbor_occluder.occluded_by(face_occluder) {
                         self.hide_face(neighbor_coord, inv);
@@ -199,7 +216,7 @@ impl VoxelWorld {
                     }
                 });
                 if change.marked_dirty {
-                    if self.render_bounds().contains(coord.xyz()) {
+                    if self.render_bounds().contains(coord) {
                         let section_coord = coord.section_coord();
                         self.dirty_sections.push(section_coord);
                     }
@@ -220,7 +237,7 @@ impl VoxelWorld {
             return true;
         };
         if change.marked_dirty {
-            if self.render_bounds().contains(coord.xyz()) {
+            if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
                 self.dirty_sections.push(section_coord);
             }
@@ -239,7 +256,7 @@ impl VoxelWorld {
             return true;
         };
         if change.marked_dirty {
-            if self.render_bounds().contains(coord.xyz()) {
+            if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
                 self.dirty_sections.push(section_coord);
             }
@@ -258,7 +275,7 @@ impl VoxelWorld {
             return LightChange::default();
         };
         if change.marked_dirty {
-            if self.render_bounds().contains(coord.xyz()) {
+            if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
                 self.dirty_sections.push(section_coord);
             }
@@ -281,7 +298,7 @@ impl VoxelWorld {
             return LightChange::default();
         };
         if change.marked_dirty {
-            if self.render_bounds().contains(coord.xyz()) {
+            if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
                 self.dirty_sections.push(section_coord);
             }
@@ -291,16 +308,6 @@ impl VoxelWorld {
             block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
         }
         change.change
-    }
-
-    pub fn get_height(&self, x: i32, z: i32) -> Option<i32> {
-        let chunk_x = x / 16;
-        let chunk_z = z / 16;
-        if let Some(chunk) = self.chunks.get((x, z)) {
-            Some(chunk.height(x, z))
-        } else {
-            None
-        }
     }
 
     pub fn neighbors<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Faces<StateRef> {
@@ -386,7 +393,7 @@ struct RenderChunk {
 
 #[cfg(test)]
 mod tests {
-    use crate::{blockstate, core::voxel::{block::Block, blocks::{self, StateRef}, coord::Coord, direction::Direction, world::world::WORLD_TOP}};
+    use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::State, coord::Coord, direction::Direction, faces::Faces, occlusion_shape::OcclusionShape, world::world::WORLD_TOP}}};
 
     use super::VoxelWorld;
 
@@ -424,9 +431,48 @@ mod tests {
                 blockstate!(dirt)
             }
         }
+        struct RotatedBlock;
+        impl Block for RotatedBlock {
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
+
+            fn name(&self) -> &str {
+                "rotated"
+            }
+
+            fn occlusion_shapes(&self, state: StateRef) -> &Faces<OcclusionShape> {
+                const SHAPE: Faces<OcclusionShape> = Faces::new(
+                    OcclusionShape::Full,
+                    OcclusionShape::Full,
+                    OcclusionShape::Full,
+                    OcclusionShape::None,
+                    OcclusionShape::None,
+                    OcclusionShape::None
+                );
+                &SHAPE
+            }
+
+            fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
+                blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0))
+            }
+
+            fn block_rotation(&self, state: StateRef) -> Rotation {
+                if let Some(&State::Rotation(rotation)) = state.get_property("rotation") {
+                    rotation
+                } else {
+                    Rotation::default()
+                }
+            }
+        }
         blocks::register_block(DirtBlock);
         let dirt = blocks::register_state(blockstate!(dirt));
-        let height = world.get_height(0, 0).unwrap();
+        let height = world.height(0, 0);
+        println!("Dynamic Memory Usage: {}", world.dynamic_usage());
         println!("Height: {height}");
         println!(" World Bounds: {:?}", world.bounds());
         println!("Render Bounds: {:?}", world.render_bounds());
@@ -435,6 +481,8 @@ mod tests {
             for z in 0..16 {
                 for x in 0..16 {
                     world.set_block((x, y, z), dirt);
+                    world.set_sky_light((x, y, z), 7);
+                    world.set_block_light((x, y, z), 13);
                 }
             }
         }
@@ -445,7 +493,23 @@ mod tests {
         world.set_block((1,2,1), StateRef::AIR);
         let visible = world.face_visible((1, 1, 1), Direction::PosY);
         println!("Last Check: {visible}");
+        let height = world.height(0, 0);
         println!("Height: {height}");
+        let usage = world.dynamic_usage();
+        assert_eq!(usage, 4096*4+4096+2048+2048);
+        println!("Dynamic Memory Usage: {}", usage);
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    world.set_block((x, y, z), StateRef::AIR);
+                    world.set_sky_light((x, y, z), 0);
+                    world.set_block_light((x, y, z), 0);
+                }
+            }
+        }
+        let usage = world.dynamic_usage();
+        assert_eq!(usage, 0);
+        println!("Dynamic Memory Usage: {}", usage);
         return;
 
         let now = std::time::Instant::now();

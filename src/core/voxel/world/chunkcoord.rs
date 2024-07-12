@@ -2,8 +2,8 @@ use crate::core::voxel::{coord::Coord, direction::Cardinal};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChunkCoord {
-    x: i32,
-    z: i32,
+    pub x: i32,
+    pub z: i32,
 }
 
 impl ChunkCoord {

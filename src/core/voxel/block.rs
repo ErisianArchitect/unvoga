@@ -4,10 +4,10 @@ use crate::core::math::coordmap::Rotation;
 use super::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape, world::world::VoxelWorld};
 
 pub trait Block: Any {
+    fn name(&self) -> &str;
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn name(&self) -> &str;
-    fn occlusion_shapes(&self) -> &Faces<OcclusionShape> {
+    fn occlusion_shapes(&self, state: StateRef) -> &Faces<OcclusionShape> {
         const FULL_FACES: Faces<OcclusionShape> = Faces::new(
             OcclusionShape::Full,
             OcclusionShape::Full,
@@ -21,12 +21,16 @@ pub trait Block: Any {
     fn block_rotation(&self, state: StateRef) -> Rotation {
         Rotation::new(Direction::PosY, 0)
     }
-    fn light_args(&self) -> LightArgs { LightArgs::new(15, 0) }
+    fn light_args(&self, state: StateRef) -> LightArgs {
+        LightArgs::new(15, 0)
+    }
     fn neighbor_updated(
         &self,
         world: &mut VoxelWorld,
         coord: Coord,
+        state: StateRef,
         neighbor_coord: Coord,
+        neighbor_state: StateRef,
         direction: Direction,
     ) {}
     fn light_updated(
@@ -40,13 +44,15 @@ pub trait Block: Any {
         &self,
         world: &mut VoxelWorld,
         coord: Coord,
-        state: StateRef,
+        old: StateRef,
+        new: StateRef,
     ) {}
     fn on_remove(
         &self,
         world: &mut VoxelWorld,
         coord: Coord,
-        state: StateRef,
+        old: StateRef,
+        new: StateRef,
     ) {}
     fn push_mesh(
         &self,

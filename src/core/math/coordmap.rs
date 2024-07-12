@@ -7,9 +7,9 @@ use crate::core::voxel::direction::Direction;
 pub struct Rotation(u8);
 
 impl Rotation {
-    pub const fn new(up: Direction, rotation: i32) -> Self {
+    pub const fn new(up: Direction, angle: i32) -> Self {
         let up = up as u8;
-        let rotation = rotation.rem_euclid(4) as u8;
+        let rotation = angle.rem_euclid(4) as u8;
         Self(rotation | up << 2)
     }
 
@@ -66,7 +66,7 @@ impl Rotation {
         }))
     }
 
-    pub const fn rotation(self) -> i32 {
+    pub const fn angle(self) -> i32 {
         (self.0 & 0b11) as i32
     }
 
@@ -99,42 +99,42 @@ impl Rotation {
     pub const fn forward(self) -> Direction {
         use Direction::*;
         match self.up() {
-            Direction::NegX => match self.rotation() {
+            Direction::NegX => match self.angle() {
                 0 => PosY,
                 1 => PosZ,
                 2 => NegY,
                 3 => NegZ,
                 _ => unreachable!()
             }
-            Direction::NegY => match self.rotation() {
+            Direction::NegY => match self.angle() {
                 0 => PosZ,
                 1 => PosX,
                 2 => NegZ,
                 3 => NegX,
                 _ => unreachable!()
             }
-            Direction::NegZ => match self.rotation() {
+            Direction::NegZ => match self.angle() {
                 0 => PosY,
                 1 => NegX,
                 2 => NegY,
                 3 => PosX,
                 _ => unreachable!()
             }
-            Direction::PosX => match self.rotation() {
+            Direction::PosX => match self.angle() {
                 0 => PosY,
                 1 => NegZ,
                 2 => NegY,
                 3 => PosZ,
                 _ => unreachable!()
             }
-            Direction::PosY => match self.rotation() {
+            Direction::PosY => match self.angle() {
                 0 => NegZ,
                 1 => PosX,
                 2 => PosZ,
                 3 => NegX,
                 _ => unreachable!()
             }
-            Direction::PosZ => match self.rotation() {
+            Direction::PosZ => match self.angle() {
                 0 => PosY,
                 1 => PosX,
                 2 => NegY,
@@ -148,42 +148,42 @@ impl Rotation {
         // self.forward().invert()
         use Direction::*;
         match self.up() {
-            NegX => match self.rotation() {
+            NegX => match self.angle() {
                 0 => NegY,
                 1 => NegZ,
                 2 => PosY,
                 3 => PosZ,
                 _ => unreachable!()
             }
-            NegY => match self.rotation() {
+            NegY => match self.angle() {
                 0 => NegZ,
                 1 => NegX,
                 2 => PosZ,
                 3 => PosX,
                 _ => unreachable!()
             }
-            NegZ => match self.rotation() {
+            NegZ => match self.angle() {
                 0 => NegY,
                 1 => PosX,
                 2 => PosY,
                 3 => NegX,
                 _ => unreachable!()
             }
-            PosX => match self.rotation() {
+            PosX => match self.angle() {
                 0 => NegY,
                 1 => PosZ,
                 2 => PosY,
                 3 => NegZ,
                 _ => unreachable!()
             }
-            PosY => match self.rotation() {
+            PosY => match self.angle() {
                 0 => PosZ,
                 1 => NegX,
                 2 => NegZ,
                 3 => PosX,
                 _ => unreachable!()
             }
-            PosZ => match self.rotation() {
+            PosZ => match self.angle() {
                 0 => NegY,
                 1 => NegX,
                 2 => PosY,
@@ -196,42 +196,42 @@ impl Rotation {
     pub const fn left(self) -> Direction {
         use Direction::*;
         match self.up() {
-            NegX => match self.rotation() {
+            NegX => match self.angle() {
                 0 => NegZ,
                 1 => PosY,
                 2 => PosZ,
                 3 => NegY,
                 _ => unreachable!()
             }
-            NegY => match self.rotation() {
+            NegY => match self.angle() {
                 0 => NegX,
                 1 => PosZ,
                 2 => PosX,
                 3 => NegZ,
                 _ => unreachable!()
             }
-            NegZ => match self.rotation() {
+            NegZ => match self.angle() {
                 0 => PosX,
                 1 => PosY,
                 2 => NegX,
                 3 => NegY,
                 _ => unreachable!()
             }
-            PosX => match self.rotation() {
+            PosX => match self.angle() {
                 0 => PosZ,
                 1 => PosY,
                 2 => NegZ,
                 3 => NegY,
                 _ => unreachable!()
             }
-            PosY => match self.rotation() {
+            PosY => match self.angle() {
                 0 => NegX,
                 1 => NegZ,
                 2 => PosX,
                 3 => PosZ,
                 _ => unreachable!()
             }
-            PosZ => match self.rotation() {
+            PosZ => match self.angle() {
                 0 => NegX,
                 1 => PosY,
                 2 => PosX,
@@ -244,42 +244,42 @@ impl Rotation {
     pub const fn right(self) -> Direction {
         use Direction::*;
         match self.up() {
-            NegX => match self.rotation() {
+            NegX => match self.angle() {
                 0 => PosZ,
                 1 => NegY,
                 2 => NegZ,
                 3 => PosY,
                 _ => unreachable!()
             }
-            NegY => match self.rotation() {
+            NegY => match self.angle() {
                 0 => PosX,
                 1 => NegZ,
                 2 => NegX,
                 3 => PosZ,
                 _ => unreachable!()
             }
-            NegZ => match self.rotation() {
+            NegZ => match self.angle() {
                 0 => NegX,
                 1 => NegY,
                 2 => PosX,
                 3 => PosY,
                 _ => unreachable!()
             }
-            PosX => match self.rotation() {
+            PosX => match self.angle() {
                 0 => NegZ,
                 1 => NegY,
                 2 => PosZ,
                 3 => PosY,
                 _ => unreachable!()
             }
-            PosY => match self.rotation() {
+            PosY => match self.angle() {
                 0 => PosX,
                 1 => PosZ,
                 2 => NegX,
                 3 => NegZ,
                 _ => unreachable!()
             }
-            PosZ => match self.rotation() {
+            PosZ => match self.angle() {
                 0 => PosX,
                 1 => NegY,
                 2 => NegX,
@@ -292,42 +292,42 @@ impl Rotation {
     /// Rotates `coord`.
     pub fn rotate(self, coord: Vec3) -> Vec3 {
         match self.up() {
-            Direction::NegX => match self.rotation() {
+            Direction::NegX => match self.angle() {
                 0 => vec3(-coord.y, -coord.z, coord.x),
                 1 => vec3(-coord.y, -coord.x, -coord.z),
                 2 => vec3(-coord.y, coord.z, -coord.x),
                 3 => vec3(-coord.y, coord.x, coord.z),
                 _ => unreachable!()
             },
-            Direction::NegY => match self.rotation() {
+            Direction::NegY => match self.angle() {
                 0 => vec3(coord.x, -coord.y, -coord.z),
                 1 => vec3(-coord.z, -coord.y, -coord.x),
                 2 => vec3(-coord.x, -coord.y, coord.z),
                 3 => vec3(coord.z, -coord.y, coord.x),
                 _ => unreachable!()
             },
-            Direction::NegZ => match self.rotation() {
+            Direction::NegZ => match self.angle() {
                 0 => vec3(-coord.x, -coord.z, -coord.y),
                 1 => vec3(coord.z, -coord.x, -coord.y),
                 2 => vec3(coord.x, coord.z, -coord.y),
                 3 => vec3(-coord.z, coord.x, -coord.y),
                 _ => unreachable!()
             },
-            Direction::PosX => match self.rotation() {
+            Direction::PosX => match self.angle() {
                 0 => vec3(coord.y, -coord.z, -coord.x),
                 1 => vec3(coord.y, -coord.x, coord.z),
                 2 => vec3(coord.y, coord.z, coord.x),
                 3 => vec3(coord.y, coord.x, -coord.z),
                 _ => unreachable!()
             },
-            Direction::PosY => match self.rotation() {
+            Direction::PosY => match self.angle() {
                 0 => coord, // Default rotation, no change.
                 1 => vec3(-coord.z, coord.y, coord.x),
                 2 => vec3(-coord.x, coord.y, -coord.z),
                 3 => vec3(coord.z, coord.y, -coord.x),
                 _ => unreachable!()
             },
-            Direction::PosZ => match self.rotation() {
+            Direction::PosZ => match self.angle() {
                 0 => vec3(coord.x, -coord.z, coord.y),
                 1 => vec3(-coord.z, -coord.x, coord.y),
                 2 => vec3(-coord.x, coord.z, coord.y),
@@ -357,7 +357,7 @@ impl Rotation {
         // this should be theoretically the optimal solution.
         use Direction::*;
         match self.up() {
-            NegX => match self.rotation() {
+            NegX => match self.angle() {
                 0 => match destination {
                     NegX => PosY,
                     NegY => PosZ,
@@ -392,7 +392,7 @@ impl Rotation {
                 }
                 _ => unreachable!()
             }
-            NegY => match self.rotation() {
+            NegY => match self.angle() {
                 0 => match destination {
                     NegX => NegX,
                     NegY => PosY,
@@ -427,7 +427,7 @@ impl Rotation {
                 }
                 _ => unreachable!()
             }
-            NegZ => match self.rotation() {
+            NegZ => match self.angle() {
                 0 => match destination {
                     NegX => PosX,
                     NegY => PosZ,
@@ -462,7 +462,7 @@ impl Rotation {
                 }
                 _ => unreachable!()
             }
-            PosX => match self.rotation() {
+            PosX => match self.angle() {
                 0 => match destination {
                     NegX => NegY,
                     NegY => PosZ,
@@ -497,7 +497,7 @@ impl Rotation {
                 }
                 _ => unreachable!()
             }
-            PosY => match self.rotation() {
+            PosY => match self.angle() {
                 0 => match destination {
                     NegX => NegX,
                     NegY => NegY,
@@ -532,7 +532,7 @@ impl Rotation {
                 }
                 _ => unreachable!()
             }
-            PosZ => match self.rotation() {
+            PosZ => match self.angle() {
                 0 => match destination {
                     NegX => NegX,
                     NegY => PosZ,
@@ -714,7 +714,7 @@ mod tests {
             let rot = Rotation::new(dir, rot);
             println!("      Up: {:?}", rot.up());
             println!(" Forward: {:?}", rot.forward());
-            println!("Rotation: {}", rot.rotation());
+            println!("Rotation: {}", rot.angle());
         }));
     }
 

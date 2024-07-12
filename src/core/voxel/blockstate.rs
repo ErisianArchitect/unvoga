@@ -1,8 +1,8 @@
 use std::{borrow::Borrow, fmt::Debug, ops::{Index, IndexMut}};
 
-use crate::core::util::traits::StrToOwned;
+use crate::core::{math::coordmap::{Flip, Rotation}, util::traits::StrToOwned};
 
-use super::{blocks::{self, StateRef}, coord::Coord, direction::{Cardinal, Direction}};
+use super::{blocks::{self, StateRef}, coord::Coord, direction::{Cardinal, Direction}, world::chunkcoord::ChunkCoord};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockState {
@@ -25,6 +25,10 @@ pub enum State {
     String(String),
     Direction(Direction),
     Cardinal(Cardinal),
+    Rotation(Rotation),
+    Flip(Flip),
+    Coord2(ChunkCoord),
+    Coord3(Coord),
 }
 
 impl BlockState {
@@ -153,6 +157,42 @@ impl From<Cardinal> for State {
     }
 }
 
+impl From<Rotation> for State {
+    fn from(value: Rotation) -> Self {
+        State::Rotation(value)
+    }
+}
+
+impl From<Coord> for State {
+    fn from(value: Coord) -> Self {
+        State::Coord3(value)
+    }
+}
+
+impl From<(i32, i32, i32)> for State {
+    fn from(value: (i32, i32, i32)) -> Self {
+        State::Coord3(value.into())
+    }
+}
+
+impl From<ChunkCoord> for State {
+    fn from(value: ChunkCoord) -> Self {
+        State::Coord2(value)
+    }
+}
+
+impl From<(i32, i32)> for State {
+    fn from(value: (i32, i32)) -> Self {
+        State::Coord2(value.into())
+    }
+}
+
+impl From<Flip> for State {
+    fn from(value: Flip) -> Self {
+        State::Flip(value)
+    }
+}
+
 impl BlockProperty {
     pub fn new<S: StrToOwned, St: Into<State>>(name: S, value: St) -> Self {
         Self {
@@ -218,6 +258,32 @@ impl std::fmt::Display for State {
                 Cardinal::East => write!(f, "East"),
                 Cardinal::South => write!(f, "South"),
             },
+            State::Rotation(rotation) => {
+                write!(f, "Rotation(up={:?}, forward={:?}, angle={})", rotation.up(), rotation.forward(), rotation.angle())
+            }
+            State::Coord2(coord) => {
+                write!(f, "({}, {})", coord.x, coord.z)
+            }
+            State::Coord3(coord) => {
+                write!(f, "({}, {}, {})", coord.x, coord.y, coord.z)
+            }
+            &State::Flip(flip) => {
+                write!(f, "Flip::")?;
+                if flip == Flip::NONE {
+                    write!(f, "None")?;
+                } else {
+                    if flip.x() {
+                        write!(f, "X")?;
+                    }
+                    if flip.y() {
+                        write!(f, "Y")?;
+                    }
+                    if flip.z() {
+                        write!(f, "Z")?;
+                    }
+                }
+                Ok(())
+            }
         }
     }
 }
