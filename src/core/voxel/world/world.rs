@@ -116,10 +116,14 @@ impl VoxelWorld {
     pub fn get_block<C: Into<(i32, i32, i32)>>(&self, coord: C) -> StateRef {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        let chunk_x = coord.x / 16;
-        let chunk_z = coord.z / 16;
-        if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-            chunk.get(coord)
+        if self.bounds().contains(coord) {
+            let chunk_x = coord.x / 16;
+            let chunk_z = coord.z / 16;
+            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
+                chunk.get(coord)
+            } else {
+                StateRef::AIR
+            }
         } else {
             StateRef::AIR
         }
@@ -128,10 +132,14 @@ impl VoxelWorld {
     pub fn get_block_light<C: Into<(i32, i32, i32)>>(&self, coord: C) -> u8 {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        let chunk_x = coord.x / 16;
-        let chunk_z = coord.z / 16;
-        if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-            chunk.get_block_light(coord)
+        if self.bounds().contains(coord) {
+            let chunk_x = coord.x / 16;
+            let chunk_z = coord.z / 16;
+            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
+                chunk.get_block_light(coord)
+            } else {
+                0
+            }
         } else {
             0
         }
@@ -140,10 +148,14 @@ impl VoxelWorld {
     pub fn get_sky_light<C: Into<(i32, i32, i32)>>(&self, coord: C) -> u8 {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        let chunk_x = coord.x / 16;
-        let chunk_z = coord.z / 16;
-        if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-            chunk.get_sky_light(coord)
+        if self.bounds().contains(coord) {
+            let chunk_x = coord.x / 16;
+            let chunk_z = coord.z / 16;
+            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
+                chunk.get_sky_light(coord)
+            } else {
+                0
+            }
         } else {
             0
         }
@@ -152,10 +164,14 @@ impl VoxelWorld {
     pub fn occlusion<C: Into<(i32, i32, i32)>>(&self, coord: C) -> OcclusionFlags {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        let chunk_x = coord.x / 16;
-        let chunk_z = coord.z / 16;
-        if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-            chunk.occlusion(coord)
+        if self.bounds().contains(coord) {
+            let chunk_x = coord.x / 16;
+            let chunk_z = coord.z / 16;
+            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
+                chunk.occlusion(coord)
+            } else {
+                OcclusionFlags::UNOCCLUDED
+            }
         } else {
             OcclusionFlags::UNOCCLUDED
         }
@@ -164,10 +180,14 @@ impl VoxelWorld {
     pub fn face_visible<C: Into<(i32, i32, i32)>>(&self, coord: C, face: Direction) -> bool {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        let chunk_x = coord.x / 16;
-        let chunk_z = coord.z / 16;
-        if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-            chunk.face_visible(coord, face)
+        if self.bounds().contains(coord) {
+            let chunk_x = coord.x / 16;
+            let chunk_z = coord.z / 16;
+            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
+                chunk.face_visible(coord, face)
+            } else {
+                true
+            }
         } else {
             true
         }
@@ -187,6 +207,9 @@ impl VoxelWorld {
         let state: StateRef = state.into();
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return StateRef::AIR;
+        }
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
@@ -241,6 +264,9 @@ impl VoxelWorld {
     pub fn show_face<C: Into<(i32, i32, i32)>>(&mut self, coord: C, face: Direction) -> bool {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return true;
+        }
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
@@ -260,6 +286,9 @@ impl VoxelWorld {
     pub fn hide_face<C: Into<(i32, i32, i32)>>(&mut self, coord: C, face: Direction) -> bool {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return true;
+        }
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
@@ -279,6 +308,9 @@ impl VoxelWorld {
     pub fn set_block_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return LightChange::default();
+        }
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
@@ -302,6 +334,9 @@ impl VoxelWorld {
     pub fn set_sky_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return LightChange::default();
+        }
         let chunk_x = coord.x / 16;
         let chunk_z = coord.z / 16;
         let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
