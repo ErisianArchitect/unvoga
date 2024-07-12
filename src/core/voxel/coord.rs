@@ -24,6 +24,26 @@ impl Coord {
         Self::new(splat, splat, splat)
     }
 
+    #[inline]
+    pub const fn xyz(self) -> (i32, i32, i32) {
+        (self.x, self.y, self.z)
+    }
+
+    #[inline]
+    pub const fn xz(self) -> (i32, i32) {
+        (self.x, self.z)
+    }
+
+    #[inline]
+    pub const fn xy(self) -> (i32, i32) {
+        (self.x, self.y)
+    }
+
+    #[inline]
+    pub const fn yz(self) -> (i32, i32) {
+        (self.y, self.z)
+    }
+
     pub fn neighbors(self) -> impl Iterator<Item = (Direction, Coord)> {
         Direction::iter().filter_map(move |dir| {
             let dir_coord: Coord = dir.into();

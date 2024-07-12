@@ -3587,7 +3587,7 @@ dependencies = [
 [[package]]
 name = "rollgrid"
 version = "0.1.0"
-source = "git+https://github.com/ErisianArchitect/rollgrid.git#99eed4f1941aa485869dcc175cffb10718acfd17"
+source = "git+https://github.com/ErisianArchitect/rollgrid.git#9712c5b92a4ac666c01a2a8bb5e45a7a74fc19da"
 dependencies = [
  "itertools 0.13.0",
 ]

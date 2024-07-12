@@ -3,12 +3,12 @@ use super::coord::Coord;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Direction {
-    NegX = 0,
-    NegY = 1,
-    NegZ = 2,
-    PosX = 3,
-    PosY = 4,
-    PosZ = 5,
+    NegX = 4,
+    NegY = 3,
+    NegZ = 5,
+    PosX = 1,
+    PosY = 0,
+    PosZ = 2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -97,4 +97,26 @@ impl Direction {
     pub fn iter() -> impl Iterator<Item = Direction> {
         Self::ALL.into_iter()
     }
+}
+
+impl std::ops::Neg for Cardinal {
+    type Output = Self;
+    #[inline]
+    fn neg(self) -> Self::Output {
+        self.invert()
+    }
+}
+
+impl std::ops::Neg for Direction {
+    type Output = Self;
+    #[inline]
+    fn neg(self) -> Self::Output {
+        self.invert()
+    }
+}
+
+#[test]
+fn inv_test() {
+    let dir = -Cardinal::East;
+    println!("{dir:?}");
 }

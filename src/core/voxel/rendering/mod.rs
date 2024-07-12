@@ -1,4 +1,5 @@
 pub mod voxel_material;
+pub mod voxelmesh;
 
 use bevy::{asset::Handle, render::mesh::Mesh};
 

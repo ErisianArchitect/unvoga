@@ -1,9 +1,10 @@
 
 use std::collections::VecDeque;
 
-use rollgrid::{RollGrid2D, RollGrid3D};
+use bevy::{asset::Handle, render::mesh::Mesh};
+use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 
-use crate::core::voxel::{blocks::StateRef, coord::Coord, engine::VoxelEngine};
+use crate::core::voxel::{blocks::StateRef, coord::Coord, engine::VoxelEngine, rendering::voxel_material::VoxelMaterial};
 
 use super::chunk::{Chunk, LightChange, Section, StateChange};
 
@@ -22,7 +23,7 @@ pub const PADDED_WORLD_SIZE_MAX: usize = WORLD_SIZE_MAX + WORLD_SIZE_MAX_PAD;
 
 pub struct World {
     chunks: RollGrid2D<Chunk>,
-    render_chunks: RollGrid3D<()>,
+    render_chunks: RollGrid3D<RenderChunk>,
     dirty_sections: Vec<Coord>,
 }
 
@@ -46,7 +47,10 @@ impl World {
                 Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
             }),
             render_chunks: RollGrid3D::new_with_init(full_size, full_size, full_size, (newx / 16, newy / 16, newz / 16), |pos: Coord| {
-                Some(())
+                Some(RenderChunk {
+                    mesh: Handle::default(),
+                    material: Handle::default(),
+                })
             }),
             dirty_sections: Vec::new(),
         }
@@ -130,6 +134,7 @@ impl World {
                 state.block().on_place(self, coord, state);
                 if change.marked_dirty {
                     let section_coord = coord.section_coord();
+                    
                     self.dirty_sections.push(section_coord);
                 }
                 old
@@ -186,6 +191,11 @@ impl World {
     }
 }
 
+struct RenderChunk {
+    pub mesh: Handle<Mesh>,
+    pub material: Handle<VoxelMaterial>,
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{blockstate, core::voxel::{block::Block, blocks::{self, StateRef}, coord::Coord, world::world::WORLD_TOP}};
@@ -207,7 +217,7 @@ mod tests {
     #[test]
     fn world_test() {
         println!("World Test");
-        let mut world = World::new(16, (0, 0));
+        let mut world = World::new(16, Coord::new(0, 0, 0));
         struct DirtBlock;
         impl Block for DirtBlock {
             fn as_any(&self) -> &dyn std::any::Any {
