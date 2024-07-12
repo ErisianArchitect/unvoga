@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use bevy::{asset::Handle, render::mesh::Mesh};
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 
-use crate::core::voxel::{blocks::StateRef, coord::Coord, engine::VoxelEngine, rendering::voxel_material::VoxelMaterial};
+use crate::core::voxel::{blocks::StateRef, coord::Coord, engine::VoxelEngine, rendering::voxelmaterial::VoxelMaterial};
 
 use super::chunk::{Chunk, LightChange, Section, StateChange};
 

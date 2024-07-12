@@ -1,6 +1,6 @@
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh};
 
-use crate::core::voxel::{blocks::StateRef, coord::Coord, rendering::voxel_material::VoxelMaterial};
+use crate::core::voxel::{blocks::StateRef, coord::Coord, rendering::voxelmaterial::VoxelMaterial};
 
 use super::{dirty::Dirty, heightmap::Heightmap, world::WORLD_HEIGHT};
 
