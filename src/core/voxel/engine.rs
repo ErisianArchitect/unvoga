@@ -2,7 +2,7 @@ use std::{borrow::Borrow, cell::{Ref, RefCell, RefMut}};
 
 use crate::{blockstate, core::voxel::{block::Block, blockstate::State, coord::Coord, direction::{Cardinal, Direction}, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape}};
 
-use super::{world::world::VoxelWorld};
+use super::world::world::VoxelWorld;
 
 pub struct VoxelEngine {
     // blocks: RefCell<BlockRegistry>,

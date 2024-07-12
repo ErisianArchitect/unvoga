@@ -6,7 +6,7 @@ use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::StateRef, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 
-use super::chunk::{Chunk, LightChange, Section, StateChange};
+use super::chunk::{Chunk, LightChange, OcclusionFlags, Section, StateChange};
 
 // Make sure this value is always a multiple of 16 and
 // preferably a multiple of 128.
@@ -146,6 +146,18 @@ impl VoxelWorld {
             chunk.get_sky_light(coord)
         } else {
             0
+        }
+    }
+
+    pub fn occlusion<C: Into<(i32, i32, i32)>>(&self, coord: C) -> OcclusionFlags {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        let chunk_x = coord.x / 16;
+        let chunk_z = coord.z / 16;
+        if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
+            chunk.occlusion(coord)
+        } else {
+            OcclusionFlags::UNOCCLUDED
         }
     }
 

@@ -32,6 +32,36 @@ impl OcclusionFlags {
         let bit = face.bit();
         self.0 & bit == bit
     }
+
+    #[inline]
+    pub fn neg_x(self) -> bool {
+        self.visible(Direction::NegX)
+    }
+
+    #[inline]
+    pub fn neg_y(self) -> bool {
+        self.visible(Direction::NegY)
+    }
+
+    #[inline]
+    pub fn neg_z(self) -> bool {
+        self.visible(Direction::NegZ)
+    }
+
+    #[inline]
+    pub fn pos_x(self) -> bool {
+        self.visible(Direction::PosX)
+    }
+
+    #[inline]
+    pub fn pos_y(self) -> bool {
+        self.visible(Direction::PosY)
+    }
+
+    #[inline]
+    pub fn pos_z(self) -> bool {
+        self.visible(Direction::PosZ)
+    }
 }
 
 impl std::ops::BitAnd<Direction> for OcclusionFlags {
@@ -111,6 +141,15 @@ impl Section {
             blocks[index]
         } else {
             StateRef::AIR
+        }
+    }
+
+    pub fn occlusion(&self, coord: Coord) -> OcclusionFlags {
+        if let Some(occlusion) = &self.occlusion {
+            let index = Section::index(coord);
+            occlusion[index]
+        } else {
+            OcclusionFlags::UNOCCLUDED
         }
     }
 
@@ -407,6 +446,11 @@ impl Chunk {
         // the world, which will already be bounds checked.
         let section_index = (coord.y - self.offset.y) as usize / 16;
         self.sections[section_index].get(coord)
+    }
+
+    pub fn occlusion(&self, coord: Coord) -> OcclusionFlags {
+        let section_index = (coord.y - self.offset.y) as usize / 16;
+        self.sections[section_index].occlusion(coord)
     }
 
     pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
