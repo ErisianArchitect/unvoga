@@ -113,16 +113,35 @@ impl Section {
 
     pub fn dynamic_usage(&self) -> usize {
         let mut size = 0;
+        let mut printed = false;
         if self.blocks.is_some() {
+            // println!("################");
+            // printed = true;
+            // println!("Blocks Used");
             size += 4096 * std::mem::size_of::<StateRef>();
         }
         if self.occlusion.is_some() {
+            // if !printed {
+            //     println!("################");
+            //     printed = true;
+            // }
+            // println!("Occlusion Used");
             size += 4096 * std::mem::size_of::<OcclusionFlags>();
         }
         if self.block_light.is_some() {
+            // if !printed {
+            //     println!("################");
+            //     printed = true;
+            // }
+            // println!("Block Light Used");
             size += 2048;
         }
         if self.sky_light.is_some() {
+            // if !printed {
+            //     println!("################");
+            //     printed = true;
+            // }
+            // println!("Sky Light Used");
             size += 2048;
         }
         size
