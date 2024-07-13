@@ -1,7 +1,7 @@
 use std::any::Any;
 use crate::core::math::coordmap::Rotation;
 
-use super::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape, world::world::VoxelWorld};
+use super::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape, world::{chunk::Occlusion, world::VoxelWorld}};
 
 pub trait Block: Any {
     fn name(&self) -> &str;
@@ -24,42 +24,11 @@ pub trait Block: Any {
     fn light_args(&self, state: StateRef) -> LightArgs {
         LightArgs::new(15, 0)
     }
-    fn neighbor_updated(
-        &self,
-        world: &mut VoxelWorld,
-        coord: Coord,
-        state: StateRef,
-        neighbor_coord: Coord,
-        neighbor_state: StateRef,
-        direction: Direction,
-    ) {}
-    fn light_updated(
-        &self,
-        world: &mut VoxelWorld,
-        coord: Coord,
-        old_level: u8,
-        new_level: u8,
-    ) {}
-    fn on_place(
-        &self,
-        world: &mut VoxelWorld,
-        coord: Coord,
-        old: StateRef,
-        new: StateRef,
-    ) {}
-    fn on_remove(
-        &self,
-        world: &mut VoxelWorld,
-        coord: Coord,
-        old: StateRef,
-        new: StateRef,
-    ) {}
-    fn push_mesh(
-        &self,
-        mesh_builder: &mut (),
-        coord: Coord,
-        state: StateRef,
-    ) {}
+    fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {}
+    fn light_updated(&self, world: &mut VoxelWorld, coord: Coord, old_level: u8, new_level: u8) {}
+    fn on_place(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {}
+    fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {}
+    fn push_mesh(&self, mesh_builder: &mut (), coord: Coord, state: StateRef, occlusion: Occlusion) {}
     fn default_state(&self) -> BlockState;
 
 }
