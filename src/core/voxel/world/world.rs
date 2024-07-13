@@ -6,7 +6,7 @@ use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::StateRef, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 
-use super::chunk::{Chunk, LightChange, OcclusionFlags, Section, StateChange};
+use super::chunk::{Chunk, LightChange, Occlusion, Section, StateChange};
 
 // Make sure this value is always a multiple of 16 and
 // preferably a multiple of 128.
@@ -94,7 +94,7 @@ impl VoxelWorld {
             return None;
         }
         let chunk = self.chunks.get((section_coord.x, section_coord.z))?;
-        let y = section_coord.y - chunk.offset.y / 16;
+        let y = section_coord.y - chunk.block_offset.y / 16;
         if y < 0 || y as usize >= chunk.sections.len() {
             return None;
         }
@@ -106,7 +106,7 @@ impl VoxelWorld {
             return None;
         }
         let chunk = self.chunks.get_mut((section_coord.x, section_coord.z))?;
-        let y = section_coord.y - chunk.offset.y / 16;
+        let y = section_coord.y - chunk.block_offset.y / 16;
         if y < 0 || y as usize >= chunk.sections.len() {
             return None;
         }
@@ -161,7 +161,7 @@ impl VoxelWorld {
         }
     }
 
-    pub fn occlusion<C: Into<(i32, i32, i32)>>(&self, coord: C) -> OcclusionFlags {
+    pub fn occlusion<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Occlusion {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if self.bounds().contains(coord) {
@@ -170,10 +170,10 @@ impl VoxelWorld {
             if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
                 chunk.occlusion(coord)
             } else {
-                OcclusionFlags::UNOCCLUDED
+                Occlusion::UNOCCLUDED
             }
         } else {
-            OcclusionFlags::UNOCCLUDED
+            Occlusion::UNOCCLUDED
         }
     }
 
@@ -235,6 +235,9 @@ impl VoxelWorld {
                     let inv = dir.invert();
                     let neighbor = neighbors[dir];
                     let neighbor_block = neighbor.block();
+                    if neighbor != StateRef::AIR {
+                        neighbor_block.neighbor_updated(self, inv, coord + dir, coord, neighbor, state);
+                    }
                     let neighbor_rotation = neighbor_block.rotation(neighbors[dir]);
                     let face_occluder = &my_occluder[my_rotation.source_face(dir)];
                     let neighbor_occluder = &neighbor_block.occlusion_shapes(neighbor)[neighbor_rotation.source_face(inv)];
@@ -326,7 +329,9 @@ impl VoxelWorld {
         }
         if change.change.new_max != change.change.old_max {
             let block = self.get_block(coord);
-            block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
+            if block != StateRef::AIR {
+                block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
+            }
         }
         change.change
     }
@@ -352,7 +357,9 @@ impl VoxelWorld {
         }
         if change.change.new_max != change.change.old_max {
             let block = self.get_block(coord);
-            block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
+            if block != StateRef::AIR {
+                block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
+            }
         }
         change.change
     }
@@ -526,20 +533,24 @@ mod tests {
                     Rotation::default()
                 }
             }
+            fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {
+                println!("Neighbor Updated(coord = {coord:?}, neighbor_coord = {neighbor_coord:?}, neighbor_state = {neighbor_state})");
+            }
         }
         blocks::register_block(DirtBlock);
         blocks::register_block(RotatedBlock);
         let dirt = blockstate!(dirt).register();
         let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 1)).register();
         let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
-        for y in 0..3 {
-            for z in 0..3 {
-                for x in 0..3 {
-                    world.set_block((x, y, z), dirt);
-                }
-            }
-        }
+        // for y in 0..3 {
+        //     for z in 0..3 {
+        //         for x in 0..3 {
+        //             world.set_block((x, y, z), dirt);
+        //         }
+        //     }
+        // }
         world.set_block((1, 1, 1), rot2);
+        world.set_block((1, 2, 1), dirt);
         println!("Block at (1, 1, 1): {}", world.get_block((1, 1, 1)));
         let flags = world.occlusion((1, 1, 1));
         println!("NegX: {}", flags.neg_x());

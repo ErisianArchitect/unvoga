@@ -4,73 +4,6 @@ use crate::core::voxel::{blocks::StateRef, coord::Coord, direction::Direction, r
 
 use super::{dirty::Dirty, heightmap::Heightmap, world::WORLD_HEIGHT};
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OcclusionFlags(u8);
-
-impl OcclusionFlags {
-    pub const UNOCCLUDED: Self = OcclusionFlags(0b111111);
-    pub const OCCLUDED: Self = OcclusionFlags(0);
-    const FLAGS_MASK: u8 = 0b111111;
-    #[inline]
-    pub fn hide(&mut self, face: Direction) -> bool {
-        let bit = face.bit();
-        let old = self.0 & bit == bit;
-        self.0 = self.0 & !bit;
-        old
-    }
-
-    #[inline]
-    pub fn show(&mut self, face: Direction) -> bool {
-        let bit = face.bit();
-        let old = self.0 & bit == bit;
-        self.0 = self.0 | bit;
-        old
-    }
-
-    #[inline]
-    pub fn visible(self, face: Direction) -> bool {
-        let bit = face.bit();
-        self.0 & bit == bit
-    }
-
-    #[inline]
-    pub fn neg_x(self) -> bool {
-        self.visible(Direction::NegX)
-    }
-
-    #[inline]
-    pub fn neg_y(self) -> bool {
-        self.visible(Direction::NegY)
-    }
-
-    #[inline]
-    pub fn neg_z(self) -> bool {
-        self.visible(Direction::NegZ)
-    }
-
-    #[inline]
-    pub fn pos_x(self) -> bool {
-        self.visible(Direction::PosX)
-    }
-
-    #[inline]
-    pub fn pos_y(self) -> bool {
-        self.visible(Direction::PosY)
-    }
-
-    #[inline]
-    pub fn pos_z(self) -> bool {
-        self.visible(Direction::PosZ)
-    }
-}
-
-impl std::ops::BitAnd<Direction> for OcclusionFlags {
-    type Output = bool;
-    fn bitand(self, rhs: Direction) -> Self::Output {
-        self.visible(rhs)
-    }
-}
-
 fn make_empty_section_blocks() -> Box<[StateRef]> {
     (0..4096).map(|_| StateRef::AIR).collect()
 }
@@ -82,7 +15,7 @@ fn make_empty_section_light() -> Box<[u8]> {
 // 20480 bytes
 pub struct Section {
     pub blocks: Option<Box<[StateRef]>>,
-    pub occlusion: Option<Box<[OcclusionFlags]>>,
+    pub occlusion: Option<Box<[Occlusion]>>,
     pub block_light: Option<Box<[u8]>>,
     pub sky_light: Option<Box<[u8]>>,
     pub block_count: u16,
@@ -126,7 +59,7 @@ impl Section {
             //     printed = true;
             // }
             // println!("Occlusion Used");
-            size += 4096 * std::mem::size_of::<OcclusionFlags>();
+            size += 4096 * std::mem::size_of::<Occlusion>();
         }
         if self.block_light.is_some() {
             // if !printed {
@@ -163,12 +96,12 @@ impl Section {
         }
     }
 
-    pub fn occlusion(&self, coord: Coord) -> OcclusionFlags {
+    pub fn occlusion(&self, coord: Coord) -> Occlusion {
         if let Some(occlusion) = &self.occlusion {
             let index = Section::index(coord);
             occlusion[index]
         } else {
-            OcclusionFlags::UNOCCLUDED
+            Occlusion::UNOCCLUDED
         }
     }
 
@@ -226,7 +159,7 @@ impl Section {
         let old_flags = occlusion[index];
         let old = occlusion[index].show(face);
         let new_flags = occlusion[index];
-        if new_flags == OcclusionFlags::UNOCCLUDED && old_flags != OcclusionFlags::UNOCCLUDED {
+        if new_flags == Occlusion::UNOCCLUDED && old_flags != Occlusion::UNOCCLUDED {
             self.occlusion_count -= 1;
             if self.occlusion_count == 0 {
                 self.occlusion = None;
@@ -243,7 +176,7 @@ impl Section {
 
     pub fn hide_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
         if self.occlusion.is_none() {
-            self.occlusion = Some((0..4096).map(|_| OcclusionFlags::UNOCCLUDED).collect());
+            self.occlusion = Some((0..4096).map(|_| Occlusion::UNOCCLUDED).collect());
         }
         let Some(occlusion) = &mut self.occlusion else {
             unreachable!()
@@ -251,7 +184,7 @@ impl Section {
         let index = Section::index(coord);
         let old_flags = occlusion[index];
         let old = occlusion[index].hide(face);
-        if old_flags == OcclusionFlags::UNOCCLUDED {
+        if old_flags == Occlusion::UNOCCLUDED {
             self.occlusion_count += 1;
         }
         if old {
@@ -443,7 +376,7 @@ pub struct Chunk {
     pub sections: Box<[Section]>,
     pub heightmap: Heightmap,
     /// The offset block coordinate.
-    pub offset: Coord,
+    pub block_offset: Coord,
 }
 
 impl Chunk {
@@ -452,7 +385,7 @@ impl Chunk {
         Self {
             sections: (0..Self::SECTION_COUNT).map(|_| Section::new()).collect(),
             heightmap: Heightmap::new(),
-            offset,
+            block_offset: offset,
         }
     }
 
@@ -463,67 +396,67 @@ impl Chunk {
     pub fn get(&self, coord: Coord) -> StateRef {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].get(coord)
     }
 
-    pub fn occlusion(&self, coord: Coord) -> OcclusionFlags {
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+    pub fn occlusion(&self, coord: Coord) -> Occlusion {
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].occlusion(coord)
     }
 
     pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].face_visible(coord, face)
     }
 
     pub fn set(&mut self, coord: Coord, value: StateRef) -> SectionUpdate<StateChange> {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         let nonair = value != StateRef::AIR;
-        self.heightmap.set(Coord::new(coord.x, coord.y - self.offset.y, coord.z), nonair);
+        self.heightmap.set(Coord::new(coord.x, coord.y - self.block_offset.y, coord.z), nonair);
         self.sections[section_index].set(coord, value)
     }
 
     pub fn show_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].show_face(coord, face)
     }
 
     pub fn hide_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].hide_face(coord, face)
     }
     
     /// Returns the maximum of the block light and sky light.
     pub fn get_light(&self, coord: Coord) -> u8 {
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].get_light(coord)
     }
 
     pub fn get_block_light(&self, coord: Coord) -> u8 {
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].get_block_light(coord)
     }
 
     pub fn get_sky_light(&self, coord: Coord) -> u8 {
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].get_sky_light(coord)
     }
 
     pub fn set_block_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].set_block_light(coord, level)
     }
 
     pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
-        let section_index = (coord.y - self.offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].set_sky_light(coord, level)
     }
 
     pub fn height(&self, x: i32, z: i32) -> i32 {
-        self.heightmap.height(x, z) + self.offset.y
+        self.heightmap.height(x, z) + self.block_offset.y
     }
 }
 
@@ -583,29 +516,162 @@ impl<T: Clone + Copy + PartialEq + Eq + std::hash::Hash> SectionUpdate<T> {
     }
 }
 
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Occlusion(u8);
+
+macro_rules! make_face_constants {
+    ($($name:ident = $dir:ident;)*) => {
+        $(
+            pub const $name: Self = Occlusion(1 << Direction::$dir as u8);
+        )*
+    };
+}
+
+impl Occlusion {
+    pub const UNOCCLUDED: Self = Occlusion(0);
+    pub const OCCLUDED: Self = Occlusion(0b111111);
+    make_face_constants!(
+        NEG_X = NegX;
+        NEG_Y = NegY;
+        NEG_Z = NegZ;
+        POS_X = PosX;
+        POS_Y = PosY;
+        POS_Z = PosZ;
+    );
+    const FLAGS_MASK: u8 = 0b111111;
+
+    #[inline]
+    pub fn fully_occluded(self) -> bool {
+        self == Self::OCCLUDED
+    }
+
+    #[inline]
+    pub fn show(&mut self, face: Direction) -> bool {
+        let bit = face.bit();
+        let old = self.0 & bit == bit;
+        self.0 = self.0 & !bit;
+        old
+    }
+
+    #[inline]
+    pub fn hide(&mut self, face: Direction) -> bool {
+        let bit = face.bit();
+        let old = self.0 & bit == bit;
+        self.0 = self.0 | bit;
+        old
+    }
+
+    #[inline]
+    pub fn visible(self, face: Direction) -> bool {
+        let bit = face.bit();
+        self.0 & bit != bit
+    }
+
+    #[inline]
+    pub fn hidden(self, face: Direction) -> bool {
+        let bit = face.bit();
+        self.0 & bit == bit
+    }
+
+    #[inline]
+    pub fn neg_x(self) -> bool {
+        self.visible(Direction::NegX)
+    }
+
+    #[inline]
+    pub fn neg_y(self) -> bool {
+        self.visible(Direction::NegY)
+    }
+
+    #[inline]
+    pub fn neg_z(self) -> bool {
+        self.visible(Direction::NegZ)
+    }
+
+    #[inline]
+    pub fn pos_x(self) -> bool {
+        self.visible(Direction::PosX)
+    }
+
+    #[inline]
+    pub fn pos_y(self) -> bool {
+        self.visible(Direction::PosY)
+    }
+
+    #[inline]
+    pub fn pos_z(self) -> bool {
+        self.visible(Direction::PosZ)
+    }
+}
+
+impl std::ops::BitOr<Occlusion> for Occlusion {
+    type Output = Occlusion;
+    #[inline]
+    fn bitor(self, rhs: Occlusion) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::BitAnd<Occlusion> for Occlusion {
+    type Output = Occlusion;
+    #[inline]
+    fn bitand(self, rhs: Occlusion) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
+impl std::ops::Sub<Occlusion> for Occlusion {
+    type Output = Occlusion;
+    #[inline]
+    fn sub(self, rhs: Occlusion) -> Self::Output {
+        Self(self.0 & !rhs.0)
+    }
+}
+
+impl std::ops::BitAnd<Direction> for Occlusion {
+    type Output = bool;
+    fn bitand(self, rhs: Direction) -> Self::Output {
+        self.visible(rhs)
+    }
+}
+
+impl std::fmt::Display for Occlusion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Occlusion(")?;
+        Direction::iter().try_fold(false, |mut sep, dir| {
+            if self.hidden(dir) {
+                if sep {
+                    write!(f, "|")?;
+                }
+                sep = true;
+                write!(f, "{dir:?}")?;
+            }
+            Ok(sep)
+        })?;
+        write!(f, ")")
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::core::voxel::{direction::Direction, world::chunk::OcclusionFlags};
+    use crate::core::voxel::{direction::Direction, world::chunk::Occlusion};
 
-
-    #[test]
-    fn wrap_test() {
-        let neg = -235i32;
-        let wrap = neg & 0xF;
-        println!("{wrap} -> {}", neg.rem_euclid(16));
-    }
-    
     #[test]
     fn occlusion_test() {
-        let mut flags = OcclusionFlags::default();
+        let mut occlusion = Occlusion::UNOCCLUDED;
         Direction::iter().for_each(|dir| {
-            assert!(!flags.visible(dir));
-            flags.show(dir);
-            assert!(flags.visible(dir));
-            flags.hide(dir);
-            assert!(!flags.visible(dir));
+            assert!(!occlusion.hidden(dir));
+            assert!(occlusion.visible(dir));
+            occlusion.hide(dir);
+            assert!(occlusion.hidden(dir));
+            assert!(!occlusion.visible(dir));
+            occlusion.show(dir);
+            assert!(!occlusion.hidden(dir));
+            assert!(occlusion.visible(dir));
         });
-        assert_eq!(flags.0, 0);
+        assert_eq!(occlusion, Occlusion::UNOCCLUDED);
+        assert!(Occlusion::OCCLUDED.fully_occluded());
     }
     
 }
