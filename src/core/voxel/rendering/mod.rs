@@ -1,6 +1,7 @@
 pub mod voxelmaterial;
 pub mod voxelmesh;
 pub mod meshbuilder;
+pub mod color;
 
 use bevy::{asset::Handle, render::mesh::Mesh};
 

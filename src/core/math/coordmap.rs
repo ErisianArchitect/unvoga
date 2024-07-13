@@ -1,10 +1,12 @@
 use bevy::math::{vec3, Vec3};
+use bytemuck::NoUninit;
 
 use crate::core::voxel::direction::Direction;
 
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Rotation(u8);
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, NoUninit)]
+pub struct Rotation(pub u8);
 
 impl Rotation {
     pub const fn new(up: Direction, angle: i32) -> Self {

@@ -32,19 +32,24 @@ pub struct VoxelWorld {
     chunks: RollGrid2D<Chunk>,
     render_chunks: RollGrid3D<RenderChunk>,
     dirty_sections: Vec<Coord>,
+    initialized: bool,
 }
 
 impl VoxelWorld {
-    pub fn new(render_distance: usize, center: Coord) -> Self {
+    const WORLD_BOUNDS: Bounds3D = Bounds3D {
+        min: (i32::MIN, WORLD_BOTTOM, i32::MIN),
+        max: (i32::MAX, WORLD_TOP, i32::MAX)
+    };
+    pub fn new(render_distance: u8, center: Coord) -> Self {
         let mut center = center;
         // clamp Y to world Y range
         center.y = center.y.min(WORLD_TOP).max(WORLD_BOTTOM);
-        if render_distance + WORLD_SIZE_PAD > PADDED_WORLD_SIZE_MAX {
-            panic!("Size greater than {PADDED_WORLD_SIZE_MAX} (PADDED_WORLD_SIZE_MAX)");
-        }
-        let pad_distance = (render_distance + WORLD_SIZE_PAD);
+        // if render_distance as usize + WORLD_SIZE_PAD > PADDED_WORLD_SIZE_MAX {
+        //     panic!("Size greater than {PADDED_WORLD_SIZE_MAX} (PADDED_WORLD_SIZE_MAX)");
+        // }
+        let pad_distance = (render_distance as usize + WORLD_SIZE_PAD);
         let pad_size = pad_distance * 2;
-        let render_size = render_distance * 2;
+        let render_size = render_distance as usize * 2;
         // let pad_half = pad_distance as i32;
         // let render_half = render_distance as i32;
         // let (x, y, z) = (center.x, center.y, center.z);
@@ -63,10 +68,11 @@ impl VoxelWorld {
         // );
         // let clamp_top = WORLD_TOP - render_size as i32;
         // let rendy = rendy.min(clamp_top).max(WORLD_BOTTOM);
-        let render_height = (render_distance * 2).max(WORLD_HEIGHT);
-        let (chunk_x, chunk_z) = calculate_center_offset(pad_distance as i32, center).chunk_coord().xz();
-        let (render_x, render_y, render_z) = calculate_center_offset(render_distance as i32, center).clamp_y(WORLD_BOTTOM, WORLD_TOP - render_height as i32).section_coord().xyz();
+        let render_height = render_size.min(WORLD_HEIGHT);
+        let (chunk_x, chunk_z) = calculate_center_offset(pad_distance as i32, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
+        let (render_x, render_y, render_z) = calculate_center_offset(render_distance as i32, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
         Self {
+            initialized: false,
             chunks: RollGrid2D::new_with_init(pad_size, pad_size, (chunk_x, chunk_z), |(x, z): (i32, i32)| {
                 Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
             }),
@@ -466,7 +472,7 @@ mod tests {
     #[test]
     fn world_test() {
         println!("World Test");
-        let mut world = VoxelWorld::new(32, Coord::new(0, -10000, 0));
+        let mut world = VoxelWorld::new(16, Coord::new(0, -10000, 0));
         struct DirtBlock;
         impl Block for DirtBlock {
             fn as_any(&self) -> &dyn std::any::Any {
@@ -515,9 +521,9 @@ mod tests {
                     OcclusionShape::Full,
                     OcclusionShape::Full,
                     OcclusionShape::Full,
-                    OcclusionShape::None,
-                    OcclusionShape::None,
-                    OcclusionShape::None
+                    OcclusionShape::Empty,
+                    OcclusionShape::Empty,
+                    OcclusionShape::Empty
                 );
                 &SHAPE
             }
@@ -542,23 +548,21 @@ mod tests {
         let dirt = blockstate!(dirt).register();
         let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 1)).register();
         let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
-        // for y in 0..3 {
-        //     for z in 0..3 {
-        //         for x in 0..3 {
-        //             world.set_block((x, y, z), dirt);
-        //         }
-        //     }
-        // }
         world.set_block((1, 1, 1), rot2);
-        world.set_block((1, 2, 1), dirt);
+        for y in 0..3 {
+            for z in 0..3 {
+                for x in 0..3 {
+                    if (x, y, z) == (1, 1, 1) {
+                        continue;
+                    }
+                    world.set_block((x, y, z), dirt);
+                }
+            }
+        }
+        // world.set_block((1, 1, 1), rot2);
         println!("Block at (1, 1, 1): {}", world.get_block((1, 1, 1)));
         let flags = world.occlusion((1, 1, 1));
-        println!("NegX: {}", flags.neg_x());
-        println!("NegY: {}", flags.neg_y());
-        println!("NegZ: {}", flags.neg_z());
-        println!("PosX: {}", flags.pos_x());
-        println!("PosY: {}", flags.pos_y());
-        println!("PosZ: {}", flags.pos_z());
+        println!("Occlusion at (1, 1, 1) = {flags}");
         let height = world.height(0, 0);
         println!("Dynamic Memory Usage: {}", world.dynamic_usage());
         println!("Height: {height}");

@@ -1291,9 +1291,9 @@ checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "bytemuck"
-version = "1.16.0"
+version = "1.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78834c15cb5d5efe3452d58b1e8ba890dd62d21907f867f383358198e56ebca5"
+checksum = "b236fc92302c97ed75b38da1f4917b5cdda4984745740f153a5d3059e48d725e"
 dependencies = [
  "bytemuck_derive",
 ]
@@ -3587,7 +3587,7 @@ dependencies = [
 [[package]]
 name = "rollgrid"
 version = "0.1.0"
-source = "git+https://github.com/ErisianArchitect/rollgrid.git#3f4a0586425fd31908311c6bccb697eb4b1a7e53"
+source = "git+https://github.com/ErisianArchitect/rollgrid.git#fcf15735388ef97396546c85fb19ec43ce00ef7c"
 dependencies = [
  "itertools 0.13.0",
 ]
@@ -4193,6 +4193,8 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_egui",
+ "bytemuck",
+ "hashbrown",
  "image 0.25.1",
  "itertools 0.13.0",
  "paste",

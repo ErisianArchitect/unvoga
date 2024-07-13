@@ -155,7 +155,7 @@ impl Coord {
 
 impl std::ops::Add<Coord> for Coord {
     type Output = Coord;
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: Coord) -> Self::Output {
         Self {
             x: self.x + rhs.x,
@@ -167,7 +167,7 @@ impl std::ops::Add<Coord> for Coord {
 
 impl std::ops::Sub<Coord> for Coord {
     type Output = Coord;
-    #[inline]
+    #[inline(always)]
     fn sub(self, rhs: Coord) -> Self::Output {
         Self {
             x: self.x - rhs.x,
@@ -179,7 +179,7 @@ impl std::ops::Sub<Coord> for Coord {
 
 impl std::ops::Mul<i32> for Coord {
     type Output = Coord;
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: i32) -> Self::Output {
         Self {
             x: self.x * rhs,
@@ -191,7 +191,7 @@ impl std::ops::Mul<i32> for Coord {
 
 impl std::ops::Div<i32> for Coord {
     type Output = Coord;
-    #[inline]
+    #[inline(always)]
     fn div(self, rhs: i32) -> Self::Output {
         Self {
             x: self.x / rhs,
@@ -203,7 +203,7 @@ impl std::ops::Div<i32> for Coord {
 
 impl std::ops::Rem<i32> for Coord {
     type Output = Self;
-    #[inline]
+    #[inline(always)]
     fn rem(self, rhs: i32) -> Self::Output {
         Self {
             x: self.x % rhs,
@@ -215,7 +215,7 @@ impl std::ops::Rem<i32> for Coord {
 
 impl std::ops::Add<Direction> for Coord {
     type Output = Coord;
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: Direction) -> Self::Output {
         match rhs {
             Direction::NegX => Coord::new(self.x - 1, self.y, self.z),
@@ -230,7 +230,7 @@ impl std::ops::Add<Direction> for Coord {
 
 impl std::ops::Add<Cardinal> for Coord {
     type Output = Coord;
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: Cardinal) -> Self::Output {
         match rhs {
             Cardinal::West => Coord::new(self.x - 1, self.y, self.z),
@@ -242,7 +242,7 @@ impl std::ops::Add<Cardinal> for Coord {
 }
 
 impl From<Cardinal> for Coord {
-    #[inline]
+    #[inline(always)]
     fn from(value: Cardinal) -> Self {
         match value {
             Cardinal::West  => Coord::new(-1,  0,  0),
@@ -254,7 +254,7 @@ impl From<Cardinal> for Coord {
 }
 
 impl From<Direction> for Coord {
-    #[inline]
+    #[inline(always)]
     fn from(value: Direction) -> Self {
         match value {
             Direction::NegX => Coord::new(-1,  0,  0),
@@ -268,23 +268,37 @@ impl From<Direction> for Coord {
 }
 
 impl std::fmt::Display for Coord {
-    #[inline]
+    #[inline(always)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}, {}, {})", self.x, self.y, self.z)
     }
 }
 
 impl From<Coord> for (i32, i32, i32) {
-    #[inline]
+    #[inline(always)]
     fn from(value: Coord) -> Self {
         (value.x, value.y, value.z)
     }
 }
 
 impl From<(i32, i32, i32)> for Coord {
-    #[inline]
+    #[inline(always)]
     fn from(value: (i32, i32, i32)) -> Self {
         Coord::new(value.0, value.1, value.2)
+    }
+}
+
+impl From<bevy::math::IVec3> for Coord {
+    #[inline(always)]
+    fn from(value: (bevy::math::IVec3)) -> Self {
+        Coord::new(value.x, value.y, value.z)
+    }
+}
+
+impl Into<bevy::math::IVec3> for Coord {
+    #[inline]
+    fn into(self) -> bevy::math::IVec3 {
+        bevy::math::ivec3(self.x, self.y, self.z)
     }
 }
 

@@ -172,7 +172,7 @@ pub enum OcclusionShape {
     S2x2(OcclusionShape2x2),
     Rect(OcclusionRect),
     Full,
-    None
+    Empty
 }
 
 impl OcclusionShape {
@@ -185,19 +185,33 @@ impl OcclusionShape {
         OcclusionShape::Full,
     );
     pub const EMPTY_FACES: Faces<OcclusionShape> = Faces::new(
-        OcclusionShape::None,
-        OcclusionShape::None,
-        OcclusionShape::None,
-        OcclusionShape::None,
-        OcclusionShape::None,
-        OcclusionShape::None,
+        OcclusionShape::Empty,
+        OcclusionShape::Empty,
+        OcclusionShape::Empty,
+        OcclusionShape::Empty,
+        OcclusionShape::Empty,
+        OcclusionShape::Empty,
     );
-    pub fn is_none(&self) -> bool {
-        matches!(self, OcclusionShape::None)
+    pub fn is_empty(&self) -> bool {
+        matches!(self, OcclusionShape::Empty)
     }
 
     pub fn is_full(&self) -> bool {
         matches!(self, OcclusionShape::Full)
+    }
+
+    pub fn fully_occluded(&self) -> bool {
+        self.is_full() || {
+            match self {
+                OcclusionShape::S16x16(shape) => shape.0.iter().find(|&&v| v != u16::MAX).is_none(),
+                OcclusionShape::S8x8(shape) => shape.0 == u64::MAX,
+                OcclusionShape::S4x4(shape) => shape.0 == u16::MAX,
+                OcclusionShape::S2x2(shape) => shape.0 == 0b1111,
+                &OcclusionShape::Rect(rect) => rect == OcclusionRect::new(0, 0, 16, 16),
+                OcclusionShape::Full => unreachable!(),
+                OcclusionShape::Empty => false,
+            }
+        }
     }
 
     pub fn occludes(&self) -> bool {
@@ -208,19 +222,18 @@ impl OcclusionShape {
             OcclusionShape::S2x2(shape) => shape.0 != 0,
             OcclusionShape::Rect(shape) => true,
             OcclusionShape::Full => true,
-            OcclusionShape::None => false,
+            OcclusionShape::Empty => false,
         }
     }
 
     pub fn occluded_by(&self, other: &OcclusionShape) -> bool {
         // What I wanted to do for occlusion is rather complicated combinatorically, so nested match
         // expressions is the way to go. There may be a better way to do it, but I'm not smart enough to know it.
-        if other.is_none()
-        || self.is_none() {
+        if other.is_empty() {
             return false;
         }
         if other.is_full() {
-            return self.occludes();
+            return true;
         }
         match self {
             OcclusionShape::Full => match other {
@@ -230,7 +243,7 @@ impl OcclusionShape {
                 OcclusionShape::S2x2(shape) => shape.0 & 0xF == 0xF,
                 OcclusionShape::Rect(shape) => *shape == OcclusionRect::FULL,
                 OcclusionShape::Full => unreachable!(),
-                OcclusionShape::None => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
             },
             OcclusionShape::Rect(shape) => match other {
                 OcclusionShape::S16x16(other) => {
@@ -282,7 +295,7 @@ impl OcclusionShape {
                 },
                 OcclusionShape::Rect(other) => other.contains_rect(*shape),
                 OcclusionShape::Full => unreachable!(),
-                OcclusionShape::None => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
             },
             OcclusionShape::S16x16(shape) => match other {
                 OcclusionShape::S16x16(other) => {
@@ -345,7 +358,7 @@ impl OcclusionShape {
                     true
                 },
                 OcclusionShape::Full => unreachable!(),
-                OcclusionShape::None => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
             },
             OcclusionShape::S8x8(shape) => match other {
                 OcclusionShape::S16x16(other) => {
@@ -415,7 +428,7 @@ impl OcclusionShape {
                     true
                 },
                 OcclusionShape::Full => unreachable!(),
-                OcclusionShape::None => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
             },
             OcclusionShape::S4x4(shape) => match other {
                 OcclusionShape::S16x16(other) => {
@@ -491,7 +504,7 @@ impl OcclusionShape {
                     true
                 },
                 OcclusionShape::Full => unreachable!(),
-                OcclusionShape::None => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
             },
             OcclusionShape::S2x2(shape) => match other {
                 OcclusionShape::S16x16(other) => {
@@ -573,9 +586,11 @@ impl OcclusionShape {
                     true
                 },
                 OcclusionShape::Full => unreachable!(),
-                OcclusionShape::None => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
             },
-            OcclusionShape::None => unreachable!(),
+            OcclusionShape::Empty => {
+                other.fully_occluded()
+            },
         }
     }
 }

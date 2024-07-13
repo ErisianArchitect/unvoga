@@ -12,6 +12,7 @@ pub mod blockstate;
 pub mod blocks;
 pub mod rendering;
 pub mod tag;
+pub mod axis;
 
 #[cfg(test)]
 mod tests {

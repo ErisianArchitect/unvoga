@@ -2,7 +2,7 @@ use std::{borrow::Borrow, fmt::Debug, ops::{Index, IndexMut}};
 
 use crate::core::{math::coordmap::{Flip, Rotation}, util::traits::StrToOwned};
 
-use super::{blocks::{self, StateRef}, coord::Coord, direction::{Cardinal, Direction}, world::chunkcoord::ChunkCoord};
+use super::{axis::Axis, blocks::{self, StateRef}, coord::Coord, direction::{Cardinal, Direction}, world::chunkcoord::ChunkCoord};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockState {
@@ -27,6 +27,7 @@ pub enum State {
     Cardinal(Cardinal),
     Rotation(Rotation),
     Flip(Flip),
+    Axis(Axis),
     Coord2(ChunkCoord),
     Coord3(Coord),
 }
@@ -193,6 +194,12 @@ impl From<Flip> for State {
     }
 }
 
+impl From<Axis> for State {
+    fn from(value: Axis) -> Self {
+        State::Axis(value)
+    }
+}
+
 impl BlockProperty {
     pub fn new<S: StrToOwned, St: Into<State>>(name: S, value: St) -> Self {
         Self {
@@ -283,6 +290,9 @@ impl std::fmt::Display for State {
                     }
                 }
                 Ok(())
+            }
+            &State::Axis(axis) => {
+                write!(f, "Axis::{axis:?}")
             }
         }
     }
