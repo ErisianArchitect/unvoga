@@ -1,4 +1,6 @@
 pub mod chunk;
+pub mod section;
+pub mod occlusion;
 pub mod heightmap;
 pub mod dirty;
 pub mod chunkprovider;
@@ -9,11 +11,13 @@ pub mod blockdata;
 use std::collections::VecDeque;
 
 use bevy::{asset::Handle, render::mesh::Mesh};
+use occlusion::Occlusion;
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
+use section::{LightChange, Section, StateChange};
 
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::StateRef, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 
-use chunk::{Chunk, LightChange, Occlusion, Section, StateChange};
+use chunk::Chunk;
 
 use super::tag::Tag;
 
@@ -86,7 +90,7 @@ impl VoxelWorld {
         )
     }
 
-    pub fn get_section(&self, section_coord: Coord) -> Option<&Section> {
+    fn get_section(&self, section_coord: Coord) -> Option<&Section> {
         if section_coord.y < 0 {
             return None;
         }
@@ -98,7 +102,7 @@ impl VoxelWorld {
         Some(&chunk.sections[y as usize])
     }
 
-    pub fn get_section_mut(&mut self, section_coord: Coord) -> Option<&mut Section> {
+    fn get_section_mut(&mut self, section_coord: Coord) -> Option<&mut Section> {
         if section_coord.y < 0 {
             return None;
         }
@@ -113,17 +117,13 @@ impl VoxelWorld {
     pub fn get<C: Into<(i32, i32, i32)>>(&self, coord: C) -> StateRef {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if self.bounds().contains(coord) {
-            let chunk_x = coord.x >> 4;
-            let chunk_z = coord.z >> 4;
-            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-                chunk.get(coord)
-            } else {
-                StateRef::AIR
-            }
-        } else {
-            StateRef::AIR
+        if !self.bounds().contains(coord) {
+            return StateRef::AIR;
         }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.get(coord)
     }
 
     pub fn set<C: Into<(i32, i32, i32)>, S: Into<StateRef>>(&mut self, coord: C, state: S) -> StateRef {
@@ -135,11 +135,8 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-            chunk.set(coord, state)
-        } else {
-            return StateRef::AIR;
-        };
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        let change = chunk.set(coord, state);
         match change.change {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
@@ -191,33 +188,25 @@ impl VoxelWorld {
     pub fn occlusion<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Occlusion {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if self.bounds().contains(coord) {
-            let chunk_x = coord.x >> 4;
-            let chunk_z = coord.z >> 4;
-            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-                chunk.occlusion(coord)
-            } else {
-                Occlusion::UNOCCLUDED
-            }
-        } else {
-            Occlusion::UNOCCLUDED
+        if !self.bounds().contains(coord) {
+            return Occlusion::UNOCCLUDED;
         }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.occlusion(coord)
     }
 
     pub fn face_visible<C: Into<(i32, i32, i32)>>(&self, coord: C, face: Direction) -> bool {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if self.bounds().contains(coord) {
-            let chunk_x = coord.x >> 4;
-            let chunk_z = coord.z >> 4;
-            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-                chunk.face_visible(coord, face)
-            } else {
-                true
-            }
-        } else {
-            true
+        if !self.bounds().contains(coord) {
+            return true;
         }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.face_visible(coord, face)
     }
 
     pub fn show_face<C: Into<(i32, i32, i32)>>(&mut self, coord: C, face: Direction) -> bool {
@@ -228,11 +217,8 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-            chunk.show_face(coord, face)
-        } else {
-            return true;
-        };
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        let change = chunk.show_face(coord, face);
         if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
@@ -250,11 +236,8 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-            chunk.hide_face(coord, face)
-        } else {
-            return true;
-        };
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        let change = chunk.hide_face(coord, face);
         if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
@@ -267,17 +250,13 @@ impl VoxelWorld {
     pub fn get_block_light<C: Into<(i32, i32, i32)>>(&self, coord: C) -> u8 {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if self.bounds().contains(coord) {
-            let chunk_x = coord.x >> 4;
-            let chunk_z = coord.z >> 4;
-            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-                chunk.get_block_light(coord)
-            } else {
-                0
-            }
-        } else {
-            0
+        if !self.bounds().contains(coord) {
+            return 0;
         }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.get_block_light(coord)
     }
 
     pub fn set_block_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
@@ -288,11 +267,8 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-            chunk.set_block_light(coord, level)
-        } else {
-            return LightChange::default();
-        };
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        let change = chunk.set_block_light(coord, level);
         if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
@@ -311,17 +287,13 @@ impl VoxelWorld {
     pub fn get_sky_light<C: Into<(i32, i32, i32)>>(&self, coord: C) -> u8 {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if self.bounds().contains(coord) {
-            let chunk_x = coord.x >> 4;
-            let chunk_z = coord.z >> 4;
-            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-                chunk.get_sky_light(coord)
-            } else {
-                0
-            }
-        } else {
-            0
+        if !self.bounds().contains(coord) {
+            return 0;
         }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.get_sky_light(coord)
     }
 
     pub fn set_sky_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
@@ -332,11 +304,8 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        let change = if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-            chunk.set_sky_light(coord, level)
-        } else {
-            return LightChange::default();
-        };
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        let change = chunk.set_sky_light(coord, level);
         if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
@@ -355,49 +324,37 @@ impl VoxelWorld {
     pub fn get_data<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Option<&Tag> {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if self.bounds().contains(coord) {
-            let chunk_x = coord.x >> 4;
-            let chunk_z = coord.z >> 4;
-            if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
-                chunk.get_data(coord)
-            } else {
-                None
-            }
-        } else {
-            None
+        if !self.bounds().contains(coord) {
+            return None;
         }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.get_data(coord)
     }
 
     pub fn get_data_mut<C: Into<(i32, i32, i32)>>(&mut self, coord: C) -> Option<&mut Tag> {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if self.bounds().contains(coord) {
-            let chunk_x = coord.x >> 4;
-            let chunk_z = coord.z >> 4;
-            if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-                chunk.get_data_mut(coord)
-            } else {
-                None
-            }
-        } else {
-            None
+        if !self.bounds().contains(coord) {
+            return None;
         }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.get_data_mut(coord)
     }
 
     pub fn get_or_insert_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C, default: Tag) -> &mut Tag {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if self.bounds().contains(coord) {
-            let chunk_x = coord.x >> 4;
-            let chunk_z = coord.z >> 4;
-            if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-                chunk.get_or_insert_data(coord, default)
-            } else {
-                panic!("Chunk was None.");
-            }
-        } else {
-            panic!("Out of bounds.")
+        if !self.bounds().contains(coord) {
+            panic!("Out of bounds.");
         }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.get_or_insert_data(coord, default)
     }
 
     pub fn delete_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
@@ -408,12 +365,11 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-            if let Some(data) = chunk.delete_data(coord) {
-                let state = self.get(coord);
-                if !state.is_air() {
-                    state.block().data_deleted(self, coord, state, data);
-                }
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        if let Some(data) = chunk.delete_data(coord) {
+            let state = self.get(coord);
+            if !state.is_air() {
+                state.block().data_deleted(self, coord, state, data);
             }
         }
     }
@@ -426,16 +382,16 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-            if let Some(data) = chunk.delete_data(coord) {
-                if !old_state.is_air() {
-                    old_state.block().data_deleted(self, coord, old_state, data);
-                }
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        if let Some(data) = chunk.delete_data(coord) {
+            if !old_state.is_air() {
+                old_state.block().data_deleted(self, coord, old_state, data);
             }
         }
     }
 
     pub fn set_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C, tag: Tag) {
+        let mut tag = tag;
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -443,12 +399,12 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
-            if let Some(data) = chunk.set_data(coord, tag) {
-                let state = self.get(coord);
-                if !state.is_air() {
-                    state.block().data_deleted(self, coord, state, data);
-                }
+        let state = self.get(coord);
+        state.block().data_set(self, coord, state, &mut tag);
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        if let Some(data) = chunk.set_data(coord, tag) {
+            if !state.is_air() {
+                state.block().data_deleted(self, coord, state, data);
             }
         }
     }
@@ -532,7 +488,7 @@ impl VoxelWorld {
     pub fn dynamic_usage(&self) -> usize {
         self.chunks.iter().map(|(_, chunk)| {
             let Some(chunk) = chunk else {
-                return 0;
+                panic!("Chunk was None.");
             };
             chunk.dynamic_usage()
         }).sum()
@@ -546,7 +502,7 @@ struct RenderChunk {
 
 #[cfg(test)]
 mod tests {
-    use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occlusion_shape::OcclusionShape, tag::Tag, world::{chunk::Occlusion, WORLD_TOP}}}};
+    use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, WORLD_TOP}}}};
 
     use super::VoxelWorld;
 
