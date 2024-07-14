@@ -95,7 +95,8 @@ impl BlockDataContainer {
     }
 }
 
-// 20480 bytes
+// 4096*4+4096+2048+2048+4096*2
+// 32768 bytes
 pub struct Section {
     pub blocks: Option<Box<[StateRef]>>,
     pub occlusion: Option<Box<[Occlusion]>>,
@@ -347,7 +348,7 @@ impl Section {
             old_max,
             old_level,
             new_level: level,
-            new_max: old_max.max(level),
+            new_max: sky_light.max(level),
         };
         if level == old_level {
             return SectionUpdate::new(change);
@@ -413,6 +414,8 @@ impl Section {
         let Some(sky_light) = &mut self.sky_light else {
             panic!("Should be valid");
         };
+        // light values are packed as 4-bit nibbles
+        // gotta unpack the other value
         let other_index = ((sub_index as i32 - 1) & 1) as usize;
         let other_shift = other_index * 4;
         let old_level = (sky_light[mask_index] & (0xF << shift)) >> shift;
@@ -421,7 +424,7 @@ impl Section {
             old_max,
             old_level,
             new_level: level,
-            new_max: old_max.max(level),
+            new_max: block_light.max(level),
         };
         if level == old_level {
             return SectionUpdate::new(change);
