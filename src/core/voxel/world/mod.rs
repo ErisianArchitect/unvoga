@@ -384,6 +384,22 @@ impl VoxelWorld {
         }
     }
 
+    pub fn get_or_insert_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C, default: Tag) -> &mut Tag {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        if self.bounds().contains(coord) {
+            let chunk_x = coord.x >> 4;
+            let chunk_z = coord.z >> 4;
+            if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
+                chunk.get_or_insert_data(coord, default)
+            } else {
+                panic!("Chunk was None.");
+            }
+        } else {
+            panic!("Out of bounds.")
+        }
+    }
+
     pub fn delete_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();

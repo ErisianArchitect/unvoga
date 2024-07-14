@@ -1,28 +1,49 @@
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::core::voxel::{blocks::StateRef, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
+use crate::core::voxel::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
 use super::{dirty::Dirty, heightmap::Heightmap, WORLD_HEIGHT};
 
+/// Create empty [Section] blocks.
+#[inline(always)]
 fn make_empty_section_blocks() -> Box<[StateRef]> {
     (0..4096).map(|_| StateRef::AIR).collect()
 }
 
+/// Create empty [Section] lightmap.
+#[inline(always)]
 fn make_empty_section_light() -> Box<[u8]> {
     (0..2048).map(|_| 0).collect()
 }
 
+/// Create empty [Section] block data ref grid.
+#[inline(always)]
+fn make_empty_block_data() -> Box<[BlockDataRef]> {
+    (0..4096).map(|_| BlockDataRef::NULL).collect()
+}
+
+#[inline(always)]
+fn make_empty_occlusion_data() -> Box<[Occlusion]> {
+    (0..4096).map(|_| Occlusion::UNOCCLUDED).collect()
+}
+
+/// Block data is store in a chunk section as a [Tag]. There are up to 4096 slots
+/// available for block data in a single section (one [Tag] per block).
+/// This block data is stored as a [u16] index that points to the [Tag] in
+/// the [BlockDataContainer].
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockDataRef(u16);
 
 impl BlockDataRef {
     pub const NULL: BlockDataRef = BlockDataRef(0);
+    /// Checks to see if this is the NULL value (0).
     #[inline(always)]
     pub const fn null(self) -> bool {
         self.0 == 0
     }
 }
 
+/// A container for block data. There are up to 4096 slots (one [Tag] per block in a [Section])
 pub struct BlockDataContainer {
     data: Vec<Option<Tag>>,
     unused: Vec<u16>,
@@ -36,6 +57,7 @@ impl BlockDataContainer {
         }
     }
 
+    /// Insert new data returning the reference to the slot.
     pub fn insert<T: Into<Tag>>(&mut self, tag: T) -> BlockDataRef {
         if let Some(index) = self.unused.pop() {
             self.data[index as usize] = Some(tag.into());
@@ -50,6 +72,7 @@ impl BlockDataContainer {
         }
     }
 
+    /// Delete data from the container, returning the data that was deleted.
     pub fn delete(&mut self, dataref: BlockDataRef) -> Tag {
         if dataref.null() {
             return Tag::Null;
@@ -66,6 +89,7 @@ impl BlockDataContainer {
         tag
     }
 
+    /// Get a reference to the [Tag] data.
     pub fn get(&self, dataref: BlockDataRef) -> Option<&Tag> {
         if dataref.null() {
             return None;
@@ -77,6 +101,7 @@ impl BlockDataContainer {
         Some(tag)
     }
 
+    /// Get a mutable reference to the [Tag] data.
     pub fn get_mut(&mut self, dataref: BlockDataRef) -> Option<&mut Tag> {
         if dataref.null() {
             return None;
@@ -88,6 +113,7 @@ impl BlockDataContainer {
         Some(tag)
     }
 
+    /// Gets the dynamic memory usage.
     pub fn dynamic_usage(&self) -> usize {
         let data_size = self.data.capacity() * std::mem::size_of::<Option<Tag>>();
         let unused_size = self.unused.capacity() * 2;
@@ -97,6 +123,13 @@ impl BlockDataContainer {
 
 // 4096*4+4096+2048+2048+4096*2
 // 32768 bytes
+/// A single 16x16x16 (4096) block section.
+/// This includes:
+///     blocks
+///     occlusion flags
+///     sky light
+///     block light
+///     block data
 pub struct Section {
     pub blocks: Option<Box<[StateRef]>>,
     pub occlusion: Option<Box<[Occlusion]>>,
@@ -134,6 +167,7 @@ impl Section {
         }
     }
 
+    /// Gets the dynamic memory usage. (This doesn't include the usage for [Tag]s; TODO)
     pub fn dynamic_usage(&self) -> usize {
         let mut size = 0;
         // let mut printed = false;
@@ -179,6 +213,8 @@ impl Section {
         size + self.block_data.dynamic_usage()
     }
 
+    /// Gets the index in the 16x16x16 [Section].
+    /// This is yzx order (x | z << 4 | y << 8)
     fn index(coord: Coord) -> usize {
         let x = (coord.x & 0xF) as usize;
         let y = (coord.y & 0xF) as usize;
@@ -186,38 +222,50 @@ impl Section {
         x | z << 4 | y << 8
     }
 
+    /// Get the [StateRef] at the `coord`.
     pub fn get(&self, coord: Coord) -> StateRef {
         if let Some(blocks) = &self.blocks {
             let index = Section::index(coord);
             blocks[index]
         } else {
+            // If self.blocks is None, that means it's all air.
             StateRef::AIR
         }
     }
 
+    /// Set the [StateRef] at the `coord`.
     pub fn set(&mut self, coord: Coord, state: StateRef) -> SectionUpdate<StateChange> {
         if self.blocks.is_none() {
+            // if state isn't air and blocks is None, create an empty block array.
             if !state.is_air() {
                 self.blocks = Some(make_empty_section_blocks());
             } else {
+                // state was air, and blocks was None (all air), so the state is unchanged.
                 return SectionUpdate::new(StateChange::Unchanged);
             }
         }
         let index = Section::index(coord);
-        let Some(blocks) = &mut self.blocks else {
-            panic!("Should have been valid");
-        };
+        let blocks = self.blocks.as_mut().unwrap();
         let mut old = state;
         std::mem::swap(&mut blocks[index], &mut old);
+        // Check that the new state is different than the old state
         if state != old {
-            if !state.is_air() && old.is_air() {
+            if old.is_air() && !state.is_air() {
+                // if the old state is air and the new state isn't air, increment the block_count.
+                // this allows to keep track of when the section is all air blocks.
+                // when the block_count is 0, it's all air.
+                // we're effectively counting the non-air blocks here.
                 self.block_count += 1;
             } else if state.is_air() && !old.is_air() {
+                // if the new state is air and the old state isn't air,
+                // decrement the block_count then check if the block_count has reached zero.
+                // If the block count is zero, set blocks to None to free up the memory.
                 self.block_count -= 1;
                 if self.block_count == 0 {
                     self.blocks = None;
                 }
             }
+            // mark the blocks as dirty so that the engine knows to rebuild the mesh.
             self.blocks_dirty.mark();
             if self.section_dirty.mark() {
                 SectionUpdate::new_dirty(StateChange::Changed(old))
@@ -229,6 +277,8 @@ impl Section {
         }
     }
 
+    /// Gets the [Occlusion] flags for the block.
+    /// These are the faces that are hidden.
     pub fn occlusion(&self, coord: Coord) -> Occlusion {
         if let Some(occlusion) = &self.occlusion {
             let index = Section::index(coord);
@@ -238,15 +288,18 @@ impl Section {
         }
     }
 
+    /// Checks if a face is visible.
     pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
         if let Some(occlusion) = &self.occlusion {
             let index = Section::index(coord);
             occlusion[index].visible(face)
         } else {
+            // Faces are visible by default.
             true
         }
     }
 
+    /// Show a face.
     pub fn show_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
         if self.occlusion.is_none() {
             return SectionUpdate::new(true);
@@ -259,6 +312,8 @@ impl Section {
         let old = occlusion[index].show(face);
         let new_flags = occlusion[index];
         if new_flags == Occlusion::UNOCCLUDED && old_flags != Occlusion::UNOCCLUDED {
+            // decrement the occlusion_count which keeps track of how many blocks are occluded.
+            // when the occlusion_count is 0, self.occlusion is set to None to free up memory.
             self.occlusion_count -= 1;
             if self.occlusion_count == 0 {
                 self.occlusion = None;
@@ -273,17 +328,15 @@ impl Section {
         SectionUpdate::new(old)
     }
 
+    /// Hide a face.
     pub fn hide_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
-        if self.occlusion.is_none() {
-            self.occlusion = Some((0..4096).map(|_| Occlusion::UNOCCLUDED).collect());
-        }
-        let Some(occlusion) = &mut self.occlusion else {
-            unreachable!()
-        };
+        let occlusion = self.occlusion.get_or_insert_with(make_empty_occlusion_data);
         let index = Section::index(coord);
         let old_flags = occlusion[index];
         let old = occlusion[index].hide(face);
         if old_flags == Occlusion::UNOCCLUDED {
+            // increment the occlusion_count to keep track of how many blocks are occluded.
+            // this allows for being able to free up memory when no blocks are occluded.
             self.occlusion_count += 1;
         }
         if old {
@@ -302,9 +355,14 @@ impl Section {
         block_light.max(sky_light)
     }
 
+    /// Gets the block light. The block light is the light that comes
+    /// from other blocks.
     pub fn get_block_light(&self, coord: Coord) -> u8 {
         if let Some(block_light) = &self.block_light {
             let index = Section::index(coord);
+            // The block light is stored in an array of 2048 bytes, although it's 4096 values.
+            // That's 2 values per byte.
+            // Using some simple math, we can unpack the value.
             let mask_index = index / 2;
             let sub_index = (index & 1) * 4;
             block_light[mask_index] >> sub_index & 0xF
@@ -313,6 +371,8 @@ impl Section {
         }
     }
 
+    /// Sets the block light. The block light is the light that comes
+    /// from other blocks.
     pub fn set_block_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
         let level = level.min(15);
         let index = Section::index(coord);
@@ -321,14 +381,16 @@ impl Section {
         let shift = sub_index * 4;
         // Get the sky light to compare for the max/old max
         let sky_light = if let Some(sky_light) = &self.sky_light {
-            (sky_light[mask_index] & (0xF << shift)) >> shift
+            sky_light[mask_index] >> shift & 0xF
         } else {
             0
         };
         if self.block_light.is_none() {
             if level != 0 {
+                // if level isn't 0, we want to make an empty lightmap
                 self.block_light = Some(make_empty_section_light());
             } else {
+                // No change has occurred
                 return SectionUpdate::new(LightChange {
                     old_max: sky_light,
                     old_level: 0,
@@ -354,6 +416,7 @@ impl Section {
         let other = block_light[mask_index] & (0xF << other_shift);
         block_light[mask_index] = other | (level << shift);
 
+        // update the block_light_count so that memory can be freed when it reaches 0.
         if level != 0 && old_level == 0 {
             self.block_light_count += 1;
         } else if level == 0 && old_level != 0 {
@@ -393,7 +456,7 @@ impl Section {
         let shift = sub_index * 4;
         // Get the block light to compare for the max/old max
         let block_light = if let Some(block_light) = &self.block_light {
-            (block_light[mask_index] & (0xF << shift)) >> shift
+            block_light[mask_index] >> shift & 0xF
         } else {
             0
         };
@@ -465,6 +528,24 @@ impl Section {
         self.block_data.get_mut(dref)
     }
 
+    pub fn get_or_insert_data(&mut self, coord: Coord, default: Tag) -> &mut Tag {
+        self.get_or_insert_data_with(coord, || default)
+    }
+
+    pub fn get_or_insert_data_with<T: Into<Tag>, F: FnOnce() -> T>(&mut self, coord: Coord, f: F) -> &mut Tag {
+        let data = self.block_data_refs.get_or_insert_with(make_empty_block_data);
+        let index = Section::index(coord);
+        let dref = data[index];
+        if dref.null() {
+            let insert: Tag = f().into();
+            let newref = self.block_data.insert(insert);
+            data[index] = newref;
+            self.block_data.get_mut(newref).unwrap()
+        } else {
+            self.block_data.get_mut(dref).unwrap()
+        }
+    }
+
     pub fn delete_data(&mut self, coord: Coord) -> Option<Tag> {
         let Some(data) = &mut self.block_data_refs else {
             return None;
@@ -509,12 +590,12 @@ impl Section {
             let sub_index = (i & 1);
             let shift = sub_index * 4;
             let block_light = if let Some(block_light) = &self.block_light {
-                (block_light[mask_index] & (0xF << shift)) >> shift
+                block_light[mask_index] >> shift & 0xF
             } else {
                 0
             };
             let sky_light = if let Some(sky_light) = &self.sky_light {
-                (sky_light[mask_index] & (0xF << shift)) >> shift
+                sky_light[mask_index] >> shift & 0xF
             } else {
                 0
             };
@@ -615,6 +696,16 @@ impl Chunk {
     pub fn get_data_mut(&mut self, coord: Coord) -> Option<&mut Tag> {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].get_data_mut(coord)
+    }
+
+    pub fn get_or_insert_data(&mut self, coord: Coord, default: Tag) -> &mut Tag {
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.sections[section_index].get_or_insert_data(coord, default)
+    }
+
+    pub fn get_or_insert_data_with<T: Into<Tag>, F: FnOnce() -> T>(&mut self, coord: Coord, f: F) -> &mut Tag {
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.sections[section_index].get_or_insert_data_with(coord, f)
     }
 
     pub fn delete_data(&mut self, coord: Coord) -> Option<Tag> {
