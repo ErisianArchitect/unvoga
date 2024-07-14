@@ -1,6 +1,6 @@
 use crate::core::voxel::coord::Coord;
 
-use super::world::WORLD_HEIGHT;
+use super::WORLD_HEIGHT;
 
 pub struct HeightmapColumn {
     masks: [u128; Self::SECTION_COUNT]

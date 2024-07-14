@@ -1,8 +1,8 @@
-use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh};
+use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::core::voxel::{blocks::StateRef, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial};
+use crate::core::voxel::{blocks::StateRef, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{dirty::Dirty, heightmap::Heightmap, world::WORLD_HEIGHT};
+use super::{dirty::Dirty, heightmap::Heightmap, WORLD_HEIGHT};
 
 fn make_empty_section_blocks() -> Box<[StateRef]> {
     (0..4096).map(|_| StateRef::AIR).collect()
@@ -12,16 +12,102 @@ fn make_empty_section_light() -> Box<[u8]> {
     (0..2048).map(|_| 0).collect()
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BlockDataRef(u16);
+
+impl BlockDataRef {
+    pub const NULL: BlockDataRef = BlockDataRef(0);
+    #[inline(always)]
+    pub const fn null(self) -> bool {
+        self.0 == 0
+    }
+}
+
+pub struct BlockDataContainer {
+    data: Vec<Option<Tag>>,
+    unused: Vec<u16>,
+}
+
+impl BlockDataContainer {
+    pub fn new() -> Self {
+        Self {
+            data: Vec::new(),
+            unused: Vec::new(),
+        }
+    }
+
+    pub fn insert<T: Into<Tag>>(&mut self, tag: T) -> BlockDataRef {
+        if let Some(index) = self.unused.pop() {
+            self.data[index as usize] = Some(tag.into());
+            BlockDataRef(index + 1)
+        } else {
+            if self.data.len() == 4096 {
+                panic!("BlockDataContainer overflow. This should contain at most 4096 items.")
+            }
+            let index = self.data.len() as u16;
+            self.data.push(Some(tag.into()));
+            BlockDataRef(index + 1)
+        }
+    }
+
+    pub fn delete(&mut self, dataref: BlockDataRef) -> Tag {
+        if dataref.null() {
+            return Tag::Null;
+        }
+        let index = dataref.0 - 1;
+        let tag = self.data[index as usize].take().expect("You done goofed");
+        self.unused.push(index);
+        if self.unused.len() == self.data.len() {
+            self.unused.clear();
+            self.unused.shrink_to_fit();
+            self.data.clear();
+            self.data.shrink_to_fit();
+        }
+        tag
+    }
+
+    pub fn get(&self, dataref: BlockDataRef) -> Option<&Tag> {
+        if dataref.null() {
+            return None;
+        }
+        let index = dataref.0 - 1;
+        let Some(tag) = &self.data[index as usize] else {
+            panic!("Data was None, which shouldn't have happened.");
+        };
+        Some(tag)
+    }
+
+    pub fn get_mut(&mut self, dataref: BlockDataRef) -> Option<&mut Tag> {
+        if dataref.null() {
+            return None;
+        }
+        let index = dataref.0 - 1;
+        let Some(tag) = &mut self.data[index as usize] else {
+            panic!("Data was None, which shouldn't have happened.");
+        };
+        Some(tag)
+    }
+
+    pub fn dynamic_usage(&self) -> usize {
+        let data_size = self.data.capacity() * std::mem::size_of::<Option<Tag>>();
+        let unused_size = self.unused.capacity() * 2;
+        data_size + unused_size
+    }
+}
+
 // 20480 bytes
 pub struct Section {
     pub blocks: Option<Box<[StateRef]>>,
     pub occlusion: Option<Box<[Occlusion]>>,
     pub block_light: Option<Box<[u8]>>,
     pub sky_light: Option<Box<[u8]>>,
+    pub block_data_refs: Option<Box<[BlockDataRef]>>,
+    pub block_data: BlockDataContainer,
     pub block_count: u16,
     pub occlusion_count: u16,
     pub block_light_count: u16,
     pub sky_light_count: u16,
+    pub block_data_count: u16,
     pub blocks_dirty: Dirty,
     pub light_dirty: Dirty,
     pub section_dirty: Dirty,
@@ -34,10 +120,13 @@ impl Section {
             occlusion: None,
             block_light: None,
             sky_light: None,
+            block_data_refs: None,
+            block_data: BlockDataContainer::new(),
             block_count: 0,
             occlusion_count: 0,
             block_light_count: 0,
             sky_light_count: 0,
+            block_data_count: 0,
             blocks_dirty: Dirty::new(),
             light_dirty: Dirty::new(),
             section_dirty: Dirty::new(),
@@ -46,7 +135,7 @@ impl Section {
 
     pub fn dynamic_usage(&self) -> usize {
         let mut size = 0;
-        let mut printed = false;
+        // let mut printed = false;
         if self.blocks.is_some() {
             // println!("################");
             // printed = true;
@@ -59,6 +148,7 @@ impl Section {
             //     printed = true;
             // }
             // println!("Occlusion Used");
+            // println!("{:?}", &self.occlusion);
             size += 4096 * std::mem::size_of::<Occlusion>();
         }
         if self.block_light.is_some() {
@@ -77,7 +167,15 @@ impl Section {
             // println!("Sky Light Used");
             size += 2048;
         }
-        size
+        if self.block_data_refs.is_some() {
+            // if !printed {
+            //     println!("################");
+            //     printed = true;
+            // }
+            // println!("Block Data Used");
+            size += 4096*std::mem::size_of::<BlockDataRef>();
+        }
+        size + self.block_data.dynamic_usage()
     }
 
     fn index(coord: Coord) -> usize {
@@ -93,24 +191,6 @@ impl Section {
             blocks[index]
         } else {
             StateRef::AIR
-        }
-    }
-
-    pub fn occlusion(&self, coord: Coord) -> Occlusion {
-        if let Some(occlusion) = &self.occlusion {
-            let index = Section::index(coord);
-            occlusion[index]
-        } else {
-            Occlusion::UNOCCLUDED
-        }
-    }
-
-    pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
-        if let Some(occlusion) = &self.occlusion {
-            let index = Section::index(coord);
-            occlusion[index].visible(face)
-        } else {
-            true
         }
     }
 
@@ -145,6 +225,24 @@ impl Section {
             }
         } else {
             SectionUpdate::new(StateChange::Unchanged)
+        }
+    }
+
+    pub fn occlusion(&self, coord: Coord) -> Occlusion {
+        if let Some(occlusion) = &self.occlusion {
+            let index = Section::index(coord);
+            occlusion[index]
+        } else {
+            Occlusion::UNOCCLUDED
+        }
+    }
+
+    pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
+        if let Some(occlusion) = &self.occlusion {
+            let index = Section::index(coord);
+            occlusion[index].visible(face)
+        } else {
+            true
         }
     }
 
@@ -350,6 +448,61 @@ impl Section {
         }
     }
 
+    pub fn get_data(&self, coord: Coord) -> Option<&Tag> {
+        let Some(data) = &self.block_data_refs else {
+            return None;
+        };
+        let index = Section::index(coord);
+        let dref = data[index];
+        self.block_data.get(dref)
+    }
+
+    pub fn get_data_mut(&mut self, coord: Coord) -> Option<&mut Tag> {
+        let Some(data) = &mut self.block_data_refs else {
+            return None;
+        };
+        let index = Section::index(coord);
+        let dref = data[index];
+        self.block_data.get_mut(dref)
+    }
+
+    pub fn delete_data(&mut self, coord: Coord) -> Option<Tag> {
+        let Some(data) = &mut self.block_data_refs else {
+            return None;
+        };
+        let index = Section::index(coord);
+        let mut old = BlockDataRef::NULL;
+        std::mem::swap(&mut old, &mut data[index]);
+        if !old.null() {
+            self.block_data_count -= 1;
+            if self.block_data_count == 0 {
+                self.block_data_refs = None;
+            }
+            Some(self.block_data.delete(old))
+        } else {
+            None
+        }
+    }
+
+    pub fn set_data(&mut self, coord: Coord, tag: Tag) -> Option<Tag> {
+        let index = Section::index(coord);
+        let (oldref, data) = if let Some(data) = &mut self.block_data_refs {
+            (data[index], data)
+        } else {
+            let data = self.block_data_refs.insert((0..4096).map(|_| BlockDataRef::NULL).collect());
+            (BlockDataRef::NULL, data)
+        };
+        let old = if oldref.null() {
+            self.block_data_count += 1;
+            None
+        } else {
+            Some(self.block_data.delete(oldref))
+        };
+        let new = self.block_data.insert(tag);
+        data[index] = new;
+        old
+    }
+
     /// Copy max block/sky light into dest (where dest is 4096 slot lightmap stored yzx order).
     pub fn copy_lightmap(&self, dest: &mut [u8]) {
         (0..4096).for_each(|i| {
@@ -400,6 +553,15 @@ impl Chunk {
         self.sections[section_index].get(coord)
     }
 
+    pub fn set(&mut self, coord: Coord, value: StateRef) -> SectionUpdate<StateChange> {
+        // no bounds check because this will only be called by
+        // the world, which will already be bounds checked.
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let nonair = value != StateRef::AIR;
+        self.heightmap.set(Coord::new(coord.x, coord.y - self.block_offset.y, coord.z), nonair);
+        self.sections[section_index].set(coord, value)
+    }
+
     pub fn occlusion(&self, coord: Coord) -> Occlusion {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].occlusion(coord)
@@ -408,15 +570,6 @@ impl Chunk {
     pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].face_visible(coord, face)
-    }
-
-    pub fn set(&mut self, coord: Coord, value: StateRef) -> SectionUpdate<StateChange> {
-        // no bounds check because this will only be called by
-        // the world, which will already be bounds checked.
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
-        let nonair = value != StateRef::AIR;
-        self.heightmap.set(Coord::new(coord.x, coord.y - self.block_offset.y, coord.z), nonair);
-        self.sections[section_index].set(coord, value)
     }
 
     pub fn show_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
@@ -453,6 +606,26 @@ impl Chunk {
     pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].set_sky_light(coord, level)
+    }
+
+    pub fn get_data(&self, coord: Coord) -> Option<&Tag> {
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.sections[section_index].get_data(coord)
+    }
+
+    pub fn get_data_mut(&mut self, coord: Coord) -> Option<&mut Tag> {
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.sections[section_index].get_data_mut(coord)
+    }
+
+    pub fn delete_data(&mut self, coord: Coord) -> Option<Tag> {
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.sections[section_index].delete_data(coord)
+    }
+
+    pub fn set_data(&mut self, coord: Coord, tag: Tag) -> Option<Tag> {
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.sections[section_index].set_data(coord, tag)
     }
 
     pub fn height(&self, x: i32, z: i32) -> i32 {

@@ -13,11 +13,11 @@ pub struct BlockState {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockProperty {
     name: String,
-    value: State
+    value: StateValue
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
-pub enum State {
+pub enum StateValue {
     #[default]
     Null,
     Int(i64),
@@ -53,7 +53,7 @@ impl BlockState {
         &self.sorted_properties
     }
 
-    pub fn set_property<S: AsRef<str>, St: Into<State>>(&mut self, name: S, value: St) -> Option<State> {
+    pub fn set_property<S: AsRef<str>, St: Into<StateValue>>(&mut self, name: S, value: St) -> Option<StateValue> {
         let search = self.sorted_properties.binary_search_by(|prop| {
             let prop_name: &str = &prop.name;
             prop_name.cmp(name.as_ref())
@@ -71,7 +71,7 @@ impl BlockState {
         }
     }
 
-    pub fn get_property<S: AsRef<str>>(&self, name: S) -> Option<&State> {
+    pub fn get_property<S: AsRef<str>>(&self, name: S) -> Option<&StateValue> {
         let name = name.as_ref();
         if let Ok(index) = self.sorted_properties.binary_search_by(|prop| {
             let prop_name: &str = &prop.name;
@@ -95,10 +95,10 @@ impl BlockState {
 }
 
 impl<S: AsRef<str>> Index<S> for BlockState {
-    type Output = State;
+    type Output = StateValue;
 
     fn index(&self, index: S) -> &Self::Output {
-        const NULL: State = State::Null;
+        const NULL: StateValue = StateValue::Null;
         self.get_property(index).unwrap_or(&NULL)
     }
 }
@@ -115,93 +115,93 @@ impl<S: AsRef<str>> IndexMut<S> for BlockState {
                 &mut self.sorted_properties[index].value
             }
             Err(index) => {
-                self.sorted_properties.insert(index, BlockProperty::new(name, State::Null));
+                self.sorted_properties.insert(index, BlockProperty::new(name, StateValue::Null));
                 &mut self.sorted_properties[index].value
             }
         }
     }
 }
 
-impl From<()> for State {
+impl From<()> for StateValue {
     fn from(value: ()) -> Self {
-        State::Null
+        StateValue::Null
     }
 }
 
-impl From<i64> for State {
+impl From<i64> for StateValue {
     fn from(value: i64) -> Self {
-        State::Int(value)
+        StateValue::Int(value)
     }
 }
 
-impl From<bool> for State {
+impl From<bool> for StateValue {
     fn from(value: bool) -> Self {
-        State::Bool(value)
+        StateValue::Bool(value)
     }
 }
 
-impl<S: StrToOwned> From<S> for State {
+impl<S: StrToOwned> From<S> for StateValue {
     fn from(value: S) -> Self {
-        State::String(value.str_to_owned())
+        StateValue::String(value.str_to_owned())
     }
 }
 
-impl From<Direction> for State {
+impl From<Direction> for StateValue {
     fn from(value: Direction) -> Self {
-        State::Direction(value)
+        StateValue::Direction(value)
     }
 }
 
-impl From<Cardinal> for State {
+impl From<Cardinal> for StateValue {
     fn from(value: Cardinal) -> Self {
-        State::Cardinal(value)
+        StateValue::Cardinal(value)
     }
 }
 
-impl From<Rotation> for State {
+impl From<Rotation> for StateValue {
     fn from(value: Rotation) -> Self {
-        State::Rotation(value)
+        StateValue::Rotation(value)
     }
 }
 
-impl From<Coord> for State {
+impl From<Coord> for StateValue {
     fn from(value: Coord) -> Self {
-        State::Coord3(value)
+        StateValue::Coord3(value)
     }
 }
 
-impl From<(i32, i32, i32)> for State {
+impl From<(i32, i32, i32)> for StateValue {
     fn from(value: (i32, i32, i32)) -> Self {
-        State::Coord3(value.into())
+        StateValue::Coord3(value.into())
     }
 }
 
-impl From<ChunkCoord> for State {
+impl From<ChunkCoord> for StateValue {
     fn from(value: ChunkCoord) -> Self {
-        State::Coord2(value)
+        StateValue::Coord2(value)
     }
 }
 
-impl From<(i32, i32)> for State {
+impl From<(i32, i32)> for StateValue {
     fn from(value: (i32, i32)) -> Self {
-        State::Coord2(value.into())
+        StateValue::Coord2(value.into())
     }
 }
 
-impl From<Flip> for State {
+impl From<Flip> for StateValue {
     fn from(value: Flip) -> Self {
-        State::Flip(value)
+        StateValue::Flip(value)
     }
 }
 
-impl From<Axis> for State {
+impl From<Axis> for StateValue {
     fn from(value: Axis) -> Self {
-        State::Axis(value)
+        StateValue::Axis(value)
     }
 }
 
 impl BlockProperty {
-    pub fn new<S: StrToOwned, St: Into<State>>(name: S, value: St) -> Self {
+    pub fn new<S: StrToOwned, St: Into<StateValue>>(name: S, value: St) -> Self {
         Self {
             name: name.str_to_owned(),
             value: value.into(),
@@ -231,13 +231,13 @@ fn quick() {
     let state: StateRef = blockstate!(air).into();
 }
 
-impl std::fmt::Display for State {
+impl std::fmt::Display for StateValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            State::Null => write!(f, "null"),
-            State::Int(value) => write!(f, "{value}"),
-            State::Bool(value) => write!(f, "{value}"),
-            State::String(value) => {
+            StateValue::Null => write!(f, "null"),
+            StateValue::Int(value) => write!(f, "{value}"),
+            StateValue::Bool(value) => write!(f, "{value}"),
+            StateValue::String(value) => {
                 write!(f, "\"")?;
                 value.chars().try_for_each(|c| {
                     match c {
@@ -251,7 +251,7 @@ impl std::fmt::Display for State {
                 })?;
                 write!(f, "\"")
             },
-            State::Direction(direction) => match direction {
+            StateValue::Direction(direction) => match direction {
                 Direction::NegX => write!(f, "NegX"),
                 Direction::NegY => write!(f, "NegY"),
                 Direction::NegZ => write!(f, "NegZ"),
@@ -259,22 +259,22 @@ impl std::fmt::Display for State {
                 Direction::PosY => write!(f, "PosY"),
                 Direction::PosZ => write!(f, "PosZ"),
             },
-            State::Cardinal(cardinal) => match cardinal {
+            StateValue::Cardinal(cardinal) => match cardinal {
                 Cardinal::West => write!(f, "West"),
                 Cardinal::North => write!(f, "North"),
                 Cardinal::East => write!(f, "East"),
                 Cardinal::South => write!(f, "South"),
             },
-            State::Rotation(rotation) => {
+            StateValue::Rotation(rotation) => {
                 write!(f, "Rotation(up={:?}, forward={:?}, angle={})", rotation.up(), rotation.forward(), rotation.angle())
             }
-            State::Coord2(coord) => {
+            StateValue::Coord2(coord) => {
                 write!(f, "({}, {})", coord.x, coord.z)
             }
-            State::Coord3(coord) => {
+            StateValue::Coord3(coord) => {
                 write!(f, "({}, {}, {})", coord.x, coord.y, coord.z)
             }
-            &State::Flip(flip) => {
+            &StateValue::Flip(flip) => {
                 write!(f, "Flip::")?;
                 if flip == Flip::NONE {
                     write!(f, "None")?;
@@ -291,7 +291,7 @@ impl std::fmt::Display for State {
                 }
                 Ok(())
             }
-            &State::Axis(axis) => {
+            &StateValue::Axis(axis) => {
                 write!(f, "Axis::{axis:?}")
             }
         }
@@ -332,7 +332,7 @@ fn print_blockstate_test() {
 
 #[test]
 fn insert_test() {
-    fn prop<S: StrToOwned, St: Into<State>>(name: S, value: St) -> BlockProperty {
+    fn prop<S: StrToOwned, St: Into<StateValue>>(name: S, value: St) -> BlockProperty {
         BlockProperty::new(name, value)
     }
     let state = blockstate!(test, on = true, direction = Cardinal::East, level = 13, test = Direction::PosX);

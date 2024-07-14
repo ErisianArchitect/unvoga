@@ -18,7 +18,7 @@ pub mod axis;
 mod tests {
     use std::any::Any;
 
-    use crate::{blockstate, core::voxel::{block::Block, blocks::StateRef, coord::Coord, world::world::VoxelWorld}};
+    use crate::{blockstate, core::voxel::{block::Block, blocks::StateRef, coord::Coord, world::VoxelWorld}};
 
     use super::blocks;
 

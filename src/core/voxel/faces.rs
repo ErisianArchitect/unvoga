@@ -90,8 +90,13 @@ impl<T> IndexMut<Direction> for Faces<T> {
 
 #[test]
 pub fn faces_test() {
-    let faces = Faces::new(0, 0, 0, 0, 0, 0);
-    faces[Direction::NegX];
+    let faces = Faces::new(0, 1, 2, 3, 4, 5);
+    println!("{}", faces[Direction::NegX]);
+    println!("{}", faces[Direction::NegY]);
+    println!("{}", faces[Direction::NegZ]);
+    println!("{}", faces[Direction::PosX]);
+    println!("{}", faces[Direction::PosY]);
+    println!("{}", faces[Direction::PosZ]);
 }
 
 impl<T: Clone> Clone for Faces<T> {

@@ -61,13 +61,13 @@ impl Coord {
     /// Divides X and Z by 16 and returns them as ChunkCoord.
     #[inline]
     pub const fn chunk_coord(self) -> ChunkCoord {
-        ChunkCoord::new(self.x / 16, self.z / 16)
+        ChunkCoord::new(self.x >> 4, self.z >> 4)
     }
 
     /// Divides each component by 16.
     #[inline]
     pub const fn section_coord(self) -> Coord {
-        Self::new(self.x / 16, self.y / 16, self.z / 16)
+        Self::new(self.x >> 4, self.y >> 4, self.z >> 4)
     }
 
     #[inline]

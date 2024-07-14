@@ -712,6 +712,9 @@ mod tests {
 
     #[test]
     fn rotation_test() {
+        Direction::iter().for_each(|dir| {
+            assert_eq!(Rotation::new(Direction::PosY, 0).source_face(dir), dir);
+        });
         Direction::iter().for_each(|dir| (0..4).for_each(|rot| {
             let rot = Rotation::new(dir, rot);
             println!("      Up: {:?}", rot.up());

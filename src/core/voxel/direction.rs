@@ -5,12 +5,12 @@ use super::coord::Coord;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NoUninit)]
 #[repr(u8)]
 pub enum Direction {
-    NegX = 4,
-    NegY = 3,
-    NegZ = 5,
-    PosX = 1,
-    PosY = 0,
-    PosZ = 2,
+    NegX = 4,// 16
+    NegY = 3,// 8
+    NegZ = 5,// 32
+    PosX = 1,// 2
+    PosY = 0,// 1
+    PosZ = 2,// 4
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

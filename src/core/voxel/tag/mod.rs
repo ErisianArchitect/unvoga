@@ -197,6 +197,14 @@ macro_rules! from_impls {
 
 tag_table!(from_impls);
 
+impl Tag {
+    pub const NULL: Tag = Tag::Null;
+
+    pub fn is_null(&self) -> bool {
+        matches!(self, Tag::Null)
+    }
+}
+
 impl From<&str> for Tag {
     fn from(value: &str) -> Self {
         Tag::String(Box::new(value.to_owned()))

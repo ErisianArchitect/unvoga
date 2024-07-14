@@ -4,7 +4,7 @@ use bevy::utils::hashbrown::HashMap;
 
 use crate::{blockstate, core::voxel::blockstate};
 
-use super::{block::Block, blockstate::{BlockState, State}, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape};
+use super::{block::Block, blockstate::{BlockState, StateValue}, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape};
 
 struct RegistryEntry {
     state: BlockState,
@@ -150,51 +150,60 @@ pub struct BlockRef(u32);
 impl StateRef {
     pub const AIR: Self = StateRef(0);
     /// Make sure you don't register any states while this reference is held.
+    #[inline(always)]
     pub unsafe fn unsafe_state(self) -> &'static BlockState {
         get_state(self)
     }
 
     /// Make sure you don't register any blocks while this reference is held.
+    #[inline(always)]
     pub unsafe fn unsafe_block(self) -> &'static dyn Block {
         get_block_for(self)
     }
 
+    #[inline(always)]
     pub fn block(self) -> BlockRef {
         get_block_ref(self)
     }
 
+    #[inline(always)]
     pub fn light_args(self) -> LightArgs {
         self.block().light_args(self)
     }
 
     /// Don't register anything while these references are held.
+    #[inline(always)]
     pub unsafe fn unsafe_state_and_block(self) -> (&'static BlockState, &'static dyn Block) {
         get_state_and_block(self)
     }
 
+    #[inline(always)]
     pub fn id(self) -> u32 {
         self.0
     }
 
+    #[inline(always)]
     pub fn is_air(self) -> bool {
         self.0 == 0
     }
 }
 
 impl<S: AsRef<str>> Index<S> for StateRef {
-    type Output = State;
-
+    type Output = StateValue;
+    #[inline(always)]
     fn index(&self, index: S) -> &Self::Output {
-        const NULL: State = State::Null;
+        const NULL: StateValue = StateValue::Null;
         self.get_property(index).unwrap_or(&NULL)
     }
 }
 
 impl BlockRef {
+    #[inline(always)]
     pub unsafe fn unsafe_block(self) -> &'static dyn Block {
         get_block(self)
     }
 
+    #[inline(always)]
     pub fn id(self) -> u32 {
         self.0
     }
@@ -203,6 +212,7 @@ impl BlockRef {
 impl Deref for StateRef {
     type Target = BlockState;
 
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         unsafe {
             let states = STATES.get().expect("Failed to get");
@@ -214,6 +224,7 @@ impl Deref for StateRef {
 impl Deref for BlockRef {
     type Target = dyn Block;
 
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         unsafe {
             let blocks = BLOCKS.get().expect("Failed to get");
@@ -223,6 +234,7 @@ impl Deref for BlockRef {
 }
 
 impl std::fmt::Display for StateRef {
+    #[inline(always)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.write_fmt(f)
     }
@@ -244,10 +256,12 @@ impl Block for AirBlock {
         self
     }
 
+    #[inline(always)]
     fn light_args(&self, state: StateRef) -> LightArgs {
         LightArgs::new(1, 0)
     }
 
+    #[inline(always)]
     fn occlusion_shapes(&self, state: StateRef) -> &super::faces::Faces<super::occlusion_shape::OcclusionShape> {
         &OcclusionShape::EMPTY_FACES
     }
