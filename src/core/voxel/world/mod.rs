@@ -147,7 +147,7 @@ impl VoxelWorld {
                 let my_rotation = block.rotation(state);
                 if old != StateRef::AIR {
                     let old_block = old.block();
-                    self.delete_data(coord, old);
+                    self.delete_data_internal(coord, old);
                     old_block.on_remove(self, coord, old, state);
                 }
                 if state != StateRef::AIR {
@@ -384,7 +384,7 @@ impl VoxelWorld {
         }
     }
 
-    fn delete_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C, old_state: StateRef) {
+    pub fn delete_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -394,7 +394,24 @@ impl VoxelWorld {
         let chunk_z = coord.z >> 4;
         if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
             if let Some(data) = chunk.delete_data(coord) {
-                // let state = self.get(coord);
+                let state = self.get(coord);
+                if !state.is_air() {
+                    state.block().data_deleted(self, coord, state, data);
+                }
+            }
+        }
+    }
+
+    fn delete_data_internal<C: Into<(i32, i32, i32)>>(&mut self, coord: C, old_state: StateRef) {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return;
+        }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        if let Some(chunk) = self.chunks.get_mut((chunk_x, chunk_z)) {
+            if let Some(data) = chunk.delete_data(coord) {
                 if !old_state.is_air() {
                     old_state.block().data_deleted(self, coord, old_state, data);
                 }
