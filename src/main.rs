@@ -123,23 +123,23 @@ impl Block for DebugBlock {
         blockstate!(debug)
     }
     fn on_place(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
-        println!("On Place {coord} old = {old} new = {new}");
+        // println!("On Place {coord} old = {old} new = {new}");
         if matches!(new["withdata"], StateValue::Bool(true)) {
-            println!("Adding data...");
+            // println!("Adding data...");
             world.set_data(coord, Tag::from("The quick brown fox jumps over the lazy dog."));
         }
     }
     fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
-        println!("On Remove {coord} old = {old} new = {new}");
+        // println!("On Remove {coord} old = {old} new = {new}");
     }
     fn data_deleted(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: Tag) {
-        println!("Data Deleted {coord} state = {state} data = {data:?}");
+        // println!("Data Deleted {coord} state = {state} data = {data:?}");
     }
     fn light_updated(&self, world: &mut VoxelWorld, coord: Coord, old_level: u8, new_level: u8) {
         println!("Light Updated {coord} old = {old_level} new = {new_level}");
     }
     fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {
-        println!("Neighbor Updated {coord} -> {neighbor_coord} {state} -> {neighbor_state}");
+        // println!("Neighbor Updated {coord} -> {neighbor_coord} {state} -> {neighbor_state}");
     }
 }
 
@@ -160,23 +160,37 @@ fn sandbox() {
     let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 1)).register();
     let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
     
+    let c = (1, 1, 1);
+    world.set(c, debug_data);
+    // world.set_sky_light(c, 1);
+    // world.set_block_light(c, 1);
+    // world.set_sky_light(c, 0);
+    // world.set_block_light(c, 0);
+    // world.set_block_light(c, 1);
+    // world.set_sky_light(c, 1);
+
     // itertools::iproduct!(15..16, 0..1, 15..16).for_each(|(y, z, x)| {
-    itertools::iproduct!(0..16, 0..16, 0..16).for_each(|(y, z, x)| {
-        world.set((x, y, z), debug_data);
-    });
+    // itertools::iproduct!(0..16, 0..16, 0..16).for_each(|(y, z, x)| {
+    //     world.set((x, y, z), debug_data);
+    //     world.set_block_light((x, y, z), 8);
+    //     world.set_sky_light((x, y, z), 15);
+    //     world.set_data((x, y, z), Tag::Null);
+    // });
     // world.set((0, 0, 0), debug_data);
     // world.set(( 0, 15, 15), debug_data);
     // world.set((15, 15, 15), debug_data);
 
-    itertools::iproduct!(0..16, 0..16, 0..16).for_each(|(y, z, x)| {
-        world.set((x, y, z), air);
-    });
-    itertools::iproduct!(0..16, 0..16, 0..16).map(|(y, z, x)| (x, y, z)).for_each(|(x, y, z)| {
-        let faces = world.occlusion((x, y, z));
-        if faces != Occlusion::UNOCCLUDED {
-            println!("Occluded at ({x:2}, {y:2}, {z:2}) {faces}");
-        }
-    });
+    // itertools::iproduct!(0..16, 0..16, 0..16).for_each(|(y, z, x)| {
+    //     world.set_block_light((x, y, z), 0);
+    //     world.set_sky_light((x, y, z), 0);
+    //     world.set((x, y, z), air);
+    // });
+    // itertools::iproduct!(0..16, 0..16, 0..16).map(|(y, z, x)| (x, y, z)).for_each(|(x, y, z)| {
+    //     let faces = world.occlusion((x, y, z));
+    //     if faces != Occlusion::UNOCCLUDED {
+    //         println!("Occluded at ({x:2}, {y:2}, {z:2}) {faces}");
+    //     }
+    // });
     let usage = world.dynamic_usage();
     println!("Memory: {usage}");
 }
