@@ -307,7 +307,7 @@ impl Section {
             let index = Section::index(coord);
             let mask_index = index / 2;
             let sub_index = (index & 1) * 4;
-            (block_light[mask_index] & (0xF << sub_index)) >> sub_index
+            block_light[mask_index] >> sub_index & 0xF
         } else {
             0
         }
@@ -337,12 +337,10 @@ impl Section {
                 });
             }
         }
-        let Some(block_light) = &mut self.block_light else {
-            panic!("Should be valid");
-        };
+        let block_light = self.block_light.as_mut().unwrap();
         let other_index = ((sub_index as i32 - 1) & 1) as usize;
         let other_shift = other_index * 4;
-        let old_level = (block_light[mask_index] & (0xF << shift)) >> shift;
+        let old_level = block_light[mask_index] >> shift & 0xF;
         let old_max = sky_light.max(old_level);
         let change = LightChange {
             old_max,
@@ -381,7 +379,7 @@ impl Section {
             let index = Section::index(coord);
             let mask_index = index / 2;
             let sub_index = (index & 1) * 4;
-            (sky_light[mask_index] & (0xF << sub_index)) >> sub_index
+            sky_light[mask_index] >> sub_index & 0xF
         } else {
             0
         }
@@ -411,14 +409,12 @@ impl Section {
                 });
             }
         }
-        let Some(sky_light) = &mut self.sky_light else {
-            panic!("Should be valid");
-        };
+        let sky_light = self.sky_light.as_mut().unwrap();
         // light values are packed as 4-bit nibbles
         // gotta unpack the other value
         let other_index = ((sub_index as i32 - 1) & 1) as usize;
         let other_shift = other_index * 4;
-        let old_level = (sky_light[mask_index] & (0xF << shift)) >> shift;
+        let old_level = sky_light[mask_index] >> shift & 0xF;
         let old_max = block_light.max(old_level);
         let change = LightChange {
             old_max,
