@@ -1,1 +1,4 @@
 /target
+./output.txt
+./output.bin
+/ignore

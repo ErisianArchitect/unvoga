@@ -9,12 +9,14 @@ use crate::core::voxel::direction::Direction;
 pub struct Rotation(pub u8);
 
 impl Rotation {
+    #[inline(always)]
     pub const fn new(up: Direction, angle: i32) -> Self {
         let up = up as u8;
         let rotation = angle.rem_euclid(4) as u8;
         Self(rotation | up << 2)
     }
 
+    #[inline(always)]
     pub const fn from_up_and_forward(up: Direction, forward: Direction) -> Option<Rotation> {
         Some(Rotation::new(up, match up {
             Direction::NegX => match forward {
@@ -68,10 +70,12 @@ impl Rotation {
         }))
     }
 
+    #[inline(always)]
     pub const fn angle(self) -> i32 {
         (self.0 & 0b11) as i32
     }
 
+    #[inline(always)]
     pub const fn up(self) -> Direction {
         let up = self.0 >> 2 & 0b111;
         match up {
@@ -85,6 +89,7 @@ impl Rotation {
         }
     }
 
+    #[inline(always)]
     pub const fn down(self) -> Direction {
         let up = self.0 >> 2 & 0b111;
         match up {
@@ -98,6 +103,7 @@ impl Rotation {
         }
     }
 
+    #[inline(always)]
     pub const fn forward(self) -> Direction {
         use Direction::*;
         match self.up() {
@@ -146,6 +152,7 @@ impl Rotation {
         }
     }
 
+    #[inline(always)]
     pub const fn backward(self) -> Direction {
         // self.forward().invert()
         use Direction::*;
@@ -195,6 +202,7 @@ impl Rotation {
         }
     }
 
+    #[inline(always)]
     pub const fn left(self) -> Direction {
         use Direction::*;
         match self.up() {
@@ -243,6 +251,7 @@ impl Rotation {
         }
     }
 
+    #[inline(always)]
     pub const fn right(self) -> Direction {
         use Direction::*;
         match self.up() {
@@ -292,6 +301,7 @@ impl Rotation {
     }
 
     /// Rotates `coord`.
+    #[inline(always)]
     pub fn rotate(self, coord: Vec3) -> Vec3 {
         match self.up() {
             Direction::NegX => match self.angle() {
@@ -340,6 +350,7 @@ impl Rotation {
     }
 
     /// Rotates direction.
+    #[inline(always)]
     pub fn reface(self, direction: Direction) -> Direction {
         match direction {
             Direction::NegX => self.left(),
@@ -352,6 +363,7 @@ impl Rotation {
     }
 
     /// Tells which [Direction] rotated to `destination`.
+    #[inline(always)]
     pub fn source_face(self, destination: Direction) -> Direction {
         // This code was bootstrap generated. I wrote a naive solution,
         // then generated this code with the naive solution.
@@ -571,6 +583,158 @@ impl Rotation {
             }
         }
     }
+
+    /// Gets the angle of the source face. 
+    pub fn face_angle(self, face: Direction) -> u8 {
+        use Direction::*;
+        match (self.angle(), self.up(), face) {
+            (0, NegX, NegX) => 0,
+            (0, NegX, NegY) => 3,
+            (0, NegX, NegZ) => 1,
+            (0, NegX, PosX) => 2,
+            (0, NegX, PosY) => 3,
+            (0, NegX, PosZ) => 3,
+            (0, NegY, NegX) => 2,
+            (0, NegY, NegY) => 0,
+            (0, NegY, NegZ) => 2,
+            (0, NegY, PosX) => 2,
+            (0, NegY, PosY) => 0,
+            (0, NegY, PosZ) => 2,
+            (0, NegZ, NegX) => 3,
+            (0, NegZ, NegY) => 2,
+            (0, NegZ, NegZ) => 0,
+            (0, NegZ, PosX) => 1,
+            (0, NegZ, PosY) => 0,
+            (0, NegZ, PosZ) => 2,
+            (0, PosX, NegX) => 2,
+            (0, PosX, NegY) => 1,
+            (0, PosX, NegZ) => 3,
+            (0, PosX, PosX) => 0,
+            (0, PosX, PosY) => 1,
+            (0, PosX, PosZ) => 1,
+            (0, PosY, NegX) => 0,
+            (0, PosY, NegY) => 0,
+            (0, PosY, NegZ) => 0,
+            (0, PosY, PosX) => 0,
+            (0, PosY, PosY) => 0,
+            (0, PosY, PosZ) => 0,
+            (0, PosZ, NegX) => 1,
+            (0, PosZ, NegY) => 0,
+            (0, PosZ, NegZ) => 2,
+            (0, PosZ, PosX) => 3,
+            (0, PosZ, PosY) => 2,
+            (0, PosZ, PosZ) => 0,
+            (1, NegX, NegX) => 1,
+            (1, NegX, NegY) => 3,
+            (1, NegX, NegZ) => 1,
+            (1, NegX, PosX) => 1,
+            (1, NegX, PosY) => 3,
+            (1, NegX, PosZ) => 3,
+            (1, NegY, NegX) => 2,
+            (1, NegY, NegY) => 1,
+            (1, NegY, NegZ) => 2,
+            (1, NegY, PosX) => 2,
+            (1, NegY, PosY) => 3,
+            (1, NegY, PosZ) => 2,
+            (1, NegZ, NegX) => 3,
+            (1, NegZ, NegY) => 2,
+            (1, NegZ, NegZ) => 1,
+            (1, NegZ, PosX) => 1,
+            (1, NegZ, PosY) => 0,
+            (1, NegZ, PosZ) => 1,
+            (1, PosX, NegX) => 1,
+            (1, PosX, NegY) => 1,
+            (1, PosX, NegZ) => 3,
+            (1, PosX, PosX) => 1,
+            (1, PosX, PosY) => 1,
+            (1, PosX, PosZ) => 1,
+            (1, PosY, NegX) => 0,
+            (1, PosY, NegY) => 3,
+            (1, PosY, NegZ) => 0,
+            (1, PosY, PosX) => 0,
+            (1, PosY, PosY) => 1,
+            (1, PosY, PosZ) => 0,
+            (1, PosZ, NegX) => 1,
+            (1, PosZ, NegY) => 0,
+            (1, PosZ, NegZ) => 1,
+            (1, PosZ, PosX) => 3,
+            (1, PosZ, PosY) => 2,
+            (1, PosZ, PosZ) => 1,
+            (2, NegX, NegX) => 2,
+            (2, NegX, NegY) => 3,
+            (2, NegX, NegZ) => 1,
+            (2, NegX, PosX) => 0,
+            (2, NegX, PosY) => 3,
+            (2, NegX, PosZ) => 3,
+            (2, NegY, NegX) => 2,
+            (2, NegY, NegY) => 2,
+            (2, NegY, NegZ) => 2,
+            (2, NegY, PosX) => 2,
+            (2, NegY, PosY) => 2,
+            (2, NegY, PosZ) => 2,
+            (2, NegZ, NegX) => 3,
+            (2, NegZ, NegY) => 2,
+            (2, NegZ, NegZ) => 2,
+            (2, NegZ, PosX) => 1,
+            (2, NegZ, PosY) => 0,
+            (2, NegZ, PosZ) => 0,
+            (2, PosX, NegX) => 0,
+            (2, PosX, NegY) => 1,
+            (2, PosX, NegZ) => 3,
+            (2, PosX, PosX) => 2,
+            (2, PosX, PosY) => 1,
+            (2, PosX, PosZ) => 1,
+            (2, PosY, NegX) => 0,
+            (2, PosY, NegY) => 2,
+            (2, PosY, NegZ) => 0,
+            (2, PosY, PosX) => 0,
+            (2, PosY, PosY) => 2,
+            (2, PosY, PosZ) => 0,
+            (2, PosZ, NegX) => 1,
+            (2, PosZ, NegY) => 0,
+            (2, PosZ, NegZ) => 0,
+            (2, PosZ, PosX) => 3,
+            (2, PosZ, PosY) => 2,
+            (2, PosZ, PosZ) => 2,
+            (3, NegX, NegX) => 3,
+            (3, NegX, NegY) => 3,
+            (3, NegX, NegZ) => 1,
+            (3, NegX, PosX) => 3,
+            (3, NegX, PosY) => 3,
+            (3, NegX, PosZ) => 3,
+            (3, NegY, NegX) => 2,
+            (3, NegY, NegY) => 3,
+            (3, NegY, NegZ) => 2,
+            (3, NegY, PosX) => 2,
+            (3, NegY, PosY) => 1,
+            (3, NegY, PosZ) => 2,
+            (3, NegZ, NegX) => 3,
+            (3, NegZ, NegY) => 2,
+            (3, NegZ, NegZ) => 3,
+            (3, NegZ, PosX) => 1,
+            (3, NegZ, PosY) => 0,
+            (3, NegZ, PosZ) => 3,
+            (3, PosX, NegX) => 3,
+            (3, PosX, NegY) => 1,
+            (3, PosX, NegZ) => 3,
+            (3, PosX, PosX) => 3,
+            (3, PosX, PosY) => 1,
+            (3, PosX, PosZ) => 1,
+            (3, PosY, NegX) => 0,
+            (3, PosY, NegY) => 1,
+            (3, PosY, NegZ) => 0,
+            (3, PosY, PosX) => 0,
+            (3, PosY, PosY) => 3,
+            (3, PosY, PosZ) => 0,
+            (3, PosZ, NegX) => 1,
+            (3, PosZ, NegY) => 0,
+            (3, PosZ, NegZ) => 3,
+            (3, PosZ, PosX) => 3,
+            (3, PosZ, PosY) => 2,
+            (3, PosZ, PosZ) => 3,
+            _ => unreachable!(),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -593,14 +757,17 @@ impl Flip {
     pub const ALL: Flip = Flip(7);
     pub const NONE: Flip = Flip(0);
 
+    #[inline(always)]
     pub fn x(self) -> bool {
         self & Flip::X == Flip::X
     }
 
+    #[inline(always)]
     pub fn y(self) -> bool {
         self & Flip::Y == Flip::Y
     }
 
+    #[inline(always)]
     pub fn z(self) -> bool {
         self & Flip::Z == Flip::Z
     }
@@ -608,19 +775,22 @@ impl Flip {
 
 impl std::ops::BitOr<Flip> for Flip {
     type Output = Self;
-    #[inline]
+    
+    #[inline(always)]
     fn bitor(self, rhs: Flip) -> Self::Output {
         Self(self.0 | rhs.0)
     }
 }
 
 impl std::ops::BitOrAssign<Flip> for Flip {
+    #[inline(always)]
     fn bitor_assign(&mut self, rhs: Flip) {
         *self = *self | rhs;
     }
 }
 
 impl std::ops::BitAndAssign<Flip> for Flip {
+    #[inline(always)]
     fn bitand_assign(&mut self, rhs: Flip) {
         *self = *self & rhs;
     }
@@ -628,7 +798,7 @@ impl std::ops::BitAndAssign<Flip> for Flip {
 
 impl std::ops::Add<Flip> for Flip {
     type Output = Flip;
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: Flip) -> Self::Output {
         self | rhs
     }
@@ -636,7 +806,7 @@ impl std::ops::Add<Flip> for Flip {
 
 impl std::ops::Sub<Flip> for Flip {
     type Output = Flip;
-    #[inline]
+    #[inline(always)]
     fn sub(self, rhs: Flip) -> Self::Output {
         self & !rhs
     }
@@ -644,7 +814,7 @@ impl std::ops::Sub<Flip> for Flip {
 
 impl std::ops::BitAnd<Flip> for Flip {
     type Output = Self;
-    #[inline]
+    #[inline(always)]
     fn bitand(self, rhs: Flip) -> Self::Output {
         Self(self.0 & rhs.0)
     }
@@ -652,12 +822,36 @@ impl std::ops::BitAnd<Flip> for Flip {
 
 impl std::ops::Not for Flip {
     type Output = Self;
-    #[inline]
+    #[inline(always)]
     fn not(self) -> Self::Output {
         Self(!self.0 & 0b111)
     }
 }
 
+pub fn rotate_face_coord(angle: u8, x: usize, y: usize, size: usize) -> (usize, usize) {
+    match angle & 0b11 {
+        0 => (x, y),
+        1 => (size - y, x),
+        2 => (size - x, size - y),
+        3 => (y, size - x),
+        _ => unreachable!()
+    }
+}
+
+pub struct CoordTranslate(u8);
+
+impl CoordTranslate {
+    #[inline(always)]
+    pub fn translate(self, x: usize, y: usize, size: usize) -> (usize, usize) {
+        match self.0 & 0b11 {
+            0 => (x, y),
+            1 => (size - y - 1, x),
+            2 => todo!(),
+            3 => todo!(),
+            _ => unreachable!()
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -692,15 +886,161 @@ mod tests {
     }
 
     #[test]
-    fn src_test() {
-        Direction::iter().for_each(|up|(0..4).for_each(|rot| {
-            let rot = Rotation::new(up, rot);
-            Direction::iter().for_each(|dest| {
-                let src = rot.source_face(dest);
-                let rot_src = rot.reface(src);
-                assert_eq!(rot_src, dest);
-            });
+    fn face_rotation_test() {
+        let rots = [
+            (0, Direction::NegZ),
+            (1, Direction::PosX),
+            (2, Direction::PosZ),
+            (3, Direction::NegX)
+        ];
+        use Direction::*;
+        Direction::iter().for_each(|up| (0..4).for_each(|angle| {
+            let rot = Rotation::new(up, angle);
+            assert_eq!(rot.forward(), rot.reface(NegZ));
+            assert_eq!(rot.right(), rot.reface(PosX));
+            assert_eq!(rot.backward(), rot.reface(PosZ));
+            assert_eq!(rot.left(), rot.reface(NegX));
         }));
+
+    }
+    use Direction::*;
+    fn face_up(face: Direction) -> Direction {
+        match face {
+            NegX => PosY,
+            NegY => PosZ,
+            NegZ => PosY,
+            PosX => PosY,
+            PosY => NegZ,
+            PosZ => PosY,
+        }
+    }
+    fn face_down(face: Direction) -> Direction {
+        match face {
+            NegX => NegY,
+            NegY => NegZ,
+            NegZ => NegY,
+            PosX => NegY,
+            PosY => PosZ,
+            PosZ => NegY,
+        }
+    }
+    fn face_left(face: Direction) -> Direction {
+        match face {
+            NegX => NegZ,
+            NegY => NegX,
+            NegZ => PosX,
+            PosX => PosZ,
+            PosY => NegX,
+            PosZ => NegX,
+        }
+    }
+    fn face_right(face: Direction) -> Direction {
+        match face {
+            NegX => PosZ,
+            NegY => PosX,
+            NegZ => NegX,
+            PosX => NegZ,
+            PosY => PosX,
+            PosZ => PosX,
+        }
+    }
+    fn write_file<P: AsRef<std::path::Path>, S: AsRef<str>>(path: P, content: S) -> Result<(), std::io::Error> {
+        use std::fs::File;
+        use std::io::{Write, BufWriter};
+        let mut out = BufWriter::new(File::create(path)?);
+        write!(out, "{}", content.as_ref())
+    }
+    #[test]
+    fn src_test() -> Result<(), std::io::Error> {
+        // impl Rotation {
+        //     fn face_rotation(self, face: Direction) -> u8 {
+        //         match (self.angle(), self.up(), face) {
+
+        //             _ => unreachable!()
+        //         }
+        //     }
+
+        //     fn face_rotation2(self, face: Direction) -> u8 {
+        //         match self.angle() {
+        //             0 => match self.up() {
+        //                 NegX => match face {
+        //                     NegX => todo!(),
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+        fn face_rotation(rot: Rotation, face: Direction) -> u8 {
+            let source_face = rot.source_face(face);
+            let up = face_up(face);
+            let faces = [
+                (0, rot.reface(face_up(source_face))),
+                (3, rot.reface(face_right(source_face))),
+                (2, rot.reface(face_down(source_face))),
+                (1, rot.reface(face_left(source_face)))
+            ];
+            faces.into_iter().find_map(move |(angle, face)| {
+                if up == face {
+                    Some(angle)
+                } else {
+                    None
+                }
+            }).unwrap()
+        }
+        let rot = Rotation::new(NegY, 1);
+        let face = NegZ;
+        let source_face = rot.source_face(face);
+        println!("Source Face: {source_face:?}");
+        let src_left = face_left(source_face);
+        println!("Face Left: {src_left:?}");
+        let my_fwd = face_up(face);
+        let faces = [
+            (0, rot.reface(face_up(source_face))),
+            (3, rot.reface(face_right(source_face))),
+            (2, rot.reface(face_down(source_face))),
+            (1, rot.reface(face_left(source_face)))
+        ];
+        // faces.into_iter().for_each(|(angle, face)| {
+        //     if my_fwd == face {
+        //         println!("Angle: {angle}");
+        //     }
+        // });
+        let mut fr1 = String::new();
+        let mut fr2 = String::new();
+        use std::fmt::Write;
+        writeln!(fr1, "match (self.angle(), self.up(), face) {{");
+        writeln!(fr2, "match self.angle() {{");
+        (0..4).for_each(|angle| {
+            writeln!(fr2, "    {angle} => match self.up() {{");
+            Direction::iter().for_each(|up| {
+                let rot = Rotation::new(up, angle);
+                writeln!(fr2, "        {up:?} => match face {{");
+                Direction::iter().for_each(|face| {
+                    let face_rot = face_rotation(rot, face);
+                    writeln!(fr2, "            {face:?} => {face_rot},");
+                    writeln!(fr1, "    ({angle}, {up:?}, {face:?}) => {face_rot},");
+                    println!("({angle},{up:?},{face:?}) => {face_rot}");
+                });
+                writeln!(fr2, "        }}");
+            });
+            writeln!(fr2, "    }}");
+        });
+        writeln!(fr2, "    _ => unreachable!()");
+        writeln!(fr1, "    _ => unreachable!()");
+        write!(fr1, "}}");
+        write!(fr2, "}}");
+        write_file("ignore/face_rotation1.rs", fr1)?;
+        write_file("ignore/face_rotation2.rs", fr2)?;
+        println!("Files written!");
+        Ok(())
+        // Direction::iter().for_each(|up|(0..4).for_each(|rot| {
+        //     let rot = Rotation::new(up, rot);
+        //     Direction::iter().for_each(|dest| {
+        //         let src = rot.source_face(dest);
+        //         let rot_src = rot.reface(src);
+        //         assert_eq!(rot_src, dest);
+        //     });
+        // }));
     }
 
     #[test]

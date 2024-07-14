@@ -1,10 +1,37 @@
+use std::{sync::Arc, thread};
+
+use rollgrid::rollgrid3d::Bounds3D;
+
 use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occlusion_shape::OcclusionShape, tag::Tag, world::VoxelWorld}}};
 
+static mut OP_COUNTER: usize = 0;
+
+pub struct OpCount;
+
+impl Drop for OpCount {
+    #[inline(always)]
+    fn drop(&mut self) {
+        unsafe {
+            OP_COUNTER += 1;
+        }
+    }
+}
+
+impl OpCount {
+    pub fn count() -> usize {
+        unsafe {
+            OP_COUNTER
+        }
+    }
+}
 
 pub fn sandbox() {
     use crate::core::voxel::direction::Direction;
+
     println!("World Test");
-    let mut world = VoxelWorld::new(32, Coord::new(0, -10000, 0));
+    let mut world = VoxelWorld::new(16, Coord::new(0, 0, 0));
+    let usage = world.dynamic_usage();
+    println!("Memory Usage: {usage}");
     blocks::register_block(DirtBlock);
     blocks::register_block(RotatedBlock);
     blocks::register_block(DebugBlock);
@@ -21,24 +48,29 @@ pub fn sandbox() {
     // let c = (1, 1, 1);
     // world.set(c, debug_data);
     let now = std::time::Instant::now();
-    world.bounds().iter().for_each(|coord| {
+    let bounds = Bounds3D::new(
+        (0, -272, 0),
+        (128, 240, 128)
+    );
+    bounds.iter().for_each(|coord| {
         world.set(coord, debug_data);
         world.set_block_light(coord, 1);
         world.set_sky_light(coord, 2);
-        world.set_data(coord, Tag::Bool(true));
+        // world.set_data(coord, Tag::Bool(true));
     });
     let elapsed = now.elapsed();
-    println!("Set all blocks in world bounds in {:.3} seconds.", elapsed.as_secs_f64());
+    println!("Set {} blocks in world bounds in {:.3} seconds.", bounds.volume(), elapsed.as_secs_f64());
+    println!("Operation Count: {}", OpCount::count());
     let usage = world.dynamic_usage();
-    println!("Memory Usage: {usage} bytes");
-    itertools::iproduct!(-16..32, -16..32, -16..32).map(|(y, z, x)| (x, y, z))
-    .for_each(|coord| {
-        let (x, y, z) = coord;
-        world.delete_data(coord);
-        world.set(coord, air);
-        world.set_sky_light(coord, 0);
-        world.set_block_light(coord, 0);
-    });
+    println!("Memory Usage: {usage}");
+    // itertools::iproduct!(-16..32, -16..32, -16..32).map(|(y, z, x)| (x, y, z))
+    // .for_each(|coord| {
+    //     let (x, y, z) = coord;
+    //     world.delete_data(coord);
+    //     world.set(coord, air);
+    //     world.set_sky_light(coord, 0);
+    //     world.set_block_light(coord, 0);
+    // });
     // world.set_sky_light(c, 1);
     // world.set_block_light(c, 1);
     // world.set_sky_light(c, 0);

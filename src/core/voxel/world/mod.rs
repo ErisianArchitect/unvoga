@@ -8,7 +8,7 @@ pub mod chunkcoord;
 pub mod blockdata;
 
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, iter::Sum};
 
 use bevy::{asset::Handle, render::mesh::Mesh};
 use occlusion::Occlusion;
@@ -45,18 +45,22 @@ pub struct VoxelWorld {
     chunks: RollGrid2D<Chunk>,
     render_chunks: RollGrid3D<RenderChunk>,
     dirty_sections: Vec<Coord>,
+    /// Determines if the render world has been initialized.
     initialized: bool,
 }
 
 impl VoxelWorld {
+    /// The maximum bounds of the world.
     const WORLD_BOUNDS: Bounds3D = Bounds3D {
         min: (i32::MIN, WORLD_BOTTOM, i32::MIN),
         max: (i32::MAX, WORLD_TOP, i32::MAX)
     };
+    /// Create a new world centered at the specified block coordinate with the (chunk) render distance specified.
+    /// The resulting width in chunks will be `render_distance * 2`.
     pub fn new(render_distance: u8, center: Coord) -> Self {
         let mut center = center;
         // clamp Y to world Y range
-        center.y = center.y.min(WORLD_TOP).max(WORLD_BOTTOM);
+        // center.y = center.y.min(WORLD_TOP).max(WORLD_BOTTOM);
         if render_distance as usize + WORLD_SIZE_PAD > PADDED_WORLD_SIZE_MAX {
             panic!("Size greater than {PADDED_WORLD_SIZE_MAX} (PADDED_WORLD_SIZE_MAX)");
         }
@@ -81,6 +85,7 @@ impl VoxelWorld {
         }
     }
 
+    #[inline(always)]
     pub fn offset(&self) -> Coord {
         let grid_offset = self.chunks.offset();
         Coord::new(
@@ -127,10 +132,15 @@ impl VoxelWorld {
     }
 
     pub fn set<C: Into<(i32, i32, i32)>, S: Into<StateRef>>(&mut self, coord: C, state: S) -> StateRef {
+        crate::sandbox::OpCount;
         let state: StateRef = state.into();
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if !self.bounds().contains(coord) {
+        // Only set blocks within the render bounds, because light engine updates only happen in
+        // the render bounds.
+        // The problem is that darkness propagation might cause light to repropagation to overflow out of bounds
+        // and we don't want that because it would invalidate the lightmap.
+        if !self.render_bounds().contains(coord) {
             return StateRef::AIR;
         }
         let chunk_x = coord.x >> 4;
@@ -145,9 +155,11 @@ impl VoxelWorld {
                 if old != StateRef::AIR {
                     let old_block = old.block();
                     self.delete_data_internal(coord, old);
+                    crate::sandbox::OpCount;
                     old_block.on_remove(self, coord, old, state);
                 }
                 if state != StateRef::AIR {
+                    crate::sandbox::OpCount;
                     block.on_place(self, coord, old, state);
                 }
                 let my_occluder = block.occlusion_shapes(state);
@@ -157,18 +169,21 @@ impl VoxelWorld {
                     let neighbor = neighbors[dir];
                     let neighbor_block = neighbor.block();
                     if neighbor != StateRef::AIR {
+                        crate::sandbox::OpCount;
                         neighbor_block.neighbor_updated(self, inv, coord + dir, coord, neighbor, state);
                     }
                     let neighbor_rotation = neighbor_block.rotation(neighbors[dir]);
                     let face_occluder = &my_occluder[my_rotation.source_face(dir)];
                     let neighbor_occluder = &neighbor_block.occlusion_shapes(neighbor)[neighbor_rotation.source_face(inv)];
                     let neighbor_coord = coord + dir;
-                    if neighbor_occluder.occluded_by(face_occluder) {
+                    crate::sandbox::OpCount;
+                    if neighbor_occluder.occluded_by(face_occluder, neighbor_rotation.face_angle(inv), my_rotation.face_angle(dir)) {
                         self.hide_face(neighbor_coord, inv);
                     } else {
                         self.show_face(neighbor_coord, inv);
                     }
-                    if face_occluder.occluded_by(neighbor_occluder) {
+                    crate::sandbox::OpCount;
+                    if face_occluder.occluded_by(neighbor_occluder, my_rotation.face_angle(dir), neighbor_rotation.face_angle(inv)) {
                         self.hide_face(coord, dir);
                     } else {
                         self.show_face(coord, dir);
@@ -260,6 +275,7 @@ impl VoxelWorld {
     }
 
     pub fn set_block_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
+        crate::sandbox::OpCount;
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -278,6 +294,7 @@ impl VoxelWorld {
         if change.change.new_max != change.change.old_max {
             let block = self.get(coord);
             if block != StateRef::AIR {
+                crate::sandbox::OpCount;
                 block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
             }
         }
@@ -297,6 +314,7 @@ impl VoxelWorld {
     }
 
     pub fn set_sky_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
+        crate::sandbox::OpCount;
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -315,6 +333,7 @@ impl VoxelWorld {
         if change.change.new_max != change.change.old_max {
             let block = self.get(coord);
             if block != StateRef::AIR {
+                crate::sandbox::OpCount;
                 block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
             }
         }
@@ -375,6 +394,7 @@ impl VoxelWorld {
     }
 
     fn delete_data_internal<C: Into<(i32, i32, i32)>>(&mut self, coord: C, old_state: StateRef) {
+        crate::sandbox::OpCount;
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -391,6 +411,7 @@ impl VoxelWorld {
     }
 
     pub fn set_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C, tag: Tag) {
+        crate::sandbox::OpCount;
         let mut tag = tag;
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
@@ -404,6 +425,7 @@ impl VoxelWorld {
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         if let Some(data) = chunk.set_data(coord, tag) {
             if !state.is_air() {
+                crate::sandbox::OpCount;
                 state.block().data_deleted(self, coord, state, data);
             }
         }
@@ -485,13 +507,50 @@ impl VoxelWorld {
         )
     }
 
-    pub fn dynamic_usage(&self) -> usize {
+    pub fn dynamic_usage(&self) -> MemoryUsage {
         self.chunks.iter().map(|(_, chunk)| {
             let Some(chunk) = chunk else {
                 panic!("Chunk was None.");
             };
             chunk.dynamic_usage()
         }).sum()
+    }
+}
+
+pub struct MemoryUsage {
+    used: usize,
+    total: usize,
+}
+
+impl std::fmt::Display for MemoryUsage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Virtual: {} Used: {}", self.total, self.used)
+    }
+}
+
+impl Sum for MemoryUsage {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(MemoryUsage::new(0,0), |mut usage, rhs| {
+            MemoryUsage::new(usage.used + rhs.used, usage.total + rhs.total)
+        })
+    }
+}
+
+impl std::ops::Add<MemoryUsage> for MemoryUsage {
+    type Output = MemoryUsage;
+    fn add(self, rhs: MemoryUsage) -> Self::Output {
+        Self {
+            used: self.used + rhs.used,
+            total: self.total + rhs.total,
+        }
+    }
+}
+
+impl MemoryUsage {
+    pub fn new(used: usize, total: usize) -> Self {
+        Self {
+            used, total
+        }
     }
 }
 

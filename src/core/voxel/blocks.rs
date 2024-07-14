@@ -72,6 +72,7 @@ pub fn register_block<B: Block>(block: B) -> BlockRef {
 }
 
 /// If the [BlockState] has already been registered, find the associated [StateRef].
+#[inline(always)]
 pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<StateRef> {
     if init() {
         return None;
@@ -82,6 +83,7 @@ pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<StateRef> {
     }
 }
 
+#[inline(always)]
 pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockRef> {
     if init() {
         return None;
@@ -92,6 +94,7 @@ pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockRef> {
     }
 }
 
+#[inline(always)]
 pub fn get_block_ref(id: StateRef) -> BlockRef {
     unsafe {
         let states = STATES.get().expect("Failed to get");
@@ -99,6 +102,7 @@ pub fn get_block_ref(id: StateRef) -> BlockRef {
     }
 }
 
+#[inline(always)]
 pub fn get_state(id: StateRef) -> &'static BlockState {
     // StateRef is only issued by the registry, so this doesn't need
     // to call init because it can be assumed that init has already
@@ -110,6 +114,7 @@ pub fn get_state(id: StateRef) -> &'static BlockState {
     }
 }
 
+#[inline(always)]
 pub fn get_block(id: BlockRef) -> &'static dyn Block {
     // BlockRef is only issued by the registry, so this doesn't need
     // to call init because it can be assumed that init has already
@@ -121,6 +126,7 @@ pub fn get_block(id: BlockRef) -> &'static dyn Block {
     }
 }
 
+#[inline(always)]
 pub fn get_block_for(id: StateRef) -> &'static dyn Block {
     unsafe {
         let states = STATES.get().expect("Failed to get");
@@ -130,6 +136,7 @@ pub fn get_block_for(id: StateRef) -> &'static dyn Block {
     }
 }
 
+#[inline(always)]
 pub fn get_state_and_block(id: StateRef) -> (&'static BlockState, &'static dyn Block) {
     unsafe {
         let states = STATES.get().expect("Failed to get");

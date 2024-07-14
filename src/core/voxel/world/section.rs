@@ -2,7 +2,7 @@ use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, 
 
 use crate::core::voxel::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, WORLD_HEIGHT};
+use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, MemoryUsage, WORLD_HEIGHT};
 
 // 4096*4+4096+2048+2048+4096*2
 // 32768 bytes
@@ -31,6 +31,7 @@ pub struct Section {
 }
 
 impl Section {
+    #[inline(always)]
     pub fn new() -> Self {
         Self {
             blocks: None,
@@ -51,15 +52,17 @@ impl Section {
     }
 
     /// Gets the dynamic memory usage. (This doesn't include the usage for [Tag]s; TODO)
-    pub fn dynamic_usage(&self) -> usize {
-        let mut size = 0;
+    #[inline(always)]
+    pub fn dynamic_usage(&self) -> MemoryUsage {
+        let mut usage = MemoryUsage::new(0, 0);
         // let mut printed = false;
         if self.blocks.is_some() {
             // println!("################");
             // printed = true;
             // println!("Blocks Used");
-            size += 4096 * std::mem::size_of::<StateRef>();
+            usage.used += 4096 * std::mem::size_of::<StateRef>();
         }
+        usage.total += 4096 * std::mem::size_of::<StateRef>();
         if self.occlusion.is_some() {
             // if !printed {
             //     println!("################");
@@ -67,37 +70,42 @@ impl Section {
             // }
             // println!("Occlusion Used");
             // println!("{:?}", &self.occlusion);
-            size += 4096 * std::mem::size_of::<Occlusion>();
+            usage.used += 4096 * std::mem::size_of::<Occlusion>();
         }
+        usage.total += 4096 * std::mem::size_of::<Occlusion>();
         if self.block_light.is_some() {
             // if !printed {
             //     println!("################");
             //     printed = true;
             // }
             // println!("Block Light Used");
-            size += 2048;
+            usage.used += 2048;
         }
+        usage.total += 2048;
         if self.sky_light.is_some() {
             // if !printed {
             //     println!("################");
             //     printed = true;
             // }
             // println!("Sky Light Used");
-            size += 2048;
+            usage.used += 2048;
         }
+        usage.total += 2048;
         if self.block_data_refs.is_some() {
             // if !printed {
             //     println!("################");
             //     printed = true;
             // }
             // println!("Block Data Used");
-            size += 4096*std::mem::size_of::<BlockDataRef>();
+            usage.used += 4096*std::mem::size_of::<BlockDataRef>();
         }
-        size + self.block_data.dynamic_usage()
+        usage.total += 4096*std::mem::size_of::<BlockDataRef>();
+        usage + self.block_data.dynamic_usage()
     }
 
     /// Gets the index in the 16x16x16 [Section].
     /// This is yzx order (x | z << 4 | y << 8)
+    #[inline(always)]
     fn index(coord: Coord) -> usize {
         let x = (coord.x & 0xF) as usize;
         let y = (coord.y & 0xF) as usize;
@@ -106,6 +114,7 @@ impl Section {
     }
 
     /// Get the [StateRef] at the `coord`.
+    #[inline(always)]
     pub fn get(&self, coord: Coord) -> StateRef {
         if let Some(blocks) = &self.blocks {
             let index = Section::index(coord);
@@ -117,6 +126,7 @@ impl Section {
     }
 
     /// Set the [StateRef] at the `coord`.
+    #[inline(always)]
     pub fn set(&mut self, coord: Coord, state: StateRef) -> SectionUpdate<StateChange> {
         if self.blocks.is_none() {
             // if state isn't air and blocks is None, create an empty block array.
@@ -162,6 +172,7 @@ impl Section {
 
     /// Gets the [Occlusion] flags for the block.
     /// These are the faces that are hidden.
+    #[inline(always)]
     pub fn occlusion(&self, coord: Coord) -> Occlusion {
         if let Some(occlusion) = &self.occlusion {
             let index = Section::index(coord);
@@ -172,6 +183,7 @@ impl Section {
     }
 
     /// Checks if a face is visible.
+    #[inline(always)]
     pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
         if let Some(occlusion) = &self.occlusion {
             let index = Section::index(coord);
@@ -183,6 +195,7 @@ impl Section {
     }
 
     /// Show a face.
+    #[inline(always)]
     pub fn show_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
         if self.occlusion.is_none() {
             return SectionUpdate::new(true);
@@ -212,6 +225,7 @@ impl Section {
     }
 
     /// Hide a face.
+    #[inline(always)]
     pub fn hide_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
         let occlusion = self.occlusion.get_or_insert_with(make_empty_occlusion_data);
         let index = Section::index(coord);
@@ -232,6 +246,7 @@ impl Section {
     }
 
     /// Returns the maximum of the block light and sky light.
+    #[inline(always)]
     pub fn get_light(&self, coord: Coord) -> u8 {
         let block_light = self.get_block_light(coord);
         let sky_light = self.get_sky_light(coord);
@@ -240,6 +255,7 @@ impl Section {
 
     /// Gets the block light. The block light is the light that comes
     /// from other blocks.
+    #[inline(always)]
     pub fn get_block_light(&self, coord: Coord) -> u8 {
         if let Some(block_light) = &self.block_light {
             let index = Section::index(coord);
@@ -256,6 +272,7 @@ impl Section {
 
     /// Sets the block light. The block light is the light that comes
     /// from other blocks.
+    #[inline(always)]
     pub fn set_block_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
         let level = level.min(15);
         let index = Section::index(coord);
@@ -320,6 +337,7 @@ impl Section {
         }
     }
 
+    #[inline(always)]
     pub fn get_sky_light(&self, coord: Coord) -> u8 {
         if let Some(sky_light) = &self.sky_light {
             let index = Section::index(coord);
@@ -331,6 +349,7 @@ impl Section {
         }
     }
 
+    #[inline(always)]
     pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
         let level = level.min(15);
         let index = Section::index(coord);
@@ -393,6 +412,7 @@ impl Section {
         }
     }
 
+    #[inline(always)]
     pub fn get_data(&self, coord: Coord) -> Option<&Tag> {
         let Some(data) = &self.block_data_refs else {
             return None;
@@ -402,6 +422,7 @@ impl Section {
         self.block_data.get(dref)
     }
 
+    #[inline(always)]
     pub fn get_data_mut(&mut self, coord: Coord) -> Option<&mut Tag> {
         let Some(data) = &mut self.block_data_refs else {
             return None;
@@ -411,10 +432,12 @@ impl Section {
         self.block_data.get_mut(dref)
     }
 
+    #[inline(always)]
     pub fn get_or_insert_data(&mut self, coord: Coord, default: Tag) -> &mut Tag {
         self.get_or_insert_data_with(coord, || default)
     }
 
+    #[inline(always)]
     pub fn get_or_insert_data_with<T: Into<Tag>, F: FnOnce() -> T>(&mut self, coord: Coord, f: F) -> &mut Tag {
         let data = self.block_data_refs.get_or_insert_with(make_empty_block_data);
         let index = Section::index(coord);
@@ -429,6 +452,7 @@ impl Section {
         }
     }
 
+    #[inline(always)]
     pub fn delete_data(&mut self, coord: Coord) -> Option<Tag> {
         let Some(data) = &mut self.block_data_refs else {
             return None;
@@ -447,6 +471,7 @@ impl Section {
         }
     }
 
+    #[inline(always)]
     pub fn set_data(&mut self, coord: Coord, tag: Tag) -> Option<Tag> {
         let index = Section::index(coord);
         let (oldref, data) = if let Some(data) = &mut self.block_data_refs {
@@ -467,6 +492,7 @@ impl Section {
     }
 
     /// Copy max block/sky light into dest (where dest is 4096 slot lightmap stored yzx order).
+    #[inline(always)]
     pub fn copy_lightmap(&self, dest: &mut [u8]) {
         (0..4096).for_each(|i| {
             let mask_index = i / 2;

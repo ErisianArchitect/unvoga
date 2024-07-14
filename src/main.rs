@@ -4,7 +4,7 @@ use crate::core::voxel::direction::Direction;
 use crate::core::voxel::blockstate::StateValue;
 // Unnamed Voxel Game
 
-use core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, coord::Coord, faces::Faces, occlusion_shape::OcclusionShape, tag::Tag, world::{chunk::Occlusion, VoxelWorld}}};
+use core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, coord::Coord, faces::Faces, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}}};
 use std::fmt::{Debug, Display};
 
 use bevy::{

@@ -8,6 +8,8 @@ If you're making an occluder on the Z axis, use X for X and Y for Y.
 If you want to rotate an occluder, good luck.
 */
 
+use crate::core::math::coordmap::{rotate_face_coord, Rotation};
+
 use super::faces::Faces;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -163,6 +165,22 @@ impl OcclusionRect {
             bottom: reduce_max(self.bottom, sample_size)
         }
     }
+
+    #[inline(always)]
+    pub fn rotate(self, angle: u8) -> Self {
+        let (x1, y1) = rotate_face_coord(angle, self.left as usize, self.top as usize, 16);
+        let (x2, y2) = rotate_face_coord(angle, self.right as usize, self.bottom as usize, 16);
+        let xmin = x1.min(x2);
+        let ymin = y1.min(y2);
+        let xmax = x1.max(x2);
+        let ymax = x1.max(x2);
+        Self {
+            left: xmin as u8,
+            top: ymin as u8,
+            right: xmax as u8,
+            bottom: ymax as u8
+        }
+    }
 }
 
 pub enum OcclusionShape {
@@ -226,7 +244,7 @@ impl OcclusionShape {
         }
     }
 
-    pub fn occluded_by(&self, other: &OcclusionShape) -> bool {
+    pub fn occluded_by(&self, other: &OcclusionShape, angle: u8, other_angle: u8) -> bool {
         // What I wanted to do for occlusion is rather complicated combinatorically, so nested match
         // expressions is the way to go. There may be a better way to do it, but I'm not smart enough to know it.
         if other.is_empty() {
@@ -248,9 +266,11 @@ impl OcclusionShape {
             OcclusionShape::Rect(shape) => match other {
                 OcclusionShape::S16x16(other) => {
                     // OcclusionShape::Rect(shape) => match other {
+                    let shape = shape.rotate(angle);
                     for y in shape.top..shape.bottom {
                         for x in shape.left..shape.right {
-                            if !other.get(x as usize, y as usize) {
+                            let (x, y) = rotate_face_coord(other_angle, x as usize, y as usize, 16);
+                            if !other.get(x, y) {
                                 return false;
                             }
                         }
@@ -259,10 +279,12 @@ impl OcclusionShape {
                 },
                 OcclusionShape::S8x8(other) => {
                     // OcclusionShape::Rect(shape) => match other {
+                    let shape = shape.rotate(angle);
                     let sample = shape.downsample(8);
                     for y in shape.top..shape.bottom {
                         for x in shape.left..shape.right {
-                            if !other.get(x as usize, y as usize) {
+                            let (x, y) = rotate_face_coord(other_angle, x as usize, y as usize, 8);
+                            if !other.get(x, y) {
                                 return false;
                             }
                         }
@@ -271,10 +293,12 @@ impl OcclusionShape {
                 },
                 OcclusionShape::S4x4(other) => {
                     // OcclusionShape::Rect(shape) => match other {
+                    let shape = shape.rotate(angle);
                     let sample = shape.downsample(4);
                     for y in shape.top..shape.bottom {
                         for x in shape.left..shape.right {
-                            if !other.get(x as usize, y as usize) {
+                            let (x, y) = rotate_face_coord(other_angle, x as usize, y as usize, 4);
+                            if !other.get(x, y) {
                                 return false;
                             }
                         }
@@ -283,17 +307,23 @@ impl OcclusionShape {
                 },
                 OcclusionShape::S2x2(other) => {
                     // OcclusionShape::Rect(shape) => match other {
+                    let shape = shape.rotate(angle);
                     let sample = shape.downsample(2);
                     for y in shape.top..shape.bottom {
                         for x in shape.left..shape.right {
-                            if !other.get(x as usize, y as usize) {
+                            let (x, y) = rotate_face_coord(other_angle, x as usize, y as usize, 2);
+                            if !other.get(x, y) {
                                 return false;
                             }
                         }
                     }
                     true
                 },
-                OcclusionShape::Rect(other) => other.contains_rect(*shape),
+                OcclusionShape::Rect(other) => {
+                    let shape = shape.rotate(angle);
+                    let other = other.rotate(other_angle);
+                    other.contains_rect(shape)
+                },
                 OcclusionShape::Full => unreachable!(),
                 OcclusionShape::Empty => unreachable!(),
             },
@@ -301,8 +331,12 @@ impl OcclusionShape {
                 OcclusionShape::S16x16(other) => {
                     // OcclusionShape::S16x16(shape) => match other {
                     for y in 0..16 {
-                        if shape.0[y] & other.0[y] != shape.0[y] {
-                            return false;
+                        for x in 0..16 {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 16);
+                            let (ox, oy) = rotate_face_coord(other_angle, x, y, 16);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
+                                return false;
+                            }
                         }
                     }
                     true
@@ -313,7 +347,9 @@ impl OcclusionShape {
                         let oy = y / 2;
                         for x in 0..16 {
                             let ox = x / 2;
-                            if shape.get(x, y) && !other.get(ox, oy) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 16);
+                            let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 8);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
                                 return false;
                             }
                         }
@@ -326,7 +362,9 @@ impl OcclusionShape {
                         let oy = y / 4;
                         for x in 0..16 {
                             let ox = x / 4;
-                            if shape.get(x, y) && !other.get(ox, oy) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 16);
+                            let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 4);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
                                 return false;
                             }
                         }
@@ -339,7 +377,9 @@ impl OcclusionShape {
                         let oy = y / 8;
                         for x in 0..16 {
                             let ox = x / 8;
-                            if shape.get(x, y) && !other.get(ox, oy) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 16);
+                            let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 2);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
                                 return false;
                             }
                         }
@@ -348,9 +388,11 @@ impl OcclusionShape {
                 },
                 OcclusionShape::Rect(other) => {
                     // OcclusionShape::S16x16(shape) => match other {
+                    let other = other.rotate(other_angle);
                     for y in 0..16 {
                         for x in 0..16 {
-                            if shape.get(x, y) && !other.contains((x as u8, y as u8)) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 16);
+                            if shape.get(sx, sy) && !other.contains((x as u8, y as u8)) {
                                 return false;
                             }
                         }
@@ -366,10 +408,12 @@ impl OcclusionShape {
                     for y in 0..8 {
                         let oy = y * 2;
                         for x in 0..8 {
-                            if shape.get(x, y) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 8);
+                            if shape.get(sx, sy) {
                                 let ox = x * 2;
                                 for oy in oy..oy+2 {
                                     for ox in ox..ox+2 {
+                                        let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 16);
                                         if !other.get(ox, oy) {
                                             return false;
                                         }
@@ -382,7 +426,16 @@ impl OcclusionShape {
                 },            
                 OcclusionShape::S8x8(other) => {
                     // OcclusionShape::S8x8(shape) => match other {
-                    shape.0 != 0 && shape.0 & other.0 == shape.0
+                    for y in 0..8 {
+                        for x in 0..8 {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 8);
+                            let (ox, oy) = rotate_face_coord(other_angle, x, y, 8);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
                 },
                 OcclusionShape::S4x4(other) => {
                     // OcclusionShape::S8x8(shape) => match other {
@@ -390,7 +443,9 @@ impl OcclusionShape {
                         let oy = y / 2;
                         for x in 0..8 {
                             let ox = x / 2;
-                            if shape.get(x, y) && !other.get(ox, oy) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 8);
+                            let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 4);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
                                 return false;
                             }
                         }
@@ -403,7 +458,9 @@ impl OcclusionShape {
                         let oy = y / 4;
                         for x in 0..8 {
                             let ox = x / 4;
-                            if shape.get(x, y) && !other.get(ox, oy) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 8);
+                            let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 2);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
                                 return false;
                             }
                         }
@@ -412,9 +469,11 @@ impl OcclusionShape {
                 },
                 OcclusionShape::Rect(other) => {
                     // OcclusionShape::S8x8(shape) => match other {
+                    let other = other.rotate(other_angle);
                     for y in 0..8 {
                         for x in 0..8 {
-                            if shape.get(x, y) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 8);
+                            if shape.get(sx, sy) {
                                 let inner = OcclusionRect::from_min_max(
                                     (x as u8 * 2, y as u8 * 2),
                                     (x as u8 * 2 + 2, y as u8 * 2 + 2)
@@ -436,10 +495,12 @@ impl OcclusionShape {
                     for y in 0..4 {
                         let oy = y * 4;
                         for x in 0..4 {
-                            if shape.get(x, y) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 4);
+                            if shape.get(sx, sy) {
                                 let ox = x * 4;
                                 for oy in oy..oy+4 {
                                     for ox in ox..ox+4 {
+                                        let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 16);
                                         if !other.get(ox, oy) {
                                             return false;
                                         }
@@ -455,10 +516,12 @@ impl OcclusionShape {
                     for y in 0..4 {
                         let oy = y * 2;
                         for x in 0..4 {
-                            if shape.get(x, y) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 4);
+                            if shape.get(sx, sy) {
                                 let ox = x * 2;
                                 for oy in oy..oy+2 {
                                     for ox in ox..ox+2 {
+                                        let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 8);
                                         if !other.get(ox, oy) {
                                             return false;
                                         }
@@ -471,7 +534,16 @@ impl OcclusionShape {
                 },
                 OcclusionShape::S4x4(other) => {
                     // OcclusionShape::S4x4(shape) => match other {
-                    shape.0 != 0 && shape.0 & other.0 == shape.0
+                    for y in 0..4 {
+                        for x in 0..4 {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 4);
+                            let (ox, oy) = rotate_face_coord(other_angle, x, y, 4);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
                 },
                 OcclusionShape::S2x2(other) => {
                     // OcclusionShape::S4x4(shape) => match other {
@@ -479,7 +551,9 @@ impl OcclusionShape {
                         let oy = y / 2;
                         for x in 0..4 {
                             let ox = x / 2;
-                            if shape.get(x, y) && !other.get(ox, oy) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 4);
+                            let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 2);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
                                 return false;
                             }
                         }
@@ -488,9 +562,11 @@ impl OcclusionShape {
                 },
                 OcclusionShape::Rect(other) => {
                     // OcclusionShape::S4x4(shape) => match other {
+                    let other = other.rotate(other_angle);
                     for y in 0..4 {
                         for x in 0..4 {
-                            if shape.get(x, y) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 4);
+                            if shape.get(sx, sy) {
                                 let inner = OcclusionRect::from_min_max(
                                     (x as u8 * 4, y as u8 * 4),
                                     (x as u8 * 4 + 4, y as u8 * 4 + 4)
@@ -512,10 +588,12 @@ impl OcclusionShape {
                     for y in 0..2 {
                         let oy = y * 8;
                         for x in 0..2 {
-                            if shape.get(x, y) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 2);
+                            if shape.get(sx, sy) {
                                 let ox = x * 8;
                                 for oy in oy..oy+8 {
                                     for ox in ox..ox+8 {
+                                        let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 16);
                                         if !other.get(ox, oy) {
                                             return false;
                                         }
@@ -531,10 +609,12 @@ impl OcclusionShape {
                     for y in 0..2 {
                         let oy = y * 4;
                         for x in 0..2 {
-                            if shape.get(x, y) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 2);
+                            if shape.get(sx, sy) {
                                 let ox = x * 4;
                                 for oy in oy..oy+4 {
                                     for ox in ox..ox+4 {
+                                        let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 8);
                                         if !other.get(ox, oy) {
                                             return false;
                                         }
@@ -550,10 +630,12 @@ impl OcclusionShape {
                     for y in 0..2 {
                         let oy = y * 2;
                         for x in 0..2 {
-                            if shape.get(x, y) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 2);
+                            if shape.get(sx, sy) {
                                 let ox = x * 2;
                                 for oy in oy..oy+2 {
                                     for ox in ox..ox+2 {
+                                        let (ox, oy) = rotate_face_coord(other_angle, ox, oy, 4);
                                         if !other.get(ox, oy) {
                                             return false;
                                         }
@@ -566,13 +648,24 @@ impl OcclusionShape {
                 },
                 OcclusionShape::S2x2(other) => {
                     // OcclusionShape::S2x2(shape) => match other {
-                    shape.0 != 0 && shape.0 & other.0 == shape.0
+                    for y in 0..2 {
+                        for x in 0..2 {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 2);
+                            let (ox, oy) = rotate_face_coord(other_angle, x, y, 2);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
                 },
                 OcclusionShape::Rect(other) => {
                     // OcclusionShape::S2x2(shape) => match other {
+                    let other = other.rotate(other_angle);
                     for y in 0..2 {
                         for x in 0..2 {
-                            if shape.get(x, y) {
+                            let (sx, sy) = rotate_face_coord(angle, x, y, 2);
+                            if shape.get(sx, sy) {
                                 let inner = OcclusionRect::from_min_max(
                                     (x as u8 * 8, y as u8 * 8),
                                     (x as u8 * 8 + 8, y as u8 * 8 + 8)
@@ -693,10 +786,10 @@ fn occlusion_test() {
         [1,0],
         [1,0],
     ]);
-    if occluder_a.occluded_by(&occluder_b) {
+    if occluder_a.occluded_by(&occluder_b, 0, 0) {
         println!("A Occluded by B");
     }
-    if occluder_b.occluded_by(&occluder_a) {
+    if occluder_b.occluded_by(&occluder_a, 0, 0) {
         println!("B Occluded by A");
     }
 }

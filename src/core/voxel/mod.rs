@@ -13,6 +13,7 @@ pub mod blocks;
 pub mod rendering;
 pub mod tag;
 pub mod axis;
+pub mod occluder;
 
 #[cfg(test)]
 mod tests {

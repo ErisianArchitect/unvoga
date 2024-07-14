@@ -2,6 +2,8 @@ use std::any::Any;
 
 use crate::core::voxel::tag::Tag;
 
+use super::MemoryUsage;
+
 // pub trait BlockData: Any {
 //     fn as_any(&self) -> &dyn Any;
 //     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -30,6 +32,7 @@ pub struct BlockDataContainer {
 }
 
 impl BlockDataContainer {
+    #[inline(always)]
     pub fn new() -> Self {
         Self {
             data: Vec::new(),
@@ -38,6 +41,7 @@ impl BlockDataContainer {
     }
 
     /// Insert new data returning the reference to the slot.
+    #[inline(always)]
     pub fn insert<T: Into<Tag>>(&mut self, tag: T) -> BlockDataRef {
         if let Some(index) = self.unused.pop() {
             self.data[index as usize] = Some(tag.into());
@@ -53,6 +57,7 @@ impl BlockDataContainer {
     }
 
     /// Delete data from the container, returning the data that was deleted.
+    #[inline(always)]
     pub fn delete(&mut self, dataref: BlockDataRef) -> Tag {
         if dataref.null() {
             return Tag::Null;
@@ -70,6 +75,7 @@ impl BlockDataContainer {
     }
 
     /// Get a reference to the [Tag] data.
+    #[inline(always)]
     pub fn get(&self, dataref: BlockDataRef) -> Option<&Tag> {
         if dataref.null() {
             return None;
@@ -82,6 +88,7 @@ impl BlockDataContainer {
     }
 
     /// Get a mutable reference to the [Tag] data.
+    #[inline(always)]
     pub fn get_mut(&mut self, dataref: BlockDataRef) -> Option<&mut Tag> {
         if dataref.null() {
             return None;
@@ -94,10 +101,14 @@ impl BlockDataContainer {
     }
 
     /// Gets the dynamic memory usage.
-    pub fn dynamic_usage(&self) -> usize {
+    #[inline(always)]
+    pub fn dynamic_usage(&self) -> MemoryUsage {
         let data_size = self.data.capacity() * std::mem::size_of::<Option<Tag>>();
         let unused_size = self.unused.capacity() * 2;
-        data_size + unused_size
+        MemoryUsage::new(
+            data_size + unused_size,
+            4096 * std::mem::size_of::<Option<Tag>>() + 4096*2
+        )
     }
 }
 

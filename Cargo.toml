@@ -9,10 +9,6 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-[[bin]]
-name = "sandbox"
-path = "src/bin/sandbox.rs"
-
 [dependencies]
 # Remove dynamic_linking feature when building for release
 # https://bevyengine.org/learn/quick-start/getting-started/setup/#enable-fast-compiles-optional
