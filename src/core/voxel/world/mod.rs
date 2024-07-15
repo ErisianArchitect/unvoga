@@ -119,6 +119,16 @@ impl VoxelWorld {
         Some(&mut chunk.sections[y as usize])
     }
 
+    pub fn message<T: Into<Tag>, C: Into<(i32, i32, i32)>>(&mut self, coord: C, message: T) -> Tag {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        let state = self.get(coord);
+        if state.is_air() {
+            return Tag::Null;
+        }
+        state.block().message(self, coord, state, message.into())
+    }
+
     pub fn get<C: Into<(i32, i32, i32)>>(&self, coord: C) -> StateRef {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
@@ -132,7 +142,6 @@ impl VoxelWorld {
     }
 
     pub fn set<C: Into<(i32, i32, i32)>, S: Into<StateRef>>(&mut self, coord: C, state: S) -> StateRef {
-        crate::sandbox::OpCount;
         let state: StateRef = state.into();
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
@@ -155,35 +164,33 @@ impl VoxelWorld {
                 if old != StateRef::AIR {
                     let old_block = old.block();
                     self.delete_data_internal(coord, old);
-                    crate::sandbox::OpCount;
                     old_block.on_remove(self, coord, old, state);
                 }
                 if state != StateRef::AIR {
-                    crate::sandbox::OpCount;
                     block.on_place(self, coord, old, state);
                 }
-                let my_occluder = block.occlusion_shapes(state);
+                let my_occluder = block.occluder(state);
                 let neighbors = self.neighbors(coord);
                 Direction::iter().for_each(|dir| {
-                    let inv = dir.invert();
+                    let neighbor_dir = dir.invert();
                     let neighbor = neighbors[dir];
                     let neighbor_block = neighbor.block();
                     if neighbor != StateRef::AIR {
-                        crate::sandbox::OpCount;
-                        neighbor_block.neighbor_updated(self, inv, coord + dir, coord, neighbor, state);
+                        neighbor_block.neighbor_updated(self, neighbor_dir, coord + dir, coord, neighbor, state);
                     }
                     let neighbor_rotation = neighbor_block.rotation(neighbors[dir]);
-                    let face_occluder = &my_occluder[my_rotation.source_face(dir)];
-                    let neighbor_occluder = &neighbor_block.occlusion_shapes(neighbor)[neighbor_rotation.source_face(inv)];
+                    let face_occluder = my_occluder.face(my_rotation.source_face(dir));
+                    let neighbor_occluder = neighbor_block.occluder(neighbor).face(neighbor_rotation.source_face(neighbor_dir));
                     let neighbor_coord = coord + dir;
-                    crate::sandbox::OpCount;
-                    if neighbor_occluder.occluded_by(face_occluder, neighbor_rotation.face_angle(inv), my_rotation.face_angle(dir)) {
-                        self.hide_face(neighbor_coord, inv);
+                    let my_angle = my_rotation.face_angle(dir);
+                    let neighbor_angle = neighbor_rotation.face_angle(neighbor_dir);
+                    // println!("{coord} {dir:?} -> {:?} {:?}", my_rotation.source_face(dir), neighbor_rotation.source_face(neighbor_dir));
+                    if neighbor_occluder.occluded_by(face_occluder, neighbor_angle, my_angle) {
+                        self.hide_face(neighbor_coord, neighbor_dir);
                     } else {
-                        self.show_face(neighbor_coord, inv);
+                        self.show_face(neighbor_coord, neighbor_dir);
                     }
-                    crate::sandbox::OpCount;
-                    if face_occluder.occluded_by(neighbor_occluder, my_rotation.face_angle(dir), neighbor_rotation.face_angle(inv)) {
+                    if face_occluder.occluded_by(neighbor_occluder, my_angle, neighbor_angle) {
                         self.hide_face(coord, dir);
                     } else {
                         self.show_face(coord, dir);
@@ -275,7 +282,6 @@ impl VoxelWorld {
     }
 
     pub fn set_block_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
-        crate::sandbox::OpCount;
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -294,7 +300,6 @@ impl VoxelWorld {
         if change.change.new_max != change.change.old_max {
             let block = self.get(coord);
             if block != StateRef::AIR {
-                crate::sandbox::OpCount;
                 block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
             }
         }
@@ -314,7 +319,6 @@ impl VoxelWorld {
     }
 
     pub fn set_sky_light<C: Into<(i32, i32, i32)>>(&mut self, coord: C, level: u8) -> LightChange {
-        crate::sandbox::OpCount;
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -333,7 +337,6 @@ impl VoxelWorld {
         if change.change.new_max != change.change.old_max {
             let block = self.get(coord);
             if block != StateRef::AIR {
-                crate::sandbox::OpCount;
                 block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
             }
         }
@@ -376,6 +379,22 @@ impl VoxelWorld {
         chunk.get_or_insert_data(coord, default)
     }
 
+    pub fn take_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C) -> Tag {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return Tag::Null;
+        }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        if let Some(data) = chunk.delete_data(coord) {
+            data
+        } else {
+            Tag::Null
+        }
+    }
+
     pub fn delete_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
@@ -394,7 +413,6 @@ impl VoxelWorld {
     }
 
     fn delete_data_internal<C: Into<(i32, i32, i32)>>(&mut self, coord: C, old_state: StateRef) {
-        crate::sandbox::OpCount;
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -411,7 +429,6 @@ impl VoxelWorld {
     }
 
     pub fn set_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C, tag: Tag) {
-        crate::sandbox::OpCount;
         let mut tag = tag;
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
@@ -425,7 +442,6 @@ impl VoxelWorld {
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         if let Some(data) = chunk.set_data(coord, tag) {
             if !state.is_air() {
-                crate::sandbox::OpCount;
                 state.block().data_deleted(self, coord, state, data);
             }
         }
@@ -561,7 +577,7 @@ struct RenderChunk {
 
 #[cfg(test)]
 mod tests {
-    use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, WORLD_TOP}}}};
+    use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, WORLD_TOP}}}};
 
     use super::VoxelWorld;
 
@@ -620,8 +636,8 @@ mod tests {
             "rotated"
         }
 
-        fn occlusion_shapes(&self, state: StateRef) -> &Faces<OcclusionShape> {
-            const SHAPE: Faces<OcclusionShape> = Faces::new(
+        fn occluder(&self, state: StateRef) -> &Occluder {
+            const SHAPE: Occluder = Occluder::new(
                 OcclusionShape::Full,
                 OcclusionShape::Full,
                 OcclusionShape::Full,

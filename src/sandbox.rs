@@ -2,28 +2,7 @@ use std::{sync::Arc, thread};
 
 use rollgrid::rollgrid3d::Bounds3D;
 
-use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occlusion_shape::OcclusionShape, tag::Tag, world::VoxelWorld}}};
-
-static mut OP_COUNTER: usize = 0;
-
-pub struct OpCount;
-
-impl Drop for OpCount {
-    #[inline(always)]
-    fn drop(&mut self) {
-        unsafe {
-            OP_COUNTER += 1;
-        }
-    }
-}
-
-impl OpCount {
-    pub fn count() -> usize {
-        unsafe {
-            OP_COUNTER
-        }
-    }
-}
+use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::VoxelWorld}}};
 
 pub fn sandbox() {
     use crate::core::voxel::direction::Direction;
@@ -42,8 +21,15 @@ pub fn sandbox() {
     let debug = blockstate!(debug).register();
     let debug_data = blockstate!(debug, withdata = true).register();
     let dirt = blockstate!(dirt).register();
-    let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 1)).register();
+    let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();
     let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
+
+    world.set((0, 0, 0), debug_data);
+    let data = world.take_data((0, 0, 0));
+    println!("{data:?}");
+    let result = world.message((0, 0, 0), "Hello, from sandbox()");
+    println!("{result:?}");
+    // world.set((0, 1, 0), rot2);
     
     // let c = (1, 1, 1);
     // world.set(c, debug_data);
@@ -52,15 +38,14 @@ pub fn sandbox() {
         (0, -272, 0),
         (128, 240, 128)
     );
-    bounds.iter().for_each(|coord| {
-        world.set(coord, debug_data);
-        world.set_block_light(coord, 1);
-        world.set_sky_light(coord, 2);
-        // world.set_data(coord, Tag::Bool(true));
-    });
+    // bounds.iter().for_each(|coord| {
+    //     world.set(coord, debug_data);
+    //     world.set_block_light(coord, 1);
+    //     world.set_sky_light(coord, 2);
+    //     // world.set_data(coord, Tag::Bool(true));
+    // });
     let elapsed = now.elapsed();
     println!("Set {} blocks in world bounds in {:.3} seconds.", bounds.volume(), elapsed.as_secs_f64());
-    println!("Operation Count: {}", OpCount::count());
     let usage = world.dynamic_usage();
     println!("Memory Usage: {usage}");
     // itertools::iproduct!(-16..32, -16..32, -16..32).map(|(y, z, x)| (x, y, z))
@@ -148,16 +133,22 @@ impl Block for RotatedBlock {
         "rotated"
     }
 
-    fn occlusion_shapes(&self, state: StateRef) -> &Faces<OcclusionShape> {
-        const SHAPE: Faces<OcclusionShape> = Faces::new(
-            OcclusionShape::Full,
-            OcclusionShape::Full,
-            OcclusionShape::Full,
-            OcclusionShape::Empty,
-            OcclusionShape::Empty,
-            OcclusionShape::Empty
-        );
-        &SHAPE
+    fn occluder(&self, state: StateRef) -> &Occluder {
+        const OCCLUDER: Occluder = Occluder {
+            neg_x: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
+                [1, 0],
+                [1, 1],
+            ])),
+            neg_y: OcclusionShape::Full,
+            neg_z: OcclusionShape::Full,
+            pos_x: OcclusionShape::Full,
+            pos_y: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
+                [1, 0],
+                [1, 1],
+            ])),
+            pos_z: OcclusionShape::Full,
+        };
+        &OCCLUDER
     }
 
     fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
@@ -186,8 +177,29 @@ impl Block for DebugBlock {
     fn name(&self) -> &str {
         "debug"
     }
+    fn occluder(&self, state: StateRef) -> &Occluder {
+        const OCCLUDER: Occluder = Occluder {
+            neg_x: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
+                [1, 0],
+                [1, 1],
+            ])),
+            neg_y: OcclusionShape::Full,
+            neg_z: OcclusionShape::Full,
+            pos_x: OcclusionShape::Full,
+            pos_y: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
+                [1, 0],
+                [1, 1],
+            ])),
+            pos_z: OcclusionShape::Full,
+        };
+        &OCCLUDER
+    }
     fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
         blockstate!(debug)
+    }
+    fn message(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, message: Tag) -> Tag {
+        println!("Message received: {message:?}");
+        Tag::from("Debug Message Result")
     }
     fn on_place(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
         // println!("On Place {coord} old = {old} new = {new}");

@@ -1,14 +1,14 @@
 use std::any::Any;
 use crate::core::math::coordmap::Rotation;
 
-use super::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}};
+use super::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}};
 
 pub trait Block: Any {
     fn name(&self) -> &str;
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn occlusion_shapes(&self, state: StateRef) -> &Faces<OcclusionShape> {
-        const FULL_FACES: Faces<OcclusionShape> = Faces::new(
+    fn occluder(&self, state: StateRef) -> &Occluder {
+        const FULL_FACES: Occluder = Occluder::new(
             OcclusionShape::Full,
             OcclusionShape::Full,
             OcclusionShape::Full,
@@ -26,6 +26,8 @@ pub trait Block: Any {
     }
     fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {}
     fn light_updated(&self, world: &mut VoxelWorld, coord: Coord, old_level: u8, new_level: u8) {}
+    fn message(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, message: Tag) -> Tag { Tag::Null }
+    fn interact(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {}
     fn on_place(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {}
     fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {}
     fn data_set(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: &mut Tag) {}

@@ -3,15 +3,42 @@ use crate::core::math::coordmap::Rotation;
 use super::{direction::Direction, occlusion_shape::OcclusionShape};
 
 pub struct Occluder {
-    neg_x: OcclusionShape,
-    neg_y: OcclusionShape,
-    neg_z: OcclusionShape,
-    pos_x: OcclusionShape,
-    pos_y: OcclusionShape,
-    pos_z: OcclusionShape,
+    pub neg_x: OcclusionShape,
+    pub neg_y: OcclusionShape,
+    pub neg_z: OcclusionShape,
+    pub pos_x: OcclusionShape,
+    pub pos_y: OcclusionShape,
+    pub pos_z: OcclusionShape,
 }
 
 impl Occluder {
+    pub const EMPTY_FACES: Occluder = Occluder::new(
+        OcclusionShape::Empty,
+        OcclusionShape::Empty,
+        OcclusionShape::Empty,
+        OcclusionShape::Empty,
+        OcclusionShape::Empty,
+        OcclusionShape::Empty
+    );
+    pub const FULL_FACES: Occluder = Occluder::new(
+        OcclusionShape::Full,
+        OcclusionShape::Full,
+        OcclusionShape::Full,
+        OcclusionShape::Full,
+        OcclusionShape::Full,
+        OcclusionShape::Full
+    );
+
+    #[inline(always)]
+    pub const fn new(
+        neg_x: OcclusionShape, neg_y: OcclusionShape, neg_z: OcclusionShape,
+        pos_x: OcclusionShape, pos_y: OcclusionShape, pos_z: OcclusionShape
+    ) -> Self {
+        Self {
+            neg_x, neg_y, neg_z,
+            pos_x, pos_y, pos_z
+        }
+    }
     
     #[inline(always)]
     pub fn face(&self, face: Direction) -> &OcclusionShape {
@@ -50,10 +77,16 @@ impl Occluder {
         ].into_iter()
     }
 
+    #[inline(always)]
     pub fn occluded_by(&self, rotation: Rotation, face: Direction, other: &Occluder, other_rotation: Rotation) -> bool {
         let other_face = face.invert();
         let face_angle = rotation.face_angle(face);
         let other_face_angle = rotation.face_angle(other_face);
+        let source_face = rotation.source_face(face);
+        let other_source_face = rotation.source_face(other_face);
+        let occluder = self.face(source_face);
+        let other_occluder = other.face(other_source_face);
+        occluder.occluded_by(other_occluder, face_angle, other_face_angle)
     }
 }
 

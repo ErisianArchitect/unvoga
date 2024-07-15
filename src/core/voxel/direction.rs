@@ -127,6 +127,19 @@ impl std::ops::Neg for Direction {
     }
 }
 
+impl std::fmt::Display for Direction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Direction::NegX => write!(f, "NegX"),
+            Direction::NegY => write!(f, "NegY"),
+            Direction::NegZ => write!(f, "NegZ"),
+            Direction::PosX => write!(f, "PosX"),
+            Direction::PosY => write!(f, "PosY"),
+            Direction::PosZ => write!(f, "PosZ"),
+        }
+    }
+}
+
 #[test]
 fn inv_test() {
     let dir = -Cardinal::East;

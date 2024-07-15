@@ -4,7 +4,7 @@ use bevy::utils::hashbrown::HashMap;
 
 use crate::{blockstate, core::voxel::blockstate};
 
-use super::{block::Block, blockstate::{BlockState, StateValue}, lighting::lightargs::LightArgs, occlusion_shape::OcclusionShape};
+use super::{block::Block, blockstate::{BlockState, StateValue}, lighting::lightargs::LightArgs, occluder::Occluder, occlusion_shape::OcclusionShape};
 
 struct RegistryEntry {
     state: BlockState,
@@ -269,8 +269,8 @@ impl Block for AirBlock {
     }
 
     #[inline(always)]
-    fn occlusion_shapes(&self, state: StateRef) -> &super::faces::Faces<super::occlusion_shape::OcclusionShape> {
-        &OcclusionShape::EMPTY_FACES
+    fn occluder(&self, state: StateRef) -> &Occluder {
+        &Occluder::EMPTY_FACES
     }
 
     fn default_state(&self) -> BlockState {
