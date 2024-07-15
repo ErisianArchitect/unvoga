@@ -2,7 +2,7 @@ use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, 
 
 use crate::core::voxel::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, MemoryUsage, WORLD_HEIGHT};
+use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
 
 // 4096*4+4096+2048+2048+4096*2
 // 32768 bytes
@@ -19,12 +19,14 @@ pub struct Section {
     pub block_light: Option<Box<[u8]>>,
     pub sky_light: Option<Box<[u8]>>,
     pub block_data_refs: Option<Box<[BlockDataRef]>>,
+    pub update_refs: Option<Box<[UpdateRef]>>,
     pub block_data: BlockDataContainer,
     pub block_count: u16,
     pub occlusion_count: u16,
     pub block_light_count: u16,
     pub sky_light_count: u16,
     pub block_data_count: u16,
+    pub update_ref_count: u16,
     pub blocks_dirty: Dirty,
     pub light_dirty: Dirty,
     pub section_dirty: Dirty,
@@ -39,12 +41,14 @@ impl Section {
             block_light: None,
             sky_light: None,
             block_data_refs: None,
+            update_refs: None,
             block_data: BlockDataContainer::new(),
             block_count: 0,
             occlusion_count: 0,
             block_light_count: 0,
             sky_light_count: 0,
             block_data_count: 0,
+            update_ref_count: 0,
             blocks_dirty: Dirty::new(),
             light_dirty: Dirty::new(),
             section_dirty: Dirty::new(),
@@ -113,9 +117,33 @@ impl Section {
         x | z << 4 | y << 8
     }
 
+    pub fn get_update_ref(&self, coord: Coord) -> UpdateRef {
+        if let Some(refs) = &self.update_refs {
+            let index = Section::index(coord);
+            refs[index]
+        } else {
+            UpdateRef::NULL
+        }
+    }
+
+    pub fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> UpdateRef {
+        if self.update_refs.is_none() {
+            if value.null() {
+                return UpdateRef::NULL;
+            } else {
+                self.update_refs = Some(make_empty_update_refs());
+            }
+        }
+        let refs = self.update_refs.as_mut().unwrap();
+        let index = Section::index(coord);
+        let mut old = value;
+        std::mem::swap(&mut old, &mut refs[index]);
+        old
+    }
+
     /// Get the [StateRef] at the `coord`.
     #[inline(always)]
-    pub fn get(&self, coord: Coord) -> StateRef {
+    pub fn get_block(&self, coord: Coord) -> StateRef {
         if let Some(blocks) = &self.blocks {
             let index = Section::index(coord);
             blocks[index]
@@ -127,7 +155,7 @@ impl Section {
 
     /// Set the [StateRef] at the `coord`.
     #[inline(always)]
-    pub fn set(&mut self, coord: Coord, state: StateRef) -> SectionUpdate<StateChange> {
+    pub fn set_block(&mut self, coord: Coord, state: StateRef) -> SectionUpdate<StateChange> {
         if self.blocks.is_none() {
             // if state isn't air and blocks is None, create an empty block array.
             if !state.is_air() {
@@ -593,4 +621,9 @@ fn make_empty_block_data() -> Box<[BlockDataRef]> {
 #[inline(always)]
 fn make_empty_occlusion_data() -> Box<[Occlusion]> {
     (0..4096).map(|_| Occlusion::UNOCCLUDED).collect()
+}
+
+#[inline(always)]
+fn make_empty_update_refs() -> Box<[UpdateRef]> {
+    (0..4096).map(|_| UpdateRef::NULL).collect()
 }

@@ -6,7 +6,7 @@ pub mod dirty;
 pub mod chunkprovider;
 pub mod chunkcoord;
 pub mod blockdata;
-
+pub mod update;
 
 use std::{collections::VecDeque, iter::Sum};
 
@@ -14,6 +14,7 @@ use bevy::{asset::Handle, render::mesh::Mesh};
 use occlusion::Occlusion;
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 use section::{LightChange, Section, StateChange};
+use update::BlockUpdateQueue;
 
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::StateRef, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 
@@ -42,11 +43,12 @@ macro_rules! cast_coord {
 }
 
 pub struct VoxelWorld {
-    chunks: RollGrid2D<Chunk>,
-    render_chunks: RollGrid3D<RenderChunk>,
-    dirty_sections: Vec<Coord>,
     /// Determines if the render world has been initialized.
     initialized: bool,
+    dirty_sections: Vec<Coord>,
+    chunks: RollGrid2D<Chunk>,
+    render_chunks: RollGrid3D<RenderChunk>,
+    update_queue: BlockUpdateQueue,
 }
 
 impl VoxelWorld {
@@ -72,6 +74,7 @@ impl VoxelWorld {
         let (render_x, render_y, render_z) = calculate_center_offset(render_distance as i32, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
         Self {
             initialized: false,
+            dirty_sections: Vec::new(),
             chunks: RollGrid2D::new_with_init(pad_size, pad_size, (chunk_x, chunk_z), |(x, z): (i32, i32)| {
                 Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
             }),
@@ -81,7 +84,7 @@ impl VoxelWorld {
                     material: Handle::default(),
                 })
             }),
-            dirty_sections: Vec::new(),
+            update_queue: BlockUpdateQueue::default(),
         }
     }
 
@@ -122,14 +125,14 @@ impl VoxelWorld {
     pub fn message<T: Into<Tag>, C: Into<(i32, i32, i32)>>(&mut self, coord: C, message: T) -> Tag {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        let state = self.get(coord);
+        let state = self.get_block(coord);
         if state.is_air() {
             return Tag::Null;
         }
         state.block().message(self, coord, state, message.into())
     }
 
-    pub fn get<C: Into<(i32, i32, i32)>>(&self, coord: C) -> StateRef {
+    pub fn get_block<C: Into<(i32, i32, i32)>>(&self, coord: C) -> StateRef {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -138,10 +141,10 @@ impl VoxelWorld {
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get((chunk_x, chunk_z)).expect("Chunk was None");
-        chunk.get(coord)
+        chunk.get_block(coord)
     }
 
-    pub fn set<C: Into<(i32, i32, i32)>, S: Into<StateRef>>(&mut self, coord: C, state: S) -> StateRef {
+    pub fn set_block<C: Into<(i32, i32, i32)>, S: Into<StateRef>>(&mut self, coord: C, state: S) -> StateRef {
         let state: StateRef = state.into();
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
@@ -155,7 +158,7 @@ impl VoxelWorld {
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
-        let change = chunk.set(coord, state);
+        let change = chunk.set_block(coord, state);
         match change.change {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
@@ -298,7 +301,7 @@ impl VoxelWorld {
             }
         }
         if change.change.new_max != change.change.old_max {
-            let block = self.get(coord);
+            let block = self.get_block(coord);
             if block != StateRef::AIR {
                 block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
             }
@@ -335,7 +338,7 @@ impl VoxelWorld {
             }
         }
         if change.change.new_max != change.change.old_max {
-            let block = self.get(coord);
+            let block = self.get_block(coord);
             if block != StateRef::AIR {
                 block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
             }
@@ -405,7 +408,7 @@ impl VoxelWorld {
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         if let Some(data) = chunk.delete_data(coord) {
-            let state = self.get(coord);
+            let state = self.get_block(coord);
             if !state.is_air() {
                 state.block().data_deleted(self, coord, state, data);
             }
@@ -437,7 +440,7 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        let state = self.get(coord);
+        let state = self.get_block(coord);
         state.block().data_set(self, coord, state, &mut tag);
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         if let Some(data) = chunk.set_data(coord, tag) {
@@ -465,7 +468,7 @@ impl VoxelWorld {
                 Faces::new(
                     $(
                         if let Some(next) = coord.checked_neighbor($dir) {
-                            self.get(next)
+                            self.get_block(next)
                         } else {
                             StateRef::AIR
                         },
@@ -716,12 +719,12 @@ mod tests {
         let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
         
         itertools::iproduct!(15..16, 0..1, 15..16).for_each(|(y, z, x)| {
-            world.set((x, y, z), debug_data);
+            world.set_block((x, y, z), debug_data);
         });
-        world.set((15, 15, 15), debug_data);
+        world.set_block((15, 15, 15), debug_data);
 
         itertools::iproduct!(0..16, 0..16, 0..16).for_each(|(y, z, x)| {
-            world.set((x, y, z), air);
+            world.set_block((x, y, z), air);
         });
         itertools::iproduct!(0..16, 0..16, 0..16).for_each(|(y, z, x)| {
             let faces = world.occlusion((x, y, z));
@@ -770,7 +773,7 @@ mod tests {
             for z in 0..64 {
                 for x in 0..64 {
                     let coord = Coord::new(x, y, z);
-                    world.set(coord, dirt);
+                    world.set_block(coord, dirt);
                     world.set_block_light(coord, 7);
                     world.set_sky_light(coord, 15);
                 }
@@ -783,10 +786,10 @@ mod tests {
         }
         println!("Dirty len: {}", world.dirty_sections.len());
         return;
-        let block = world.get(Coord::new(143,WORLD_TOP-1,0));
+        let block = world.get_block(Coord::new(143,WORLD_TOP-1,0));
         println!("{}", block);
-        world.set(Coord::new(143,WORLD_TOP-1,0), dirt);
-        let block = world.get(Coord::new(143, WORLD_TOP-1, 0));
+        world.set_block(Coord::new(143,WORLD_TOP-1,0), dirt);
+        let block = world.get_block(Coord::new(143, WORLD_TOP-1, 0));
         println!("{}", block);
         let coord = Coord::new(143, WORLD_TOP-1, 0);
         let light = world.get_sky_light(coord);
@@ -799,13 +802,13 @@ mod tests {
         // }
         for i in 0..32 {
             let coord = Coord::new(i, 0, 0);
-            world.set(coord, dirt);
+            world.set_block(coord, dirt);
             world.set_block_light(coord, 15);
             world.set_sky_light(coord, 7);
         }
         for i in 0..32 {
             let coord = Coord::new(i, 0, 0);
-            let block = world.set(coord, StateRef::AIR);
+            let block = world.set_block(coord, StateRef::AIR);
             let block_light = world.set_block_light(coord, 0).old_level;
             let sky_light = world.set_sky_light(coord, 0).old_level;
             println!("{block} {block_light} {sky_light}")

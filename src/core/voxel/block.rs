@@ -28,6 +28,7 @@ pub trait Block: Any {
     fn light_updated(&self, world: &mut VoxelWorld, coord: Coord, old_level: u8, new_level: u8) {}
     fn message(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, message: Tag) -> Tag { Tag::Null }
     fn interact(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {}
+    fn update(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {}
     fn on_place(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {}
     fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {}
     fn data_set(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: &mut Tag) {}

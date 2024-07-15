@@ -2,7 +2,7 @@ use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, 
 
 use crate::core::voxel::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, section::{LightChange, Section, SectionUpdate, StateChange}, MemoryUsage, WORLD_HEIGHT};
+use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
 
 pub struct Chunk {
     pub sections: Box<[Section]>,
@@ -28,21 +28,30 @@ impl Chunk {
     }
 
     #[inline(always)]
-    pub fn get(&self, coord: Coord) -> StateRef {
-        // no bounds check because this will only be called by
-        // the world, which will already be bounds checked.
+    pub fn get_update_ref(&self, coord: Coord) -> UpdateRef {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
-        self.sections[section_index].get(coord)
+        self.sections[section_index].get_update_ref(coord)
     }
 
     #[inline(always)]
-    pub fn set(&mut self, coord: Coord, value: StateRef) -> SectionUpdate<StateChange> {
+    pub fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> 
+
+    #[inline(always)]
+    pub fn get_block(&self, coord: Coord) -> StateRef {
+        // no bounds check because this will only be called by
+        // the world, which will already be bounds checked.
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.sections[section_index].get_block(coord)
+    }
+
+    #[inline(always)]
+    pub fn set_block(&mut self, coord: Coord, value: StateRef) -> SectionUpdate<StateChange> {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
         let nonair = value != StateRef::AIR;
         self.heightmap.set(Coord::new(coord.x, coord.y - self.block_offset.y, coord.z), nonair);
-        self.sections[section_index].set(coord, value)
+        self.sections[section_index].set_block(coord, value)
     }
 
     #[inline(always)]

@@ -24,7 +24,7 @@ pub fn sandbox() {
     let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();
     let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
 
-    world.set((0, 0, 0), debug_data);
+    world.set_block((0, 0, 0), debug_data);
     let data = world.take_data((0, 0, 0));
     println!("{data:?}");
     let result = world.message((0, 0, 0), "Hello, from sandbox()");
