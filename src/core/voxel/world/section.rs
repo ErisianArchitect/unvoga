@@ -138,6 +138,17 @@ impl Section {
         let index = Section::index(coord);
         let mut old = value;
         std::mem::swap(&mut old, &mut refs[index]);
+        if old != value {
+            // Decrement
+            if old == UpdateRef::NULL {
+                self.update_ref_count += 1;
+            } else {
+                self.update_ref_count -= 1;
+                if self.update_ref_count == 0 {
+                    self.update_refs = None;
+                }
+            }
+        }
         old
     }
 

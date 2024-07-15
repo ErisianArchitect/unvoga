@@ -14,7 +14,7 @@ use bevy::{asset::Handle, render::mesh::Mesh};
 use occlusion::Occlusion;
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 use section::{LightChange, Section, StateChange};
-use update::BlockUpdateQueue;
+use update::{BlockUpdateQueue, UpdateRef};
 
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::StateRef, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 
@@ -162,6 +162,9 @@ impl VoxelWorld {
         match change.change {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
+                // self.disable_block(coord);
+                let cur_ref = chunk.set_update_ref(coord, UpdateRef::NULL);
+                self.update_queue.remove(cur_ref);
                 let block = state.block();
                 let my_rotation = block.rotation(state);
                 if old != StateRef::AIR {
@@ -448,6 +451,47 @@ impl VoxelWorld {
                 state.block().data_deleted(self, coord, state, data);
             }
         }
+    }
+
+    /// Enable a block, adding it to the update queue.
+    pub fn enable<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return;
+        }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        let cur_ref = chunk.get_update_ref(coord);
+        // cur_ref is not null which means that this block is already in the update queue
+        if !cur_ref.null() {
+            return;
+        }
+        let new_ref = self.update_queue.push(coord);
+        chunk.set_update_ref(coord, new_ref);
+    }
+
+    /// Disable a block, removing it from the update queue if it's in the update queue.
+    pub fn disable<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return;
+        }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        let cur_ref = chunk.set_update_ref(coord, UpdateRef::NULL);
+        self.update_queue.remove(cur_ref);
+    }
+
+    pub fn update(&mut self) {
+        (0..self.update_queue.update_queue.len()).for_each(|i| {
+            let coord = self.update_queue.update_queue[i].0;
+            let state = self.get_block(coord);
+            state.block().update(self, coord, state);
+        });
     }
 
     pub fn height(&self, x: i32, z: i32) -> i32 {

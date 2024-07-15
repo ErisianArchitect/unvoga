@@ -21,7 +21,7 @@ pub struct BlockUpdateQueue {
 
 impl BlockUpdateQueue {
     #[inline(always)]
-    pub fn add(&mut self, coord: Coord) -> UpdateRef {
+    pub fn push(&mut self, coord: Coord) -> UpdateRef {
         let ref_index = if let Some(ref_index) = self.unused_refs.pop() {
             ref_index
         } else {
@@ -67,7 +67,7 @@ fn quick() {
     let mut update = BlockUpdateQueue::default();
     let mut keys = Vec::new();
     for i in 0..16 {
-        keys.push(update.add(Coord::new(i,i,i)));
+        keys.push(update.push(Coord::new(i,i,i)));
     }
     update.iter().cloned().for_each(|coord| {
         println!("{coord}");

@@ -20,11 +20,15 @@ pub fn sandbox() {
     let air = StateRef::AIR;
     let debug = blockstate!(debug).register();
     let debug_data = blockstate!(debug, withdata = true).register();
+    let enabled = blockstate!(debug, enabled = true).register();
     let dirt = blockstate!(dirt).register();
     let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();
     let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
 
-    world.set_block((0, 0, 0), debug_data);
+    for i in 0..10 {
+        world.set_block((i, 0, 0), enabled);
+    }
+    world.update();
     let data = world.take_data((0, 0, 0));
     println!("{data:?}");
     let result = world.message((0, 0, 0), "Hello, from sandbox()");
@@ -207,6 +211,9 @@ impl Block for DebugBlock {
             // println!("Adding data...");
             world.set_data(coord, Tag::from("The quick brown fox jumps over the lazy dog."));
         }
+        if matches!(new["enabled"], StateValue::Bool(true)) {
+            world.enable(coord);
+        }
     }
     fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
         // println!("On Remove {coord} old = {old} new = {new}");
@@ -222,5 +229,8 @@ impl Block for DebugBlock {
     }
     fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {
         // println!("Neighbor Updated {coord} -> {neighbor_coord} {state} -> {neighbor_state}");
+    }
+    fn update(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {
+        println!("Update {coord} {state}");
     }
 }

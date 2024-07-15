@@ -34,7 +34,10 @@ impl Chunk {
     }
 
     #[inline(always)]
-    pub fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> 
+    pub fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> UpdateRef {
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.sections[section_index].set_update_ref(coord, value)
+    }
 
     #[inline(always)]
     pub fn get_block(&self, coord: Coord) -> StateRef {
