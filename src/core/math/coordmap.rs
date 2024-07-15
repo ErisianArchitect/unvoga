@@ -71,6 +71,13 @@ impl Rotation {
     }
 
     #[inline(always)]
+    pub const fn cycle(self, offset: i32) -> Rotation {
+        let index = self.0 as i32;
+        let new_index = (index as i64 + offset as i64).rem_euclid(24) as u8;
+        Rotation(new_index)
+    }
+
+    #[inline(always)]
     pub const fn angle(self) -> i32 {
         (self.0 & 0b11) as i32
     }
@@ -855,7 +862,7 @@ impl CoordTranslate {
 
 #[cfg(test)]
 mod tests {
-    use bevy::math::vec3;
+    use bevy::{asset::io::memory::Dir, math::vec3};
 
     use crate::core::{math::coordmap::Flip, voxel::direction::Direction};
 
@@ -1105,5 +1112,21 @@ mod tests {
         writeln!(file, "}}")?;
         println!("Code written to file.");
         Ok(())
+    }
+
+    #[test]
+    fn cycle_test() {
+        let mut rot = Rotation::new(Direction::PosY, 0);
+        println!("{rot}");
+        for i in 0..24 {
+            rot = rot.cycle(1);
+            println!("{rot}");
+        }
+    }
+}
+
+impl std::fmt::Display for Rotation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Rotation(up={},forward={},angle={})", self.up(), self.forward(), self.angle())
     }
 }
