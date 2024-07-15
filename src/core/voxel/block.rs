@@ -18,10 +18,11 @@ pub trait Block: Any {
         );
         &FULL_FACES
     }
-    fn rotation(&self, state: StateRef) -> Rotation {
+    fn rotation(&self, coord: Coord, state: StateRef) -> Rotation {
         Rotation::new(Direction::PosY, 0)
     }
-    fn light_args(&self, state: StateRef) -> LightArgs {
+    fn default_enabled(&self, coord: Coord, state: StateRef) -> bool { false }
+    fn light_args(&self, coord: Coord, state: StateRef) -> LightArgs {
         LightArgs::new(15, 0)
     }
     fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {}

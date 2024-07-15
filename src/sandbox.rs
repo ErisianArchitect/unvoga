@@ -29,6 +29,10 @@ pub fn sandbox() {
         world.set_block((i, 0, 0), enabled);
     }
     world.update();
+    for i in 0..10 {
+        world.set_block((i, 0, 0), debug);
+    }
+    world.update();
     let data = world.take_data((0, 0, 0));
     println!("{data:?}");
     let result = world.message((0, 0, 0), "Hello, from sandbox()");
@@ -159,7 +163,7 @@ impl Block for RotatedBlock {
         blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0))
     }
 
-    fn rotation(&self, state: StateRef) -> Rotation {
+    fn rotation(&self, coord: Coord, state: StateRef) -> Rotation {
         if let Some(&StateValue::Rotation(rotation)) = state.get_property("rotation") {
             rotation
         } else {

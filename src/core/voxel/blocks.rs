@@ -4,7 +4,7 @@ use bevy::utils::hashbrown::HashMap;
 
 use crate::{blockstate, core::voxel::blockstate};
 
-use super::{block::Block, blockstate::{BlockState, StateValue}, lighting::lightargs::LightArgs, occluder::Occluder, occlusion_shape::OcclusionShape};
+use super::{block::Block, blockstate::{BlockState, StateValue}, coord::Coord, lighting::lightargs::LightArgs, occluder::Occluder, occlusion_shape::OcclusionShape};
 
 struct RegistryEntry {
     state: BlockState,
@@ -174,8 +174,8 @@ impl StateRef {
     }
 
     #[inline(always)]
-    pub fn light_args(self) -> LightArgs {
-        self.block().light_args(self)
+    pub fn light_args(self, coord: Coord) -> LightArgs {
+        self.block().light_args(coord, self)
     }
 
     /// Don't register anything while these references are held.
@@ -264,7 +264,7 @@ impl Block for AirBlock {
     }
 
     #[inline(always)]
-    fn light_args(&self, state: StateRef) -> LightArgs {
+    fn light_args(&self, coord: Coord, state: StateRef) -> LightArgs {
         LightArgs::new(1, 0)
     }
 

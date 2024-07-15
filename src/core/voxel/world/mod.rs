@@ -166,7 +166,7 @@ impl VoxelWorld {
                 let cur_ref = chunk.set_update_ref(coord, UpdateRef::NULL);
                 self.update_queue.remove(cur_ref);
                 let block = state.block();
-                let my_rotation = block.rotation(state);
+                let my_rotation = block.rotation(coord, state);
                 if old != StateRef::AIR {
                     let old_block = old.block();
                     self.delete_data_internal(coord, old);
@@ -181,10 +181,11 @@ impl VoxelWorld {
                     let neighbor_dir = dir.invert();
                     let neighbor = neighbors[dir];
                     let neighbor_block = neighbor.block();
+                    let neighbor_coord = coord + dir;
                     if neighbor != StateRef::AIR {
-                        neighbor_block.neighbor_updated(self, neighbor_dir, coord + dir, coord, neighbor, state);
+                        neighbor_block.neighbor_updated(self, neighbor_dir, neighbor_coord, coord, neighbor, state);
                     }
-                    let neighbor_rotation = neighbor_block.rotation(neighbors[dir]);
+                    let neighbor_rotation = neighbor_block.rotation(neighbor_coord, neighbors[dir]);
                     let face_occluder = my_occluder.face(my_rotation.source_face(dir));
                     let neighbor_occluder = neighbor_block.occluder(neighbor).face(neighbor_rotation.source_face(neighbor_dir));
                     let neighbor_coord = coord + dir;
@@ -699,7 +700,7 @@ mod tests {
             blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0))
         }
 
-        fn rotation(&self, state: StateRef) -> Rotation {
+        fn rotation(&self, coord: Coord, state: StateRef) -> Rotation {
             if let Some(&StateValue::Rotation(rotation)) = state.get_property("rotation") {
                 rotation
             } else {
