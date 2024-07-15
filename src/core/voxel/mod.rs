@@ -74,7 +74,7 @@ mod tests {
         // let mut world = World {};
         // world.set_block(Coord::new(1, 2, 3), air);
         println!("{}", air.block().name());
-        println!("{}", air.block().light_args((0, 0, 0).into(), air).filter());
+        // println!("{}", air.block().light_args(&world, (0, 0, 0).into(), air).filter());
         println!("{}", test2);
     }
 }

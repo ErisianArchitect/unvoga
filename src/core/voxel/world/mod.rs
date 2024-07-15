@@ -103,6 +103,7 @@ impl VoxelWorld {
         )
     }
 
+    #[inline(always)]
     fn get_section(&self, section_coord: Coord) -> Option<&Section> {
         if section_coord.y < 0 {
             return None;
@@ -115,6 +116,7 @@ impl VoxelWorld {
         Some(&chunk.sections[y as usize])
     }
 
+    #[inline(always)]
     fn get_section_mut(&mut self, section_coord: Coord) -> Option<&mut Section> {
         if section_coord.y < 0 {
             return None;
@@ -127,6 +129,7 @@ impl VoxelWorld {
         Some(&mut chunk.sections[y as usize])
     }
 
+    /// Calls a function on a block.
     pub fn call<T: Into<Tag>, C: Into<(i32, i32, i32)>, S: AsRef<str>>(&mut self, coord: C, function: S, arg: T) -> Tag {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
@@ -135,6 +138,26 @@ impl VoxelWorld {
             return Tag::Null;
         }
         state.block().call(self, coord, state, function.as_ref(), arg.into())
+    }
+
+    fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> UpdateRef {
+        if !self.render_bounds().contains(coord) {
+            return UpdateRef::NULL;
+        }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.set_update_ref(coord, value)
+    }
+
+    fn get_update_ref(&self, coord: Coord) -> UpdateRef {
+        if !self.render_bounds().contains(coord) {
+            return UpdateRef::NULL;
+        }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.get_update_ref(coord)
     }
 
     pub fn get_block<C: Into<(i32, i32, i32)>>(&self, coord: C) -> StateRef {
@@ -197,24 +220,25 @@ impl VoxelWorld {
         };
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
-        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
-        let change = chunk.set_block(coord, state);
+        let change = {
+            let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+            chunk.set_block(coord, state)
+        };
         match change.change {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
-                // self.disable_block(coord);
-                let cur_ref = chunk.set_update_ref(coord, UpdateRef::NULL);
-                if state.block().default_enabled(coord, state) {
+                let cur_ref = self.set_update_ref(coord, UpdateRef::NULL);
+                if state.block().default_enabled(self, coord, state) {
                     if cur_ref.null() {
                         let new_ref = self.update_queue.push(coord);
-                        chunk.set_update_ref(coord, new_ref);
+                        self.set_update_ref(coord, new_ref);
                     }
                 } else {
                     self.update_queue.remove(cur_ref);
                 }
                 let block = state.block();
-                let my_rotation = block.rotation(coord, state);
-                let my_occluder = block.occluder(state);
+                let my_rotation = block.rotation(self, coord, state);
+                let my_occluder = block.occluder(self, state);
                 let neighbors = self.neighbors(coord);
                 Direction::iter().for_each(|dir| {
                     let neighbor_dir = dir.invert();
@@ -224,13 +248,12 @@ impl VoxelWorld {
                     if neighbor != StateRef::AIR {
                         neighbor_block.neighbor_updated(self, neighbor_dir, neighbor_coord, coord, neighbor, state);
                     }
-                    let neighbor_rotation = neighbor_block.rotation(neighbor_coord, neighbors[dir]);
+                    let neighbor_rotation = neighbor_block.rotation(self, neighbor_coord, neighbors[dir]);
                     let face_occluder = my_occluder.face(my_rotation.source_face(dir));
-                    let neighbor_occluder = neighbor_block.occluder(neighbor).face(neighbor_rotation.source_face(neighbor_dir));
+                    let neighbor_occluder = neighbor_block.occluder(self, neighbor).face(neighbor_rotation.source_face(neighbor_dir));
                     let neighbor_coord = coord + dir;
                     let my_angle = my_rotation.face_angle(dir);
                     let neighbor_angle = neighbor_rotation.face_angle(neighbor_dir);
-                    // println!("{coord} {dir:?} -> {:?} {:?}", my_rotation.source_face(dir), neighbor_rotation.source_face(neighbor_dir));
                     if neighbor_occluder.occluded_by(face_occluder, neighbor_angle, my_angle) {
                         self.hide_face(neighbor_coord, neighbor_dir);
                     } else {
