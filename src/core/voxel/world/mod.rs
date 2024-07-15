@@ -42,6 +42,11 @@ macro_rules! cast_coord {
     };
 }
 
+/* todo
+Query Engine
+World Edit
+*/
+
 pub struct VoxelWorld {
     /// Determines if the render world has been initialized.
     initialized: bool,
@@ -164,7 +169,12 @@ impl VoxelWorld {
             StateChange::Changed(old) => {
                 // self.disable_block(coord);
                 let cur_ref = chunk.set_update_ref(coord, UpdateRef::NULL);
-                self.update_queue.remove(cur_ref);
+                if state.block().default_enabled(coord, state) && cur_ref.null() {
+                    let new_ref = self.update_queue.push(coord);
+                    chunk.set_update_ref(coord, new_ref);
+                } else {
+                    self.update_queue.remove(cur_ref);
+                }
                 let block = state.block();
                 let my_rotation = block.rotation(coord, state);
                 if old != StateRef::AIR {

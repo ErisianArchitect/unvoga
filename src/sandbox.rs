@@ -28,10 +28,17 @@ pub fn sandbox() {
     for i in 0..10 {
         world.set_block((i, 0, 0), enabled);
     }
+    println!("Updates");
     world.update();
     for i in 0..10 {
         world.set_block((i, 0, 0), debug);
     }
+    println!("No updates:");
+    world.update();
+    for i in 0..10 {
+        world.set_block((i, 0, 0), enabled);
+    }
+    println!("Updates");
     world.update();
     let data = world.take_data((0, 0, 0));
     println!("{data:?}");
@@ -215,9 +222,6 @@ impl Block for DebugBlock {
             // println!("Adding data...");
             world.set_data(coord, Tag::from("The quick brown fox jumps over the lazy dog."));
         }
-        if matches!(new["enabled"], StateValue::Bool(true)) {
-            world.enable(coord);
-        }
     }
     fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
         // println!("On Remove {coord} old = {old} new = {new}");
@@ -236,5 +240,9 @@ impl Block for DebugBlock {
     }
     fn update(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {
         println!("Update {coord} {state}");
+        world.set_block(coord + Direction::PosY, state);
+    }
+    fn default_enabled(&self, coord: Coord, state: StateRef) -> bool {
+        matches!(state["enabled"], StateValue::Bool(true))
     }
 }
