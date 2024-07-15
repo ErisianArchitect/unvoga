@@ -2,7 +2,7 @@ use std::{sync::Arc, thread};
 
 use rollgrid::rollgrid3d::Bounds3D;
 
-use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::VoxelWorld}}};
+use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::{PlaceContext, VoxelWorld}}}};
 
 pub fn sandbox() {
     use crate::core::voxel::direction::Direction;
@@ -42,7 +42,7 @@ pub fn sandbox() {
     world.update();
     let data = world.take_data((0, 0, 0));
     println!("{data:?}");
-    let result = world.message((0, 0, 0), "Hello, from sandbox()");
+    let result = world.call((0, 0, 0), "", "Hello, from sandbox()");
     println!("{result:?}");
     // world.set((0, 1, 0), rot2);
     
@@ -121,12 +121,10 @@ impl Block for DirtBlock {
     fn on_place(
             &self,
             world: &mut VoxelWorld,
-            coord: Coord,
-            old: StateRef,
-            new: StateRef,
+            context: &mut PlaceContext,
         ) {
             // world.set_block(coord, StateRef::AIR);
-            println!("dirt placed: {new}");
+            println!("dirt placed: {}", context.replacement());
     }
 
     fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
@@ -212,33 +210,38 @@ impl Block for DebugBlock {
     fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
         blockstate!(debug)
     }
-    fn message(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, message: Tag) -> Tag {
-        println!("Message received: {message:?}");
+    fn call(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, function: &str, arg: Tag) -> Tag {
+        println!("Message received: {arg:?}");
         Tag::from("Debug Message Result")
     }
-    fn on_place(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
-        // println!("On Place {coord} old = {old} new = {new}");
-        if matches!(new["withdata"], StateValue::Bool(true)) {
-            // println!("Adding data...");
-            world.set_data(coord, Tag::from("The quick brown fox jumps over the lazy dog."));
+    fn on_place(&self, world: &mut VoxelWorld, context: &mut PlaceContext) {
+        let (coord, old, new) = (
+            context.coord(),
+            context.old(),
+            context.replacement()
+        );
+        println!("On Place {coord} old = {old} new = {new}");
+        if matches!(context.replacement()["withdata"], StateValue::Bool(true)) {
+            println!("Adding data...");
+            world.set_data(context.coord(), Tag::from("The quick brown fox jumps over the lazy dog."));
         }
     }
     fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
-        // println!("On Remove {coord} old = {old} new = {new}");
+        println!("On Remove {coord} old = {old} new = {new}");
     }
-    fn data_set(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: &mut Tag) {
-        // println!("Data Set {coord} state = {state} data = {data:?}");
+    fn on_data_set(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: &mut Tag) {
+        println!("Data Set {coord} state = {state} data = {data:?}");
     }
-    fn data_deleted(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: Tag) {
-        // println!("Data Deleted {coord} state = {state} data = {data:?}");
+    fn on_data_delete(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: Tag) {
+        println!("Data Deleted {coord} state = {state} data = {data:?}");
     }
     fn light_updated(&self, world: &mut VoxelWorld, coord: Coord, old_level: u8, new_level: u8) {
-        // println!("Light Updated {coord} old = {old_level} new = {new_level}");
+        println!("Light Updated {coord} old = {old_level} new = {new_level}");
     }
     fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {
-        // println!("Neighbor Updated {coord} -> {neighbor_coord} {state} -> {neighbor_state}");
+        println!("Neighbor Updated {coord} -> {neighbor_coord} {state} -> {neighbor_state}");
     }
-    fn update(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {
+    fn on_update(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {
         println!("Update {coord} {state}");
         world.set_block(coord + Direction::PosY, state);
     }

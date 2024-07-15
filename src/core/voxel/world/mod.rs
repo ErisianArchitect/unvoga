@@ -127,14 +127,14 @@ impl VoxelWorld {
         Some(&mut chunk.sections[y as usize])
     }
 
-    pub fn message<T: Into<Tag>, C: Into<(i32, i32, i32)>>(&mut self, coord: C, message: T) -> Tag {
+    pub fn call<T: Into<Tag>, C: Into<(i32, i32, i32)>, S: AsRef<str>>(&mut self, coord: C, function: S, arg: T) -> Tag {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         let state = self.get_block(coord);
         if state.is_air() {
             return Tag::Null;
         }
-        state.block().message(self, coord, state, message.into())
+        state.block().call(self, coord, state, function.as_ref(), arg.into())
     }
 
     pub fn get_block<C: Into<(i32, i32, i32)>>(&self, coord: C) -> StateRef {
@@ -160,6 +160,41 @@ impl VoxelWorld {
         if !self.render_bounds().contains(coord) {
             return StateRef::AIR;
         }
+        let old = self.get_block(coord);
+        if state == old {
+            return old;
+        }
+        let state = if state != StateRef::AIR {
+            let mut place_context = PlaceContext {
+                replacement: state,
+                data: None,
+                coord,
+                old,
+                changed: false,
+            };
+            state.block().on_place(self, &mut place_context);
+            while place_context.changed {
+                place_context.changed = false;
+                let old_copy = place_context.old;
+                place_context.old = place_context.replacement;
+                place_context.data = None;
+                place_context.replacement.block().on_place(self, &mut place_context);
+            }
+            if old == place_context.replacement {
+                return old;
+            }
+            if old != StateRef::AIR {
+                let old_block = old.block();
+                self.delete_data_internal(coord, old);
+                old_block.on_remove(self, coord, old, place_context.replacement);
+            }
+            if let Some(data) = place_context.data {
+                self.set_data(coord, data);
+            }
+            place_context.replacement
+        } else {
+            state
+        };
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
@@ -169,22 +204,16 @@ impl VoxelWorld {
             StateChange::Changed(old) => {
                 // self.disable_block(coord);
                 let cur_ref = chunk.set_update_ref(coord, UpdateRef::NULL);
-                if state.block().default_enabled(coord, state) && cur_ref.null() {
-                    let new_ref = self.update_queue.push(coord);
-                    chunk.set_update_ref(coord, new_ref);
+                if state.block().default_enabled(coord, state) {
+                    if cur_ref.null() {
+                        let new_ref = self.update_queue.push(coord);
+                        chunk.set_update_ref(coord, new_ref);
+                    }
                 } else {
                     self.update_queue.remove(cur_ref);
                 }
                 let block = state.block();
                 let my_rotation = block.rotation(coord, state);
-                if old != StateRef::AIR {
-                    let old_block = old.block();
-                    self.delete_data_internal(coord, old);
-                    old_block.on_remove(self, coord, old, state);
-                }
-                if state != StateRef::AIR {
-                    block.on_place(self, coord, old, state);
-                }
                 let my_occluder = block.occluder(state);
                 let neighbors = self.neighbors(coord);
                 Direction::iter().for_each(|dir| {
@@ -424,7 +453,7 @@ impl VoxelWorld {
         if let Some(data) = chunk.delete_data(coord) {
             let state = self.get_block(coord);
             if !state.is_air() {
-                state.block().data_deleted(self, coord, state, data);
+                state.block().on_data_delete(self, coord, state, data);
             }
         }
     }
@@ -440,13 +469,13 @@ impl VoxelWorld {
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         if let Some(data) = chunk.delete_data(coord) {
             if !old_state.is_air() {
-                old_state.block().data_deleted(self, coord, old_state, data);
+                old_state.block().on_data_delete(self, coord, old_state, data);
             }
         }
     }
 
-    pub fn set_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C, tag: Tag) {
-        let mut tag = tag;
+    pub fn set_data<C: Into<(i32, i32, i32)>, T: Into<Tag>>(&mut self, coord: C, tag: T) {
+        let mut tag: Tag = tag.into();
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -455,11 +484,11 @@ impl VoxelWorld {
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
         let state = self.get_block(coord);
-        state.block().data_set(self, coord, state, &mut tag);
+        state.block().on_data_set(self, coord, state, &mut tag);
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         if let Some(data) = chunk.set_data(coord, tag) {
             if !state.is_air() {
-                state.block().data_deleted(self, coord, state, data);
+                state.block().on_data_delete(self, coord, state, data);
             }
         }
     }
@@ -501,7 +530,7 @@ impl VoxelWorld {
         (0..self.update_queue.update_queue.len()).for_each(|i| {
             let coord = self.update_queue.update_queue[i].0;
             let state = self.get_block(coord);
-            state.block().update(self, coord, state);
+            state.block().on_update(self, coord, state);
         });
     }
 
@@ -633,251 +662,38 @@ struct RenderChunk {
     pub material: Handle<VoxelMaterial>,
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::{blockstate, core::{math::coordmap::Rotation, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, WORLD_TOP}}}};
+pub struct PlaceContext {
+    replacement: StateRef,
+    data: Option<Tag>,
+    coord: Coord,
+    old: StateRef,
+    changed: bool,
+}
 
-    use super::VoxelWorld;
-
-    #[test]
-    fn center_test() {
-        let size: i32 = 16;
-        let x: i32 = 16*16-8;
-        let offx = x - 8;
-        let size_offset = (size - 1) * 16;
-        let snap = offx - offx.rem_euclid(16);
-        let result = snap - size_offset;
-        println!("  Snap: {snap}");
-        println!("Result: {result}");
+impl PlaceContext {
+    #[inline(always)]
+    pub fn replace(&mut self, state: StateRef) {
+        self.replacement = state;
+        self.changed = true;
     }
 
-    struct DirtBlock;
-    impl Block for DirtBlock {
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-
-        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-            self
-        }
-
-        fn name(&self) -> &str {
-            "dirt"
-        }
-
-        fn on_place(
-                &self,
-                world: &mut VoxelWorld,
-                coord: Coord,
-                old: StateRef,
-                new: StateRef,
-            ) {
-                // world.set_block(coord, StateRef::AIR);
-                println!("dirt placed: {new}");
-        }
-
-        fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
-            blockstate!(dirt)
-        }
-    }
-    struct RotatedBlock;
-    impl Block for RotatedBlock {
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-
-        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-            self
-        }
-
-        fn name(&self) -> &str {
-            "rotated"
-        }
-
-        fn occluder(&self, state: StateRef) -> &Occluder {
-            const SHAPE: Occluder = Occluder::new(
-                OcclusionShape::Full,
-                OcclusionShape::Full,
-                OcclusionShape::Full,
-                OcclusionShape::Empty,
-                OcclusionShape::Empty,
-                OcclusionShape::Empty
-            );
-            &SHAPE
-        }
-
-        fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
-            blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0))
-        }
-
-        fn rotation(&self, coord: Coord, state: StateRef) -> Rotation {
-            if let Some(&StateValue::Rotation(rotation)) = state.get_property("rotation") {
-                rotation
-            } else {
-                Rotation::default()
-            }
-        }
-        fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {
-            println!("Neighbor Updated(coord = {coord:?}, neighbor_coord = {neighbor_coord:?}, neighbor_state = {neighbor_state})");
-        }
-    }
-    struct DebugBlock;
-    impl Block for DebugBlock {
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-            self
-        }
-        fn name(&self) -> &str {
-            "debug"
-        }
-        fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
-            blockstate!(debug)
-        }
-        fn on_place(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
-            println!("On Place {coord} old = {old} new = {new}");
-            if matches!(new["withdata"], StateValue::Bool(true)) {
-                println!("Adding data...");
-                world.set_data(coord, Tag::from("The quick brown fox jumps over the lazy dog."));
-            }
-        }
-        fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
-            println!("On Remove {coord} old = {old} new = {new}");
-        }
-        fn data_deleted(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: Tag) {
-            println!("Data Deleted {coord} state = {state} data = {data:?}");
-        }
-        fn light_updated(&self, world: &mut VoxelWorld, coord: Coord, old_level: u8, new_level: u8) {
-            println!("Light Updated {coord} old = {old_level} new = {new_level}");
-        }
-        fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {
-            println!("Neighbor Updated {coord} -> {neighbor_coord} {state} -> {neighbor_state}");
-        }
+    #[inline(always)]
+    pub fn set_data<T: Into<Tag>>(&mut self, data: T) {
+        self.data = Some(data.into());
     }
 
-    #[test]
-    fn world_test() {
-        println!("World Test");
-        let mut world = VoxelWorld::new(32, Coord::new(0, -10000, 0));
-        blocks::register_block(DirtBlock);
-        blocks::register_block(RotatedBlock);
-        blocks::register_block(DebugBlock);
-        println!(" World Bounds: {:?}", world.bounds());
-        println!("Render Bounds: {:?}", world.render_bounds());
-        println!("  Block Count: {}", world.bounds().volume());
-        let air = StateRef::AIR;
-        let debug = blockstate!(debug).register();
-        let debug_data = blockstate!(debug, withdata = true).register();
-        let dirt = blockstate!(dirt).register();
-        let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 1)).register();
-        let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
-        
-        itertools::iproduct!(15..16, 0..1, 15..16).for_each(|(y, z, x)| {
-            world.set_block((x, y, z), debug_data);
-        });
-        world.set_block((15, 15, 15), debug_data);
+    #[inline(always)]
+    pub fn coord(&self) -> Coord {
+        self.coord
+    }
 
-        itertools::iproduct!(0..16, 0..16, 0..16).for_each(|(y, z, x)| {
-            world.set_block((x, y, z), air);
-        });
-        itertools::iproduct!(0..16, 0..16, 0..16).for_each(|(y, z, x)| {
-            let faces = world.occlusion((x, y, z));
-            if faces != Occlusion::UNOCCLUDED {
-                println!("Occluded at ({x:2}, {y:2}, {z:2})");
-            }
-        });
-        let usage = world.dynamic_usage();
-        println!("Memory: {usage}");
+    #[inline(always)]
+    pub fn old(&self) -> StateRef {
+        self.old
+    }
 
-        // world.set_block((1, 1, 1), rot2);
-        // println!("Block at (1, 1, 1): {}", world.get((1, 1, 1)));
-        // let flags = world.occlusion((1, 1, 1));
-        // println!("Occlusion at (1, 1, 1) = {flags}");
-        // let height = world.height(0, 0);
-        // println!("Dynamic Memory Usage: {}", world.dynamic_usage());
-        // println!("Height: {height}");
-        // for y in 0..16 {
-        //     for z in 0..16 {
-        //         for x in 0..16 {
-        //             world.set_block((x, y, z), dirt);
-        //             world.set_sky_light((x, y, z), 7);
-        //             world.set_block_light((x, y, z), 13);
-        //         }
-        //     }
-        // }
-        // let usage = world.dynamic_usage();
-        // println!("Dynamic Memory Usage: {}", usage);
-        // for y in 0..16 {
-        //     for z in 0..16 {
-        //         for x in 0..16 {
-        //             world.set((x, y, z), StateRef::AIR);
-        //             world.set_sky_light((x, y, z), 0);
-        //             world.set_block_light((x, y, z), 0);
-        //         }
-        //     }
-        // }
-        // world.set((0, 0, 0), dirt);
-        // let usage = world.dynamic_usage();
-        // assert_eq!(usage, 0);
-        // println!("Dynamic Memory Usage: {}", usage);
-        return;
-
-        let now = std::time::Instant::now();
-        for y in 0..64 {
-            for z in 0..64 {
-                for x in 0..64 {
-                    let coord = Coord::new(x, y, z);
-                    world.set_block(coord, dirt);
-                    world.set_block_light(coord, 7);
-                    world.set_sky_light(coord, 15);
-                }
-            }
-        }
-        let elapsed = now.elapsed();
-        println!("Elapsed: {}", elapsed.as_secs_f64());
-        for coord in world.dirty_sections.iter() {
-            println!("Dirty: {coord}");
-        }
-        println!("Dirty len: {}", world.dirty_sections.len());
-        return;
-        let block = world.get_block(Coord::new(143,WORLD_TOP-1,0));
-        println!("{}", block);
-        world.set_block(Coord::new(143,WORLD_TOP-1,0), dirt);
-        let block = world.get_block(Coord::new(143, WORLD_TOP-1, 0));
-        println!("{}", block);
-        let coord = Coord::new(143, WORLD_TOP-1, 0);
-        let light = world.get_sky_light(coord);
-        println!("Light: {light}");
-        world.set_sky_light(coord, 13);
-        let light = world.get_sky_light(coord);
-        println!("Light: {light}");
-        // for offset in &world.dirty_sections {
-        //     println!("{offset}");
-        // }
-        for i in 0..32 {
-            let coord = Coord::new(i, 0, 0);
-            world.set_block(coord, dirt);
-            world.set_block_light(coord, 15);
-            world.set_sky_light(coord, 7);
-        }
-        for i in 0..32 {
-            let coord = Coord::new(i, 0, 0);
-            let block = world.set_block(coord, StateRef::AIR);
-            let block_light = world.set_block_light(coord, 0).old_level;
-            let sky_light = world.set_sky_light(coord, 0).old_level;
-            println!("{block} {block_light} {sky_light}")
-        }
-        let sect = Coord::splat(0).section_coord();
-        if let Some(sect) = world.get_section(sect) {
-            println!("     Blocks is None: {}", sect.blocks.is_none());
-            println!("Block Light is None: {}", sect.block_light.is_none());
-            println!("  Sky Light is None: {}", sect.sky_light.is_none());
-        }
-        for offset in &world.dirty_sections {
-            println!("{offset}");
-        }
-        let now = std::time::Instant::now();
-        let mut timer = std::time::Instant::now();
+    #[inline(always)]
+    pub fn replacement(&self) -> StateRef {
+        self.replacement
     }
 }

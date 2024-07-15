@@ -1,7 +1,7 @@
 use std::any::Any;
 use crate::core::math::coordmap::Rotation;
 
-use super::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}};
+use super::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
 
 pub trait Block: Any {
     fn name(&self) -> &str;
@@ -27,13 +27,13 @@ pub trait Block: Any {
     }
     fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {}
     fn light_updated(&self, world: &mut VoxelWorld, coord: Coord, old_level: u8, new_level: u8) {}
-    fn message(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, message: Tag) -> Tag { Tag::Null }
-    fn interact(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {}
-    fn update(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {}
-    fn on_place(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {}
+    fn call(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, function: &str, arg: Tag) -> Tag { Tag::Null }
+    fn on_interact(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {}
+    fn on_update(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {}
+    fn on_place(&self, world: &mut VoxelWorld, context: &mut PlaceContext) { }
     fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {}
-    fn data_set(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: &mut Tag) {}
-    fn data_deleted(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: Tag) {}
+    fn on_data_set(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: &mut Tag) {}
+    fn on_data_delete(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: Tag) {}
     fn push_mesh(&self, mesh_builder: &mut (), coord: Coord, state: StateRef, occlusion: Occlusion) {}
     fn rotate(&self, coord: Coord, state: StateRef, rotation: Rotation) -> StateRef { state }
     fn default_state(&self) -> BlockState;
