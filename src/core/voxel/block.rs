@@ -35,6 +35,7 @@ pub trait Block: Any {
     fn data_set(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: &mut Tag) {}
     fn data_deleted(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: Tag) {}
     fn push_mesh(&self, mesh_builder: &mut (), coord: Coord, state: StateRef, occlusion: Occlusion) {}
+    fn rotate(&self, coord: Coord, state: StateRef, rotation: Rotation) -> StateRef { state }
     fn default_state(&self) -> BlockState;
 
 }
