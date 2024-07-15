@@ -11,6 +11,7 @@ use bevy::{
     asset::LoadState, math::{vec2, vec3, vec4}, prelude::*, render::{camera::ScalingMode, mesh::{Indices, MeshVertexAttribute, MeshVertexAttributeId}, render_asset::RenderAssetUsages, render_resource::{AsBindGroup, VertexFormat}, texture::ImageSampler}, window::PresentMode
 };
 
+pub mod prelude;
 mod game;
 mod core;
 mod sandbox;

@@ -2,3 +2,5 @@
 ./output.txt
 ./output.bin
 /ignore
+.vscode/
+*.code-workspace

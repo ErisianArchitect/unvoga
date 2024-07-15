@@ -21,4 +21,5 @@ pub use crate::core::{
     io::*,
     math::bit::*,
     math::coordmap::Rotation,
+    util::extensions::*,
 };

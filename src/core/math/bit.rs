@@ -1,24 +1,11 @@
 use bytemuck::NoUninit;
 
-#[repr(C)]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, NoUninit)]
-pub struct BitFlags8(pub u8);
+use std::ops::{
+    Range,
+    RangeBounds,
+};
 
-#[repr(C)]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, NoUninit)]
-pub struct BitFlags16(pub u16);
-
-#[repr(C)]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, NoUninit)]
-pub struct BitFlags32(pub u32);
-
-#[repr(C)]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, NoUninit)]
-pub struct BitFlags64(pub u64);
-
-#[repr(C)]
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, NoUninit)]
-pub struct BitFlags128(pub u128);
+use crate::for_each_int_type;
 
 pub trait BitFlags: Sized + Default + Clone + Copy + PartialEq + Eq + PartialOrd + Ord + std::hash::Hash {
     fn get(self, index: u32) -> bool;
@@ -27,11 +14,15 @@ pub trait BitFlags: Sized + Default + Clone + Copy + PartialEq + Eq + PartialOrd
     const BIT_SIZE: u32;
 }
 
-macro_rules! bitflags_impl {
-    (<$type:ty>($inner_type:ty)) => {
+macro_rules! bitflags_impls {
+    ($type:ident($inner_type:ty)) => {
+        #[repr(C)]
+        #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, NoUninit)]
+        pub struct $type(pub $inner_type);
+
         impl std::ops::BitOr<$type> for $type {
             type Output = Self;
-            #[inline]
+            #[inline(always)]
             fn bitor(self, rhs: Self) -> Self::Output {
                 Self(self.0 | rhs.0)
             }
@@ -39,7 +30,7 @@ macro_rules! bitflags_impl {
         
         impl std::ops::BitOr<$inner_type> for $type {
             type Output = Self;
-            #[inline]
+            #[inline(always)]
             fn bitor(self, rhs: $inner_type) -> Self::Output {
                 Self(self.0 | rhs)
             }
@@ -47,7 +38,7 @@ macro_rules! bitflags_impl {
         
         impl std::ops::BitAnd<$type> for $type {
             type Output = Self;
-            #[inline]
+            #[inline(always)]
             fn bitand(self, rhs: Self) -> Self::Output {
                 Self(self.0 & rhs.0)
             }
@@ -55,7 +46,7 @@ macro_rules! bitflags_impl {
         
         impl std::ops::BitAnd<$inner_type> for $type {
             type Output = Self;
-            #[inline]
+            #[inline(always)]
             fn bitand(self, rhs: $inner_type) -> Self::Output {
                 Self(self.0 & rhs)
             }
@@ -63,7 +54,7 @@ macro_rules! bitflags_impl {
         
         impl std::ops::Sub<$type> for $type {
             type Output = Self;
-            #[inline]
+            #[inline(always)]
             fn sub(self, rhs: Self) -> Self::Output {
                 Self(self.0 & !rhs.0)
             }
@@ -79,6 +70,7 @@ macro_rules! bitflags_impl {
 
         impl std::ops::Index<u32> for $type {
             type Output = bool;
+            #[inline(always)]
             fn index(&self, index: u32) -> &Self::Output {
                 const FALSE_TRUE: [bool; 2] = [false, true];
                 let index = ((self.0 & (1 << index)) != 0) as usize;
@@ -88,10 +80,12 @@ macro_rules! bitflags_impl {
 
         impl BitFlags for $type {
             const BIT_SIZE: u32 = (std::mem::size_of::<Self>() * 8) as u32;
+            #[inline(always)]
             fn get(self, index: u32) -> bool {
                 (self.0 & (1 << index)) != 0
             }
         
+            #[inline(always)]
             fn set(&mut self, index: u32, value: bool) -> bool {
                 let old = (self.0 & (1 << index)) != 0;
                 if value {
@@ -101,19 +95,27 @@ macro_rules! bitflags_impl {
                 }
                 old
             }
-        
+            
+            #[inline(always)]
             fn iter(self) -> impl Iterator<Item = bool> {
                 (0..Self::BIT_SIZE).map(move |i| self.get(i))
             }
         }
     };
+    ($($type:ident($inner_type:ty);)*) => {
+        $(
+            bitflags_impls!{$type($inner_type)}
+        )*
+    };
 }
 
-bitflags_impl!(<BitFlags8>(u8));
-bitflags_impl!(<BitFlags16>(u16));
-bitflags_impl!(<BitFlags32>(u32));
-bitflags_impl!(<BitFlags64>(u64));
-bitflags_impl!(<BitFlags128>(u128));
+bitflags_impls!(
+    BitFlags8(u8);
+    BitFlags16(u16);
+    BitFlags32(u32);
+    BitFlags64(u64);
+    BitFlags128(u128);
+);
 
 impl std::fmt::Display for BitFlags8 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -185,10 +187,193 @@ impl std::fmt::Display for BitFlags128 {
     }
 }
 
-#[test]
-fn bit_test() {
-    let bits = BitFlags8(0b1010101);
-    for (i, bit) in bits.iter().enumerate() {
-        println!("{i} = {bit}");
+pub trait BitSize {
+    const BITSIZE: usize;
+}
+
+pub trait BitLength {
+    fn bit_length(self) -> u32;
+}
+
+macro_rules! bit_length {
+    ($type:ty) => {
+        impl BitLength for $type {
+            #[inline(always)]
+            fn bit_length(self) -> u32 {
+                const BIT_WIDTH: u32 = (std::mem::size_of::<$type>() * 8) as u32;
+                BIT_WIDTH - self.leading_zeros()
+            }
+        }
+    };
+}
+
+for_each_int_type!(bit_length);
+
+pub trait ShiftIndex: Copy {
+    /// A `u32` value that represents an index that a `1` bit can be shifted to.
+    /// This simply converts the value to u32.
+    #[inline(always)]
+    fn shift_index(self) -> u32;
+}
+
+macro_rules! __shiftindex_impls {
+    ($type:ty) => {
+        impl ShiftIndex for $type {
+            #[inline(always)]
+            fn shift_index(self) -> u32 {
+                self as u32
+            }
+        }
+    };
+}
+
+for_each_int_type!(__shiftindex_impls);
+
+macro_rules! __bitsize_impls {
+    ($type:ty) => {
+        impl BitSize for $type {
+            const BITSIZE: usize = std::mem::size_of::<$type>() * 8;
+        }
+    };
+}
+
+for_each_int_type!(__bitsize_impls);
+
+pub trait SetBit {
+    #[inline(always)]
+    fn set_bit<I: ShiftIndex>(self, index: I, on: bool) -> Self;
+    #[inline(always)]
+    fn set_bitmask(self, mask: Range<u32>, value: Self) -> Self;
+}
+
+pub trait GetBit {
+    #[inline(always)]
+    fn get_bit<I: ShiftIndex>(self, index: I) -> bool;
+    #[inline(always)]
+    fn get_bitmask(self, mask: Range<u32>) -> Self;
+}
+
+pub trait InvertBit {
+    #[inline(always)]
+    fn invert_bit<I: ShiftIndex>(self, index: I) -> Self;
+}
+
+impl<T: GetBit + SetBit + Copy> InvertBit for T {
+    #[inline(always)]
+    fn invert_bit<I: ShiftIndex>(self, index: I) -> Self {
+        let bit = self.get_bit(index);
+        self.set_bit(index, !bit)
+    }
+}
+
+macro_rules! __get_set_impl {
+    ($type:ty) => {
+
+        impl SetBit for $type {
+            #[inline(always)]
+            fn set_bit<I: ShiftIndex>(self, index: I, on: bool) -> Self {
+                if let (mask, false) = (1 as $type).overflowing_shl(index.shift_index()) {
+                    if on {
+                        self | mask
+                    } else {
+                        self & !mask
+                    }
+                } else {
+                    self
+                }
+            }
+
+            #[inline(always)]
+            fn set_bitmask(self, mask: Range<u32>, value: Self) -> Self {
+                let mask_len = mask.len();
+                let size_mask = ((1 as Self) << mask_len)-1;
+                let bitmask = size_mask << mask.start;
+                let delete = self & !bitmask;
+                let value = value & size_mask;
+                delete | value << mask.start
+            }
+        }
+
+        impl GetBit for $type {
+            #[inline(always)]
+            fn get_bit<I: ShiftIndex>(self, index: I) -> bool {
+                if let (mask, false) = (1 as $type).overflowing_shl(index.shift_index()) {
+                    (self & mask) != 0
+                } else {
+                    false
+                }
+            }
+
+            #[inline(always)]
+            fn get_bitmask(self, mask: Range<u32>) -> Self {
+                let mask_len = mask.len();
+                let bitmask = (((1 as Self) << mask_len)-1) << mask.start;
+                (self & bitmask) >> mask.start
+            }
+        }
+
+    };
+}
+
+crate::for_each_int_type!(__get_set_impl);
+
+/// To allow polymorphism for iterators of different integer types or references to integer types.
+pub trait MoveBitsIteratorItem {
+    fn translate(self) -> usize;
+}
+
+pub trait MoveBits: Sized {
+    fn move_bits<T: MoveBitsIteratorItem, It: IntoIterator<Item = T>>(self, new_indices: It) -> Self;
+    /// Much like move_bits, but takes indices in reverse order. This is useful if you want to have the
+    /// indices laid out more naturally from right to left.
+    fn move_bits_rev<T: MoveBitsIteratorItem, It: IntoIterator<Item = T>>(self, new_indices: It) -> Self
+    where It::IntoIter: DoubleEndedIterator {
+        self.move_bits(new_indices.into_iter().rev())
+    }
+}
+
+macro_rules! __movebits_impls {
+    ($type:ty) => {
+        impl MoveBitsIteratorItem for $type {
+            fn translate(self) -> usize {
+                self as usize
+            }
+        }
+
+        impl MoveBitsIteratorItem for &$type {
+            fn translate(self) -> usize {
+                *self as usize
+            }
+        }
+    };
+}
+
+for_each_int_type!(__movebits_impls);
+
+impl<T: BitSize + GetBit + SetBit + Copy> MoveBits for T {
+    fn move_bits<I: MoveBitsIteratorItem, It: IntoIterator<Item = I>>(self, source_indices: It) -> Self {
+        source_indices.into_iter()
+            .map(I::translate)
+            .enumerate()
+            .take(Self::BITSIZE)
+            .fold(self, |value, (index, swap_index)| {
+                let on = value.get_bit(swap_index);
+                value.set_bit(index, on)
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn bitmask_test() {
+        // 4..7
+        let value = 0b11100000111;
+        let new = value.set_bitmask(4..7, 0b101);
+        let mask = new.get_bitmask(2..9);
+        assert_eq!(mask, 0b1010101);
+
     }
 }

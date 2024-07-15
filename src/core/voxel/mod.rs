@@ -15,7 +15,6 @@ pub mod tag;
 pub mod axis;
 pub mod occluder;
 pub mod region;
-pub mod prelude;
 
 #[cfg(test)]
 mod tests {
