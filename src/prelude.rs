@@ -19,7 +19,10 @@ pub use crate::core::{
     error::Error as VoxelError,
     error::Result as VoxelResult,
     io::*,
-    math::bit::*,
+    math::{
+        bit::*,
+        math::*,
+    },
     math::coordmap::Rotation,
     util::extensions::*,
 };

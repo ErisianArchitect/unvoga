@@ -1,4 +1,4 @@
-use crate::core::{util::counter::Counter, voxel::block};
+use crate::{core::{util::counter::Counter, voxel::block}, prelude::{Readable, SwapVal, Writeable}};
 
 
 
@@ -15,15 +15,38 @@ impl SectorOffset {
         Self(block_size.0 as u32 | offset << 8)
     }
 
+    /// The size in 4KiB blocks. (multiply by 4096 to get size)
     #[inline(always)]
     pub const fn block_size(self) -> BlockSize {
         let mask = self.0 & 0xff;
         BlockSize(mask as u8)
     }
 
+    /// The offset in 4KiB blocks. (multiply by 4096 to get file offset)
     #[inline(always)]
     pub const fn block_offset(self) -> u32 {
         self.0 >> 8
+    }
+}
+
+impl Writeable for SectorOffset {
+    fn write_to<W: std::io::Write>(&self, writer: &mut W) -> crate::prelude::VoxelResult<u64> {
+        let block_size = self.block_size().0;
+        let block_offset = self.block_offset();
+        let mut offset_bytes = block_offset.to_be_bytes();
+        offset_bytes[0] = block_size;
+        writer.write_all(&offset_bytes)?;
+        Ok(4)
+    }
+}
+
+impl Readable for SectorOffset {
+    fn read_from<R: std::io::Read>(reader: &mut R) -> crate::prelude::VoxelResult<Self> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        let block_size = BlockSize(buf[0].swap(0));
+        let offset = u32::from_be_bytes(buf);
+        Ok(SectorOffset::new(block_size, offset))
     }
 }
 
@@ -71,6 +94,7 @@ impl BlockSize {
         self.0 >> 5
     }
 
+    /// The 4KiB block count. (multiply this by 4096 to get the size)
     #[inline(always)]
     pub const fn block_count(self) -> u16 {
         Self::BLOCK_SIZE_TABLE[self.0 as usize]

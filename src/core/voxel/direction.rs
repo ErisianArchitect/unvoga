@@ -1,7 +1,7 @@
 use bytemuck::NoUninit;
 
 use super::coord::Coord;
-
+// 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NoUninit)]
 #[repr(u8)]
 pub enum Direction {

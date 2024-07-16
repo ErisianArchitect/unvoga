@@ -3,42 +3,17 @@ use std::ops::{Index, IndexMut};
 use super::direction::Direction;
 use paste::paste;
 
-/// A simple storage container for data associated with the 6 sides of a cube.
 pub struct Faces<T> {
-    pub faces: [T; 6],
-    // /// (-1, 0, 0)
-    // pub neg_x: T,
-    // /// (0, -1, 0)
-    // pub neg_y: T,
-    // /// (0, 0, -1)
-    // pub neg_z: T,
-    // /// (1, 0, 0)
-    // pub pos_x: T,
-    // /// (0, 1, 0)
-    // pub pos_y: T,
-    // /// (0, 0, 1)
-    // pub pos_z: T
-}
-
-macro_rules! faces_getters {
-    ($($name:ident[$direction:expr];)*) => {
-        $(
-            paste! {
-                #[inline]
-                pub fn $name(&self) -> &T {
-                    &self.faces[$direction as usize]
-                }
-
-                #[inline]
-                pub fn [<$name _mut>](&mut self) -> &mut T {
-                    &mut self.faces[$direction as usize]
-                }
-            }
-        )*
-    };
+    pub neg_x: T,
+    pub neg_y: T,
+    pub neg_z: T,
+    pub pos_x: T,
+    pub pos_y: T,
+    pub pos_z: T,
 }
 
 impl<T> Faces<T> {
+    #[inline(always)]
     pub const fn new(
         neg_x: T,
         neg_y: T,
@@ -48,66 +23,89 @@ impl<T> Faces<T> {
         pos_z: T
     ) -> Self {
         Self {
-            faces: [
-                pos_y,
-                pos_x,
-                pos_z,
-                neg_y,
-                neg_x,
-                neg_z
-            ]
+            neg_x,
+            neg_y,
+            neg_z,
+            pos_x,
+            pos_y,
+            pos_z,
         }
     }
 
-    faces_getters!(
-        neg_x[Direction::NegX];
-        neg_y[Direction::NegY];
-        neg_z[Direction::NegZ];
-        pos_x[Direction::PosX];
-        pos_y[Direction::PosY];
-        pos_z[Direction::PosZ];
-    );
+    #[inline(always)]
+    pub const fn face(&self, direction: Direction) -> &T {
+        match direction {
+            Direction::NegX => &self.neg_x,
+            Direction::NegY => &self.neg_y,
+            Direction::NegZ => &self.neg_z,
+            Direction::PosX => &self.pos_x,
+            Direction::PosY => &self.pos_y,
+            Direction::PosZ => &self.pos_z,
+        }
+    }
 
+
+    #[inline(always)]
+    pub fn face_mut(&mut self, direction: Direction) -> &mut T {
+        match direction {
+            Direction::NegX => &mut self.neg_x,
+            Direction::NegY => &mut self.neg_y,
+            Direction::NegZ => &mut self.neg_z,
+            Direction::PosX => &mut self.pos_x,
+            Direction::PosY => &mut self.pos_y,
+            Direction::PosZ => &mut self.pos_z,
+        }
+    }
+
+    #[inline(always)]
     pub fn iter(&self) -> impl Iterator<Item = (Direction, &T)> {
-        Direction::iter().map(|dir| {
-            (dir, &self.faces[dir as usize])
-        })
+        use Direction::*;
+        [
+            (NegX, &self.neg_x),
+            (NegY, &self.neg_y),
+            (NegZ, &self.neg_z),
+            (PosX, &self.pos_x),
+            (PosY, &self.pos_y),
+            (PosZ, &self.pos_z),
+        ].into_iter()
     }
 }
 
-impl<T> Index<Direction> for Faces<T> {
+impl<T> std::ops::Index<Direction> for Faces<T> {
     type Output = T;
+
+    #[inline(always)]
     fn index(&self, index: Direction) -> &Self::Output {
-        &self.faces[index as usize]
+        self.face(index)
     }
 }
 
-impl<T> IndexMut<Direction> for Faces<T> {
+impl<T> std::ops::IndexMut<Direction> for Faces<T> {
+    #[inline(always)]
     fn index_mut(&mut self, index: Direction) -> &mut Self::Output {
-        &mut self.faces[index as usize]
+        self.face_mut(index)
     }
-}
-
-#[test]
-pub fn faces_test() {
-    let faces = Faces::new(0, 1, 2, 3, 4, 5);
-    println!("{}", faces[Direction::NegX]);
-    println!("{}", faces[Direction::NegY]);
-    println!("{}", faces[Direction::NegZ]);
-    println!("{}", faces[Direction::PosX]);
-    println!("{}", faces[Direction::PosY]);
-    println!("{}", faces[Direction::PosZ]);
 }
 
 impl<T: Clone> Clone for Faces<T> {
     fn clone(&self) -> Self {
         Self {
-            faces: self.faces.clone()
+            neg_x: self.neg_x.clone(),
+            neg_y: self.neg_y.clone(),
+            neg_z: self.neg_z.clone(),
+            pos_x: self.pos_x.clone(),
+            pos_y: self.pos_y.clone(),
+            pos_z: self.pos_z.clone(),
         }
     }
 
     fn clone_from(&mut self, source: &Self) {
-        self.faces = source.faces.clone();
+        self.neg_x = source.neg_x.clone();
+        self.neg_y = source.neg_y.clone();
+        self.neg_z = source.neg_z.clone();
+        self.pos_x = source.pos_x.clone();
+        self.pos_y = source.pos_y.clone();
+        self.pos_z = source.pos_z.clone();
     }
 }
 
