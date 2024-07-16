@@ -8,4 +8,5 @@ pub mod chunkcoord;
 pub mod blockdata;
 pub mod update;
 pub mod world;
+pub mod query;
 pub use world::*;

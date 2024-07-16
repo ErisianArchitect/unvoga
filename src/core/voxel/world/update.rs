@@ -10,6 +10,16 @@ impl UpdateRef {
     pub const fn null(self) -> bool {
         self.0 == 0
     }
+
+    #[inline(always)]
+    pub const fn enabled(self) -> bool {
+        self.0 != 0
+    }
+
+    #[inline(always)]
+    pub const fn disabled(self) -> bool {
+        self.0 == 0
+    }
 }
 
 #[derive(Debug, Default)]
