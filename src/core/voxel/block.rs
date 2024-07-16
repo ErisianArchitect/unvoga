@@ -43,6 +43,7 @@ pub trait Block: Any {
     fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {}
     fn on_data_set(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: &mut Tag) {}
     fn on_data_delete(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: Tag) {}
+    fn on_enabled_changed(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, enabled: bool) {}
     fn push_mesh(&self, mesh_builder: &mut (), coord: Coord, state: StateRef, occlusion: Occlusion, rotation: Rotation) {}
     fn rotate(&self, coord: Coord, state: StateRef, rotation: Rotation) -> StateRef { state }
     fn default_state(&self) -> BlockState;

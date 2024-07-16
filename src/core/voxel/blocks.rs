@@ -173,6 +173,12 @@ impl StateRef {
         get_block_ref(self)
     }
 
+    /// Returns true if this block is not air.
+    #[inline(always)]
+    pub fn is_non_air(self) -> bool {
+        self.0 != 0
+    }
+
     /// Don't register anything while these references are held.
     #[inline(always)]
     pub unsafe fn unsafe_state_and_block(self) -> (&'static BlockState, &'static dyn Block) {

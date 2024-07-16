@@ -506,11 +506,54 @@ impl VoxelWorld {
         }
     }
 
+    pub fn set_enabled<C: Into<(i32, i32, i32)>>(&mut self, coord: C, enabled: bool) -> bool {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return false;
+        }
+        let state = self.get_block(coord);
+        if state.is_air() {
+            return false;
+        }
+        let cur_ref = self.get_update_ref(coord);
+        // if cur_ref is null, check if 
+        if enabled {
+            // currently disabled, so enable it
+            if cur_ref.null() {
+                if state.is_air() {
+                    return false;
+                }
+                let new_ref = self.update_queue.push(coord);
+                self.set_update_ref(coord, new_ref);
+                state.block().on_enabled_changed(self, coord, state, true);
+                false
+            } else {
+                true
+            }
+        } else {
+            if cur_ref.null() {
+                false
+            // currently enabled, so disable it (lol)
+            } else {
+                let cur_ref = self.set_update_ref(coord, UpdateRef::NULL);
+                self.update_queue.remove(cur_ref);
+                state.block().on_enabled_changed(self, coord, state, false);
+                true
+            }
+        }
+        
+    }
+
     /// Enable a block, adding it to the update queue.
     pub fn enable<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
+            return;
+        }
+        let block = self.get_block(coord);
+        if block.is_air() {
             return;
         }
         let chunk_x = coord.x >> 4;
@@ -523,6 +566,7 @@ impl VoxelWorld {
         }
         let new_ref = self.update_queue.push(coord);
         chunk.set_update_ref(coord, new_ref);
+        block.block().on_enabled_changed(self, coord, block, true);
     }
 
     /// Disable a block, removing it from the update queue if it's in the update queue.
@@ -532,11 +576,16 @@ impl VoxelWorld {
         if !self.bounds().contains(coord) {
             return;
         }
+        let block = self.get_block(coord);
+        if block.is_air() {
+            return;
+        }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         let cur_ref = chunk.set_update_ref(coord, UpdateRef::NULL);
         self.update_queue.remove(cur_ref);
+        block.block().on_enabled_changed(self, coord, block, false);
     }
 
     pub fn update(&mut self) {
