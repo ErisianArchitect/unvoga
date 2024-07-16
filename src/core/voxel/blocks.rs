@@ -89,7 +89,7 @@ pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockRef> {
         return None;
     }
     unsafe {
-        let block_lookup = BLOCK_LOOKUP.get().expect("Failed to get");
+        let block_lookup = BLOCK_LOOKUP.get().expect("Failed to get block lookup");
         block_lookup.get(name.as_ref()).map(|&id| id)
     }
 }
@@ -97,7 +97,7 @@ pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockRef> {
 #[inline(always)]
 pub fn get_block_ref(id: StateRef) -> BlockRef {
     unsafe {
-        let states = STATES.get().expect("Failed to get");
+        let states = STATES.get().expect("Failed to get states");
         states[id.0 as usize].block_ref
     }
 }
@@ -109,7 +109,7 @@ pub fn get_state(id: StateRef) -> &'static BlockState {
     // been called.
     // It can also be assumed that StateRef is associated with a BlockState
     unsafe {
-        let states = STATES.get().expect("Failed to get");
+        let states = STATES.get().expect("Failed to get states");
         &states[id.0 as usize].state
     }
 }
@@ -121,7 +121,7 @@ pub fn get_block(id: BlockRef) -> &'static dyn Block {
     // been called.
     // It can also be assumed that BlockRef is associated with a Block.
     unsafe {
-        let blocks = BLOCKS.get().expect("Failed to get");
+        let blocks = BLOCKS.get().expect("Failed to get blocks");
         blocks[id.0 as usize].as_ref()
     }
 }
@@ -129,9 +129,9 @@ pub fn get_block(id: BlockRef) -> &'static dyn Block {
 #[inline(always)]
 pub fn get_block_for(id: StateRef) -> &'static dyn Block {
     unsafe {
-        let states = STATES.get().expect("Failed to get");
+        let states = STATES.get().expect("Failed to get states");
         let block_id = states[id.0 as usize].block_ref;
-        let blocks = BLOCKS.get().expect("Failed to get");
+        let blocks = BLOCKS.get().expect("Failed to get blocks");
         blocks[block_id.0 as usize].as_ref()
     }
 }
@@ -139,10 +139,10 @@ pub fn get_block_for(id: StateRef) -> &'static dyn Block {
 #[inline(always)]
 pub fn get_state_and_block(id: StateRef) -> (&'static BlockState, &'static dyn Block) {
     unsafe {
-        let states = STATES.get().expect("Failed to get");
+        let states = STATES.get().expect("Failed to get states");
         let block_id = states[id.0 as usize].block_ref;
         let state = &states[id.0 as usize].state;
-        let blocks = BLOCKS.get().expect("Failed to get");
+        let blocks = BLOCKS.get().expect("Failed to get blocks");
         let block = blocks[block_id.0 as usize].as_ref();
         (state, block)
     }
@@ -173,11 +173,6 @@ impl StateRef {
         get_block_ref(self)
     }
 
-    #[inline(always)]
-    pub fn light_args(self, world: &VoxelWorld, coord: Coord) -> LightArgs {
-        self.block().light_args(world, coord, self)
-    }
-
     /// Don't register anything while these references are held.
     #[inline(always)]
     pub unsafe fn unsafe_state_and_block(self) -> (&'static BlockState, &'static dyn Block) {
@@ -187,6 +182,11 @@ impl StateRef {
     #[inline(always)]
     pub fn id(self) -> u32 {
         self.0
+    }
+
+    #[inline(always)]
+    pub fn block_id(self) -> u32 {
+        get_block_ref(self).id()
     }
 
     #[inline(always)]
