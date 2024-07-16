@@ -29,7 +29,12 @@ pub fn sandbox() {
     itertools::iproduct!(0..2, 0..2).for_each(|(y, x)| {
         world.set_block((x, 0, y), enabled);
     });
-
+    world.set_block((13,12, 69), debug_data);
+    world.set_enabled((13,12,69), true);
+    println!("Frame 1");
+    world.update();
+    world.set_enabled((13,12,69), false);
+    println!("Frame 2");
     world.update();
     
     let usage = world.dynamic_usage();
