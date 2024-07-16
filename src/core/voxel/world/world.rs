@@ -546,48 +546,19 @@ impl VoxelWorld {
     }
 
     /// Enable a block, adding it to the update queue.
+    #[inline(always)]
     pub fn enable<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
-        let coord: (i32, i32, i32) = coord.into();
-        let coord: Coord = coord.into();
-        if !self.bounds().contains(coord) {
-            return;
-        }
-        let block = self.get_block(coord);
-        if block.is_air() {
-            return;
-        }
-        let chunk_x = coord.x >> 4;
-        let chunk_z = coord.z >> 4;
-        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
-        let cur_ref = chunk.get_update_ref(coord);
-        // cur_ref is not null which means that this block is already in the update queue
-        if !cur_ref.null() {
-            return;
-        }
-        let new_ref = self.update_queue.push(coord);
-        chunk.set_update_ref(coord, new_ref);
-        block.block().on_enabled_changed(self, coord, block, true);
+        self.set_enabled(coord, true);
     }
+
 
     /// Disable a block, removing it from the update queue if it's in the update queue.
+    #[inline(always)]
     pub fn disable<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
-        let coord: (i32, i32, i32) = coord.into();
-        let coord: Coord = coord.into();
-        if !self.bounds().contains(coord) {
-            return;
-        }
-        let block = self.get_block(coord);
-        if block.is_air() {
-            return;
-        }
-        let chunk_x = coord.x >> 4;
-        let chunk_z = coord.z >> 4;
-        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
-        let cur_ref = chunk.set_update_ref(coord, UpdateRef::NULL);
-        self.update_queue.remove(cur_ref);
-        block.block().on_enabled_changed(self, coord, block, false);
+        self.set_enabled(coord, false);
     }
 
+    #[inline(always)]
     pub fn update(&mut self) {
         (0..self.update_queue.update_queue.len()).for_each(|i| {
             let coord = self.update_queue.update_queue[i].0;
