@@ -37,7 +37,7 @@ impl<T> ObjectPool<T> {
         if let Some(unused_index) = self.unused.pop() {
             let new_id = unused_index.inc_gen();
             let pool_index = self.indices[new_id.index()];
-            self.pool[pool_index].0 = value;
+            self.pool[pool_index] = (value, new_id);
             new_id
         } else {
             let index = self.indices.len();
@@ -57,12 +57,12 @@ impl<T> ObjectPool<T> {
             panic!("Id does not belong to this pool.");
         }
         let pool_index = self.indices[id.index()];
+        if self.pool[pool_index].1 != id {
+            panic!("Dead pool ID");
+        }
         self.pool.swap_remove(pool_index);
         if pool_index == self.pool.len() {
             return;
-        }
-        if self.pool[pool_index].1 != id {
-            panic!("Dead pool ID");
         }
         let index_index = self.pool[pool_index].1;
         self.indices[index_index.index()] = pool_index;
@@ -148,8 +148,11 @@ impl std::fmt::Display for PoolId {
     }
 }
 
+// TODO: Maybe consider using PhantomData marker to distinguish PoolId subtypes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PoolId(u64);
+
+struct TestStruct<T, W = u32>(T, W);
 
 impl PoolId {
     const           INDEX_BITS: u64 = 0b0000000000000000000000000000000000000011111111111111111111111111;
@@ -228,11 +231,13 @@ mod tests {
         let mut pool = ObjectPool::new();
         let hello = pool.insert("Hello, world!");
         let test = pool.insert("Test string");
+        let bob = pool.insert("Bob");
         println!("{}", pool[hello]);
         pool.remove(hello);
         let fox = pool.insert("The quick brown fox jumps over the lazy dog.");
-        println!("{} -> {}", hello.id(), fox.id());
+        println!("{} -> {}", hello, fox);
         println!("{}", pool.get(hello).is_none());
+        pool.iter().for_each(|s| println!("{}", s));
 
     }
 }
