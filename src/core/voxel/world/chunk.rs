@@ -1,8 +1,8 @@
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::core::voxel::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
+use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
+use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
 
 pub struct Chunk {
     pub sections: Box<[Section]>,
@@ -40,7 +40,13 @@ impl Chunk {
     }
 
     #[inline(always)]
-    pub fn get_block(&self, coord: Coord) -> StateRef {
+    pub fn query<'a, T: Query<'a>>(&'a self, coord: Coord) -> T::Output {
+        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.sections[section_index].query::<T>(coord)
+    }
+
+    #[inline(always)]
+    pub fn get_block(&self, coord: Coord) -> Id {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
@@ -48,11 +54,11 @@ impl Chunk {
     }
 
     #[inline(always)]
-    pub fn set_block(&mut self, coord: Coord, value: StateRef) -> SectionUpdate<StateChange> {
+    pub fn set_block(&mut self, coord: Coord, value: Id) -> SectionUpdate<StateChange> {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
-        let nonair = value != StateRef::AIR;
+        let nonair = value != Id::AIR;
         self.heightmap.set(Coord::new(coord.x, coord.y - self.block_offset.y, coord.z), nonair);
         self.sections[section_index].set_block(coord, value)
     }

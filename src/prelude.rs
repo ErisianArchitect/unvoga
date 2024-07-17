@@ -2,7 +2,7 @@ pub use crate::core::{
     voxel::{
         axis::Axis,
         block::Block,
-        blocks::{self, StateRef, BlockRef},
+        blocks::{self, Id, BlockId},
         coord::Coord,
         direction::*,
         faces::Faces,

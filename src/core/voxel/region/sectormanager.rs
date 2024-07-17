@@ -269,6 +269,7 @@ impl ManagedSector {
     pub fn allocate(&mut self, size: BlockSize) -> Option<SectorOffset> {
         let block_count = size.block_count();
         let new_start = self.start + block_count as u32;
+                                //  2.pow(24) + 8033 (max block size)
         if new_start > self.end.min(0x1001f61) {
             return None;
         }
@@ -287,15 +288,6 @@ impl ManagedSector {
         self.end = self.end.max(other.end);
     }
 
-    // #[inline]
-    // pub fn sector_offset(self) -> u32 {
-    //     self.start * 4096
-    // }
-
-    // #[inline]
-    // pub fn sector_count(self) -> u32 {
-    //     self.size() * 4096
-    // }
     #[inline]
     pub fn split_left(self, sector_count: u32) -> (Self, Self) {
         if sector_count > self.size() {
@@ -307,6 +299,16 @@ impl ManagedSector {
             ManagedSector::new(middle, self.end)
         )
     }
+
+    #[inline]
+    pub fn file_offset(self) -> u64 {
+        self.start as u64 * 4096
+    }
+
+    #[inline]
+    pub fn file_size(self) -> u64 {
+        self.size() as u64 * 4096
+    }
 }
 
 impl From<SectorOffset> for ManagedSector {
@@ -316,5 +318,45 @@ impl From<SectorOffset> for ManagedSector {
         let size = value.block_size().block_count() as u32;
         let end = start + size;
         Self::new(start, end)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn sector_manager_test() {
+        let mut man = SectorManager::new();
+        let sect1 = man.allocate(BlockSize::MAX_BLOCK_COUNT);
+        fn rand_size() -> u16 {
+            rand::random::<u16>().rem_euclid(BlockSize::MAX_BLOCK_COUNT).max(1)
+        }
+        println!("{sect1:?}");
+        println!("===First Allocation");
+        println!("{:?}", man.unused);
+        println!("{:?}", man.end_sector);
+        man.deallocate(sect1);
+        println!("{:?}", man.unused);
+        println!("{:?}", man.end_sector);
+        println!("===Allocating Random Sizes");
+        let mut sectors: Vec<SectorOffset> = (0..16).map(|_| man.allocate(rand_size())).collect();
+        println!("{:?}", man.unused);
+        println!("{:?}", man.end_sector);
+        println!("===Allocation:");
+        println!("{sectors:?}");
+        man.deallocate(sectors.remove(7));
+        println!("===Removed middle:");
+        println!("{:?}", man.unused);
+        println!("{:?}", man.end_sector);
+        man.deallocate(sectors.remove(7));
+        println!("===Removed the next one.");
+        println!("{:?}", man.unused);
+        println!("{:?}", man.end_sector);
+        sectors.into_iter().for_each(|sector| {
+            man.deallocate(sector);
+        });
+        println!("===Deallocated all");
+        println!("{:?}", man.unused);
+        println!("{:?}", man.end_sector);
     }
 }

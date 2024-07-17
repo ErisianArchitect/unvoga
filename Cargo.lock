@@ -4238,6 +4238,7 @@ dependencies = [
  "bevy_egui",
  "bytemuck",
  "chrono",
+ "flate2",
  "hashbrown",
  "image 0.25.1",
  "itertools 0.13.0",

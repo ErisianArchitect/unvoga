@@ -1,4 +1,0 @@
-World Test
- World Bounds: Bounds3D { min: (-544, -400, -544), max: (544, 240, 544) }
-Render Bounds: Bounds3D { min: (-512, -400, -512), max: (512, 240, 512) }
-  Block Count: 757596160

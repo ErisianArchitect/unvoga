@@ -2,7 +2,7 @@ use std::{sync::Arc, thread, time::Duration};
 
 use rollgrid::rollgrid3d::Bounds3D;
 
-use crate::{blockstate, core::{math::coordmap::Rotation, util::counter::AtomicCounter, voxel::{block::Block, blocks::{self, StateRef}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::{PlaceContext, VoxelWorld}}}};
+use crate::{blockstate, core::{math::coordmap::Rotation, util::counter::AtomicCounter, voxel::{block::Block, blocks::{self, Id}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::{query::Enabled, PlaceContext, VoxelWorld}}}};
 
 pub fn sandbox() {
 
@@ -18,7 +18,7 @@ pub fn sandbox() {
     println!(" World Bounds: {:?}", world.bounds());
     println!("Render Bounds: {:?}", world.render_bounds());
     println!("  Block Count: {}", world.bounds().volume());
-    let air = StateRef::AIR;
+    let air = Id::AIR;
     let debug = blockstate!(debug).register();
     let debug_data = blockstate!(debug, withdata = true).register();
     let enabled = blockstate!(debug, enabled = true).register();
@@ -31,6 +31,8 @@ pub fn sandbox() {
     });
     world.set_block((13,12, 69), debug_data);
     world.set_enabled((13,12,69), true);
+    let (state, enabled): (Id, bool) = world.query::<_, (Id, Enabled)>((13,12,69));
+    println!("{state} {enabled}");
     println!("Frame 1");
     world.update();
     world.set_enabled((13,12,69), false);
@@ -60,7 +62,7 @@ impl Block for DirtBlock {
             world: &mut VoxelWorld,
             context: &mut PlaceContext,
         ) {
-            // world.set_block(coord, StateRef::AIR);
+            // world.set_block(coord, Id::AIR);
             println!("dirt placed: {}", context.replacement());
     }
 
@@ -83,7 +85,7 @@ impl Block for RotatedBlock {
         "rotated"
     }
 
-    fn occluder(&self, world: &VoxelWorld, state: StateRef) -> &Occluder {
+    fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
         const OCCLUDER: Occluder = Occluder {
             neg_x: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
                 [1, 0],
@@ -105,14 +107,14 @@ impl Block for RotatedBlock {
         blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0))
     }
 
-    fn rotation(&self, world: &VoxelWorld, coord: Coord, state: StateRef) -> Rotation {
+    fn rotation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Rotation {
         if let Some(&StateValue::Rotation(rotation)) = state.get_property("rotation") {
             rotation
         } else {
             Rotation::default()
         }
     }
-    fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {
+    fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: Id, neighbor_state: Id) {
         println!("Neighbor Updated(coord = {coord:?}, neighbor_coord = {neighbor_coord:?}, neighbor_state = {neighbor_state})");
     }
 }
@@ -127,7 +129,7 @@ impl Block for DebugBlock {
     fn name(&self) -> &str {
         "debug"
     }
-    fn occluder(&self, world: &VoxelWorld, state: StateRef) -> &Occluder {
+    fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
         const OCCLUDER: Occluder = Occluder {
             neg_x: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
                 [1, 0],
@@ -147,7 +149,7 @@ impl Block for DebugBlock {
     fn default_state(&self) -> crate::core::voxel::blockstate::BlockState {
         blockstate!(debug)
     }
-    fn call(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, function: &str, arg: Tag) -> Tag {
+    fn call(&self, world: &mut VoxelWorld, coord: Coord, state: Id, function: &str, arg: Tag) -> Tag {
         println!("Message received: {arg:?}");
         Tag::from("Debug Message Result")
     }
@@ -165,26 +167,26 @@ impl Block for DebugBlock {
             world.set_data(context.coord(), Tag::from("The quick brown fox jumps over the lazy dog."));
         }
     }
-    fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: StateRef, new: StateRef) {
+    fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: Id, new: Id) {
         println!("On Remove {coord} old = {old} new = {new}");
     }
-    fn on_data_set(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: &mut Tag) {
+    fn on_data_set(&self, world: &mut VoxelWorld, coord: Coord, state: Id, data: &mut Tag) {
         println!("Data Set {coord} state = {state} data = {data:?}");
     }
-    fn on_data_delete(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef, data: Tag) {
+    fn on_data_delete(&self, world: &mut VoxelWorld, coord: Coord, state: Id, data: Tag) {
         println!("Data Deleted {coord} state = {state} data = {data:?}");
     }
     fn light_updated(&self, world: &mut VoxelWorld, coord: Coord, old_level: u8, new_level: u8) {
         println!("Light Updated {coord} old = {old_level} new = {new_level}");
     }
-    fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: StateRef, neighbor_state: StateRef) {
+    fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: Id, neighbor_state: Id) {
         println!("Neighbor Updated {coord} -> {neighbor_coord} {state} -> {neighbor_state}");
     }
-    fn on_update(&self, world: &mut VoxelWorld, coord: Coord, state: StateRef) {
+    fn on_update(&self, world: &mut VoxelWorld, coord: Coord, state: Id) {
         println!("Update {coord} {state}");
         // world.set_block(coord + Direction::PosY, state);
     }
-    fn default_enabled(&self, world: &VoxelWorld, coord: Coord, state: StateRef) -> bool {
+    fn default_enabled(&self, world: &VoxelWorld, coord: Coord, state: Id) -> bool {
         matches!(state["enabled"], StateValue::Bool(true))
     }
 }

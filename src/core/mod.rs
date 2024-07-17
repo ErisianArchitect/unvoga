@@ -40,9 +40,9 @@ Ctrl + Shift + \                Jump to matching bracket
 Ctrl + Shift + [                Fold Region
 Ctrl + Shift + ]                Unfold Region
 Shift + Alt + A                 Toggle Block Comment
-Ctrl + H                        Replace (Ctrl+Alt+Enter to replace all)
+Ctrl + H                        Replace (Ctrl+Alt+Enter to replace all) (Shift to replace in files)
 F3                              Find Next
-Shift + F3                      Find Previous
+Shift + F3                      Find Previous test123 test123
 Alt + Enter                     Replace all items found with Ctrl+F
 Ctrl + K Ctrl + S               Keyboard Shortcuts
 Ctrl + U                        Undo last cursor operation

@@ -2,7 +2,7 @@ use std::{borrow::Borrow, fmt::Debug, ops::{Index, IndexMut}};
 
 use crate::core::{math::coordmap::{Flip, Rotation}, util::traits::StrToOwned};
 
-use super::{axis::Axis, blocks::{self, StateRef}, coord::Coord, direction::{Cardinal, Direction}, world::chunkcoord::ChunkCoord};
+use super::{axis::Axis, blocks::{self, Id}, coord::Coord, direction::{Cardinal, Direction}, world::chunkcoord::ChunkCoord};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BlockState {
@@ -84,12 +84,12 @@ impl BlockState {
     }
 
     /// Registers this [BlockState] with this block registry.
-    pub fn register(&self) -> StateRef {
+    pub fn register(&self) -> Id {
         blocks::register_state(self)
     }
 
     /// Finds the [BlockState] in the block registry.
-    pub fn find(&self) -> Option<StateRef> {
+    pub fn find(&self) -> Option<Id> {
         blocks::find_state(self)
     }
 }
@@ -220,7 +220,7 @@ macro_rules! blockstate {
     };
 }
 
-impl<B: Borrow<BlockState>> From<B> for StateRef {
+impl<B: Borrow<BlockState>> From<B> for Id {
     fn from(value: B) -> Self {
         blocks::register_state(value)
     }
@@ -228,7 +228,7 @@ impl<B: Borrow<BlockState>> From<B> for StateRef {
 
 #[test]
 fn quick() {
-    let state: StateRef = blockstate!(air).into();
+    let state: Id = blockstate!(air).into();
 }
 
 impl std::fmt::Display for StateValue {

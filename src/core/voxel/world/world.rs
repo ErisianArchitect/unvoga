@@ -2,11 +2,12 @@ use std::{collections::VecDeque, iter::Sum};
 
 use bevy::{asset::Handle, render::mesh::Mesh};
 use super::occlusion::Occlusion;
+use super::query::Query;
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 use super::section::{LightChange, Section, StateChange};
 use super::update::{BlockUpdateQueue, UpdateRef};
 
-use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::StateRef, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
+use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::Id, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 
 use super::chunk::Chunk;
 
@@ -130,6 +131,18 @@ impl VoxelWorld {
         state.block().call(self, coord, state, function.as_ref(), arg.into())
     }
 
+    pub fn query<'a, C: Into<(i32, i32, i32)>, T: Query<'a>>(&'a self, coord: C) -> T::Output {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        if !self.render_bounds().contains(coord) {
+            return T::default();
+        }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        let chunk = self.chunks.get((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.query::<T>(coord)
+    }
+
     fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> UpdateRef {
         if !self.render_bounds().contains(coord) {
             return UpdateRef::NULL;
@@ -150,11 +163,11 @@ impl VoxelWorld {
         chunk.get_update_ref(coord)
     }
 
-    pub fn get_block<C: Into<(i32, i32, i32)>>(&self, coord: C) -> StateRef {
+    pub fn get_block<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Id {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
-            return StateRef::AIR;
+            return Id::AIR;
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
@@ -162,8 +175,8 @@ impl VoxelWorld {
         chunk.get_block(coord)
     }
 
-    pub fn set_block<C: Into<(i32, i32, i32)>, S: Into<StateRef>>(&mut self, coord: C, state: S) -> StateRef {
-        let state: StateRef = state.into();
+    pub fn set_block<C: Into<(i32, i32, i32)>, S: Into<Id>>(&mut self, coord: C, state: S) -> Id {
+        let state: Id = state.into();
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         // Only set blocks within the render bounds, because light engine updates only happen in
@@ -171,13 +184,13 @@ impl VoxelWorld {
         // The problem is that darkness propagation might cause light to repropagation to overflow out of bounds
         // and we don't want that because it would invalidate the lightmap.
         if !self.render_bounds().contains(coord) {
-            return StateRef::AIR;
+            return Id::AIR;
         }
         let old = self.get_block(coord);
         if state == old {
             return old;
         }
-        let state = if state != StateRef::AIR {
+        let state = if state != Id::AIR {
             let mut place_context = PlaceContext {
                 replacement: state,
                 data: None,
@@ -196,7 +209,7 @@ impl VoxelWorld {
             if old == place_context.replacement {
                 return old;
             }
-            if old != StateRef::AIR {
+            if old != Id::AIR {
                 let old_block = old.block();
                 self.delete_data_internal(coord, old);
                 old_block.on_remove(self, coord, old, place_context.replacement);
@@ -235,7 +248,7 @@ impl VoxelWorld {
                     let neighbor = neighbors[dir];
                     let neighbor_block = neighbor.block();
                     let neighbor_coord = coord + dir;
-                    if neighbor != StateRef::AIR {
+                    if neighbor != Id::AIR {
                         neighbor_block.neighbor_updated(self, neighbor_dir, neighbor_coord, coord, neighbor, state);
                     }
                     let neighbor_rotation = neighbor_block.rotation(self, neighbor_coord, neighbors[dir]);
@@ -358,7 +371,7 @@ impl VoxelWorld {
         }
         if change.change.new_max != change.change.old_max {
             let block = self.get_block(coord);
-            if block != StateRef::AIR {
+            if block != Id::AIR {
                 block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
             }
         }
@@ -395,7 +408,7 @@ impl VoxelWorld {
         }
         if change.change.new_max != change.change.old_max {
             let block = self.get_block(coord);
-            if block != StateRef::AIR {
+            if block != Id::AIR {
                 block.block().light_updated(self, coord, change.change.old_max, change.change.new_max);
             }
         }
@@ -471,7 +484,7 @@ impl VoxelWorld {
         }
     }
 
-    fn delete_data_internal<C: Into<(i32, i32, i32)>>(&mut self, coord: C, old_state: StateRef) {
+    fn delete_data_internal<C: Into<(i32, i32, i32)>>(&mut self, coord: C, old_state: Id) {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -577,7 +590,7 @@ impl VoxelWorld {
         }
     }
 
-    pub fn neighbors<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Faces<StateRef> {
+    pub fn neighbors<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Faces<Id> {
         cast_coord!(coord);
         use Direction::*;
         macro_rules! get_faces {
@@ -587,7 +600,7 @@ impl VoxelWorld {
                         if let Some(next) = coord.checked_neighbor($dir) {
                             self.get_block(next)
                         } else {
-                            StateRef::AIR
+                            Id::AIR
                         },
                     )*
                 )
@@ -696,16 +709,16 @@ struct RenderChunk {
 }
 
 pub struct PlaceContext {
-    replacement: StateRef,
+    replacement: Id,
     data: Option<Tag>,
     coord: Coord,
-    old: StateRef,
+    old: Id,
     changed: bool,
 }
 
 impl PlaceContext {
     #[inline(always)]
-    pub fn replace(&mut self, state: StateRef) {
+    pub fn replace(&mut self, state: Id) {
         self.replacement = state;
         self.changed = true;
     }
@@ -721,12 +734,12 @@ impl PlaceContext {
     }
 
     #[inline(always)]
-    pub fn old(&self) -> StateRef {
+    pub fn old(&self) -> Id {
         self.old
     }
 
     #[inline(always)]
-    pub fn replacement(&self) -> StateRef {
+    pub fn replacement(&self) -> Id {
         self.replacement
     }
 }

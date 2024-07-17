@@ -12,6 +12,8 @@ pub enum Error {
     ArrayTooLong,
     #[error("Invalid binary format")]
     InvalidBinaryFormat,
+    #[error("Chunk was too large and did not fit into the buffer.")]
+    ChunkTooLarge,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

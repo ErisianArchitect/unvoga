@@ -20,7 +20,7 @@ pub mod region;
 mod tests {
     use std::any::Any;
 
-    use crate::{blockstate, core::voxel::{block::Block, blocks::StateRef, coord::Coord, world::VoxelWorld}};
+    use crate::{blockstate, core::voxel::{block::Block, blocks::Id, coord::Coord, world::VoxelWorld}};
 
     use super::blocks;
 
@@ -64,7 +64,7 @@ mod tests {
         }
         let dirt_block = blocks::register_block(DirtBlock);
         let stone_block = blocks::register_block(StoneBlock);
-        let air = StateRef::AIR;
+        let air = Id::AIR;
         let dirt = blocks::register_state(dirt_block.default_state());
         let stone = blocks::register_state(stone_block.default_state());
         let test = blocks::register_state(blockstate!(air, test = "Hello, world"));

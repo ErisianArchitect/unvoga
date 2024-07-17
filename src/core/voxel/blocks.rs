@@ -8,13 +8,13 @@ use super::{block::Block, blockstate::{BlockState, StateValue}, coord::Coord, li
 
 struct RegistryEntry {
     state: BlockState,
-    block_ref: BlockRef,
+    block_ref: BlockId,
 }
 
 static mut STATES: OnceLock<Vec<RegistryEntry>> = OnceLock::new();
 static mut BLOCKS: OnceLock<Vec<Box<dyn Block>>> = OnceLock::new();
-static mut ID_LOOKUP: OnceLock<HashMap<BlockState, StateRef>> = OnceLock::new();
-static mut BLOCK_LOOKUP: OnceLock<HashMap<String, BlockRef>> = OnceLock::new();
+static mut ID_LOOKUP: OnceLock<HashMap<BlockState, Id>> = OnceLock::new();
+static mut BLOCK_LOOKUP: OnceLock<HashMap<String, BlockId>> = OnceLock::new();
 static mut INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 /// Returns true if initialization occurred.
@@ -34,7 +34,7 @@ fn init() -> bool {
     }
 }
 
-pub fn register_state<B: Borrow<BlockState>>(state: B) -> StateRef {
+pub fn register_state<B: Borrow<BlockState>>(state: B) -> Id {
     init();
     unsafe {
         let id_lookup = ID_LOOKUP.get_mut().expect("Failed to get");
@@ -50,13 +50,13 @@ pub fn register_state<B: Borrow<BlockState>>(state: B) -> StateRef {
         };
         let states = STATES.get_mut().expect("Failed to get");
         let id = states.len() as u32;
-        id_lookup.insert(state.clone(), StateRef(id));
+        id_lookup.insert(state.clone(), Id(id));
         states.push(RegistryEntry { block_ref: block_id, state });
-        StateRef(id)
+        Id(id)
     }
 }
 
-pub fn register_block<B: Block>(block: B) -> BlockRef {
+pub fn register_block<B: Block>(block: B) -> BlockId {
     init();
     unsafe {
         let block_lookup = BLOCK_LOOKUP.get_mut().expect("Failed to get");
@@ -65,15 +65,15 @@ pub fn register_block<B: Block>(block: B) -> BlockRef {
         }
         let blocks = BLOCKS.get_mut().expect("Failed to get");
         let id = blocks.len() as u32;
-        block_lookup.insert(block.name().to_owned(), BlockRef(id));
+        block_lookup.insert(block.name().to_owned(), BlockId(id));
         blocks.push(Box::new(block));
-        BlockRef(id)
+        BlockId(id)
     }
 }
 
-/// If the [BlockState] has already been registered, find the associated [StateRef].
+/// If the [BlockState] has already been registered, find the associated [Id].
 #[inline(always)]
-pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<StateRef> {
+pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<Id> {
     if init() {
         return None;
     }
@@ -84,7 +84,7 @@ pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<StateRef> {
 }
 
 #[inline(always)]
-pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockRef> {
+pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockId> {
     if init() {
         return None;
     }
@@ -95,7 +95,7 @@ pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockRef> {
 }
 
 #[inline(always)]
-pub fn get_block_ref(id: StateRef) -> BlockRef {
+pub fn get_block_ref(id: Id) -> BlockId {
     unsafe {
         let states = STATES.get().expect("Failed to get states");
         states[id.0 as usize].block_ref
@@ -103,11 +103,11 @@ pub fn get_block_ref(id: StateRef) -> BlockRef {
 }
 
 #[inline(always)]
-pub fn get_state(id: StateRef) -> &'static BlockState {
-    // StateRef is only issued by the registry, so this doesn't need
+pub fn get_state(id: Id) -> &'static BlockState {
+    // Id is only issued by the registry, so this doesn't need
     // to call init because it can be assumed that init has already
     // been called.
-    // It can also be assumed that StateRef is associated with a BlockState
+    // It can also be assumed that Id is associated with a BlockState
     unsafe {
         let states = STATES.get().expect("Failed to get states");
         &states[id.0 as usize].state
@@ -115,7 +115,7 @@ pub fn get_state(id: StateRef) -> &'static BlockState {
 }
 
 #[inline(always)]
-pub fn get_block(id: BlockRef) -> &'static dyn Block {
+pub fn get_block(id: BlockId) -> &'static dyn Block {
     // BlockRef is only issued by the registry, so this doesn't need
     // to call init because it can be assumed that init has already
     // been called.
@@ -127,7 +127,7 @@ pub fn get_block(id: BlockRef) -> &'static dyn Block {
 }
 
 #[inline(always)]
-pub fn get_block_for(id: StateRef) -> &'static dyn Block {
+pub fn get_block_for(id: Id) -> &'static dyn Block {
     unsafe {
         let states = STATES.get().expect("Failed to get states");
         let block_id = states[id.0 as usize].block_ref;
@@ -137,7 +137,7 @@ pub fn get_block_for(id: StateRef) -> &'static dyn Block {
 }
 
 #[inline(always)]
-pub fn get_state_and_block(id: StateRef) -> (&'static BlockState, &'static dyn Block) {
+pub fn get_state_and_block(id: Id) -> (&'static BlockState, &'static dyn Block) {
     unsafe {
         let states = STATES.get().expect("Failed to get states");
         let block_id = states[id.0 as usize].block_ref;
@@ -149,13 +149,13 @@ pub fn get_state_and_block(id: StateRef) -> (&'static BlockState, &'static dyn B
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StateRef(u32);
+pub struct Id(u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BlockRef(u32);
+pub struct BlockId(u32);
 
-impl StateRef {
-    pub const AIR: Self = StateRef(0);
+impl Id {
+    pub const AIR: Self = Id(0);
     /// Make sure you don't register any states while this reference is held.
     #[inline(always)]
     pub unsafe fn unsafe_state(self) -> &'static BlockState {
@@ -169,7 +169,7 @@ impl StateRef {
     }
 
     #[inline(always)]
-    pub fn block(self) -> BlockRef {
+    pub fn block(self) -> BlockId {
         get_block_ref(self)
     }
 
@@ -201,7 +201,19 @@ impl StateRef {
     }
 }
 
-impl<S: AsRef<str>> Index<S> for StateRef {
+// impl Borrow<BlockState> for Id {
+//     fn borrow(&self) -> &BlockState {
+//         &**self
+//     }
+// }
+
+impl AsRef<BlockState> for Id {
+    fn as_ref(&self) -> &BlockState {
+        &**self
+    }
+}
+
+impl<S: AsRef<str>> Index<S> for Id {
     type Output = StateValue;
     #[inline(always)]
     fn index(&self, index: S) -> &Self::Output {
@@ -210,7 +222,7 @@ impl<S: AsRef<str>> Index<S> for StateRef {
     }
 }
 
-impl BlockRef {
+impl BlockId {
     #[inline(always)]
     pub unsafe fn unsafe_block(self) -> &'static dyn Block {
         get_block(self)
@@ -222,7 +234,7 @@ impl BlockRef {
     }
 }
 
-impl Deref for StateRef {
+impl Deref for Id {
     type Target = BlockState;
 
     #[inline(always)]
@@ -234,7 +246,7 @@ impl Deref for StateRef {
     }
 }
 
-impl Deref for BlockRef {
+impl Deref for BlockId {
     type Target = dyn Block;
 
     #[inline(always)]
@@ -246,7 +258,7 @@ impl Deref for BlockRef {
     }
 }
 
-impl std::fmt::Display for StateRef {
+impl std::fmt::Display for Id {
     #[inline(always)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.write_fmt(f)
@@ -270,12 +282,12 @@ impl Block for AirBlock {
     }
 
     #[inline(always)]
-    fn light_args(&self, world: &VoxelWorld, coord: Coord, state: StateRef) -> LightArgs {
+    fn light_args(&self, world: &VoxelWorld, coord: Coord, state: Id) -> LightArgs {
         LightArgs::new(1, 0)
     }
 
     #[inline(always)]
-    fn occluder(&self, world: &VoxelWorld, state: StateRef) -> &Occluder {
+    fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
         &Occluder::EMPTY_FACES
     }
 

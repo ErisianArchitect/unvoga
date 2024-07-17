@@ -1,8 +1,8 @@
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::core::voxel::{blocks::StateRef, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
+use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
+use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
 
 // 4096*4+4096+2048+2048+4096*2
 // 32768 bytes
@@ -14,7 +14,7 @@ use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightm
 ///     block light
 ///     block data
 pub struct Section {
-    pub blocks: Option<Box<[StateRef]>>,
+    pub blocks: Option<Box<[Id]>>,
     pub occlusion: Option<Box<[Occlusion]>>,
     pub block_light: Option<Box<[u8]>>,
     pub sky_light: Option<Box<[u8]>>,
@@ -64,9 +64,9 @@ impl Section {
             // println!("################");
             // printed = true;
             // println!("Blocks Used");
-            usage.used += 4096 * std::mem::size_of::<StateRef>();
+            usage.used += 4096 * std::mem::size_of::<Id>();
         }
-        usage.total += 4096 * std::mem::size_of::<StateRef>();
+        usage.total += 4096 * std::mem::size_of::<Id>();
         if self.occlusion.is_some() {
             // if !printed {
             //     println!("################");
@@ -117,6 +117,13 @@ impl Section {
         x | z << 4 | y << 8
     }
 
+    #[inline(always)]
+    pub fn query<'a, T: Query<'a>>(&'a self, coord: Coord) -> T::Output {
+        let index = Section::index(coord);
+        T::read(self, index)
+    }
+
+    #[inline(always)]
     pub fn get_update_ref(&self, coord: Coord) -> UpdateRef {
         if let Some(refs) = &self.update_refs {
             let index = Section::index(coord);
@@ -126,6 +133,7 @@ impl Section {
         }
     }
 
+    #[inline(always)]
     pub fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> UpdateRef {
         if self.update_refs.is_none() {
             if value.null() {
@@ -152,21 +160,21 @@ impl Section {
         old
     }
 
-    /// Get the [StateRef] at the `coord`.
+    /// Get the [Id] at the `coord`.
     #[inline(always)]
-    pub fn get_block(&self, coord: Coord) -> StateRef {
+    pub fn get_block(&self, coord: Coord) -> Id {
         if let Some(blocks) = &self.blocks {
             let index = Section::index(coord);
             blocks[index]
         } else {
             // If self.blocks is None, that means it's all air.
-            StateRef::AIR
+            Id::AIR
         }
     }
 
-    /// Set the [StateRef] at the `coord`.
+    /// Set the [Id] at the `coord`.
     #[inline(always)]
-    pub fn set_block(&mut self, coord: Coord, state: StateRef) -> SectionUpdate<StateChange> {
+    pub fn set_block(&mut self, coord: Coord, state: Id) -> SectionUpdate<StateChange> {
         if self.blocks.is_none() {
             // if state isn't air and blocks is None, create an empty block array.
             if !state.is_air() {
@@ -578,7 +586,7 @@ impl LightChange {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StateChange {
     Unchanged,
-    Changed(StateRef)
+    Changed(Id)
 }
 
 impl StateChange {
@@ -613,8 +621,8 @@ impl<T: Clone + Copy + PartialEq + Eq + std::hash::Hash> SectionUpdate<T> {
 
 /// Create empty [Section] blocks.
 #[inline(always)]
-fn make_empty_section_blocks() -> Box<[StateRef]> {
-    (0..4096).map(|_| StateRef::AIR).collect()
+fn make_empty_section_blocks() -> Box<[Id]> {
+    (0..4096).map(|_| Id::AIR).collect()
 }
 
 /// Create empty [Section] lightmap.
