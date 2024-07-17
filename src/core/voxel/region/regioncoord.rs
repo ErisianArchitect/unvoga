@@ -20,6 +20,11 @@ impl RegionCoord {
     }
 
     #[inline(always)]
+    pub fn index(self) -> usize {
+        self.0 as usize
+    }
+
+    #[inline(always)]
     pub fn sector_offset(self) -> u64 {
         SectorOffset::OFFSET + 4 * self.0 as u64
     }

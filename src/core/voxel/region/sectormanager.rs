@@ -1,5 +1,10 @@
 use std::ops::Range;
 
+use itertools::Itertools;
+
+use crate::core::error::*;
+
+use super::regiontable::OffsetTable;
 use super::sectoroffset::BlockSize;
 use super::sectoroffset::SectorOffset;
 
@@ -12,10 +17,43 @@ impl SectorManager {
     /// The max size representable by the [BlockSize] type.
     pub const MAX_SECTOR_SIZE: u32 = BlockSize::MAX_BLOCK_COUNT as u32 * 4096;
 
+    #[inline]
     pub fn new() -> Self {
         Self {
             unused: Vec::new(),
             end_sector: ManagedSector::new(3, u32::MAX),
+        }
+    }
+
+    pub fn from_sector_table(table: &OffsetTable) -> Self {
+        let mut filtered_sectors = table.iter().cloned()
+            .map(ManagedSector::from)
+            .filter(|sector| sector.not_empty())
+            .collect_vec();
+        filtered_sectors.sort();
+        let initial_state = (
+            Vec::<ManagedSector>::new(),
+            ManagedSector::HEADER,
+        );
+        let (
+            unused,
+            end_sector
+        ) = filtered_sectors.into_iter()
+            .fold(initial_state, |(mut unused_sectors, previous), sector| {
+                if let Some(_) = previous.gap(sector) {
+                    unused_sectors.push(ManagedSector::new(
+                        previous.end,
+                        sector.start
+                    ));
+                }
+                (
+                    unused_sectors,
+                    sector
+                )
+            });
+        Self {
+            unused,
+            end_sector
         }
     }
 
@@ -45,6 +83,9 @@ impl SectorManager {
 
     pub fn deallocate<S: Into<ManagedSector>>(&mut self, sector: S) {
         let sector: ManagedSector = sector.into();
+        if sector.size() == 0 {
+            return;
+        }
         let mut freed_sector = ManagedSector::from(sector);
         let mut left: Option<usize> = None;
         let mut right: Option<usize> = None;
@@ -107,31 +148,33 @@ impl SectorManager {
         }
     }
 
-    pub fn reallocate(&mut self, free: SectorOffset, blocks_required: u16) -> SectorOffset {
-        if blocks_required == 0 {
-            panic!("Requested size of 0.");
+    pub fn reallocate(&mut self, free: SectorOffset, new_size: BlockSize) -> Option<SectorOffset> {
+        if new_size.0 == 0 {
+            return None;
         }
 
-        let new_size = BlockSize::required(blocks_required);
         let old_sector = ManagedSector::from(free);
 
-        if free.block_size().block_count() > blocks_required {
+        if free.block_size().block_count() > new_size.block_count() {
             let (new, old) = old_sector.split_left(new_size.block_count() as u32);
             self.deallocate(old);
-            SectorOffset::new(new_size, new.start)
+            Some(SectorOffset::new(new_size, new.start))
         } else if free.block_size().block_count() == new_size.block_count() {
-            free
+            Some(free)
         } else {
-            self.reallocate_unchecked(free, blocks_required)
+            Some(self.reallocate_unchecked(free, new_size))
         }
     }
 
-    fn reallocate_unchecked(&mut self, free: SectorOffset, new_size: u16) -> SectorOffset {
+    pub fn reallocate_err(&mut self, free: SectorOffset, size: BlockSize) -> Result<SectorOffset> {
+        self.reallocate(free, size).ok_or_else(|| Error::AllocationFailure)
+    }
+    
+    fn reallocate_unchecked(&mut self, free: SectorOffset, new_size: BlockSize) -> SectorOffset {
         let mut left = Option::<usize>::None;
         let mut right = Option::<usize>::None;
         let mut alloc = Option::<usize>::None;
         let mut freed_sector = ManagedSector::from(free);
-        let block_size = BlockSize::required(new_size);
         #[inline]
         fn apply_some_cond(opt: &mut Option<usize>, condition: bool, index: usize) -> bool {
             if opt.is_none() && condition {
@@ -145,7 +188,7 @@ impl SectorManager {
             .enumerate()
             .find_map(|(index, sector)| {
                 if (
-                    apply_some_cond(&mut alloc, sector.size() >= new_size as u32, index)
+                    apply_some_cond(&mut alloc, sector.size() >= new_size.block_count() as u32, index)
                     || apply_some_cond(&mut left, sector.end == freed_sector.start, index)
                     || apply_some_cond(&mut right, sector.start == freed_sector.end, index)
                 )
@@ -163,22 +206,22 @@ impl SectorManager {
         }
         alloc.map(|index| {
             let result = self.unused[index];
-            if result.size() > new_size as u32 {
-                let (new, old) = result.split_left(block_size.block_count() as u32);
+            if result.size() > new_size.block_count() as u32 {
+                let (new, old) = result.split_left(new_size.block_count() as u32);
                 (
-                    SectorOffset::new(block_size, new.start),
+                    SectorOffset::new(new_size, new.start),
                     SuccessAction::Replace(index, old)
                 )
             } else {
                 (
-                    SectorOffset::new(block_size, result.start),
+                    SectorOffset::new(new_size, result.start),
                     SuccessAction::Remove(index)
                 )
             }
         })
         .or_else(|| {
             self.end_sector
-                .allocate(block_size)
+                .allocate(new_size)
                 .map(|sector| (sector, SuccessAction::None))
         })
         .map(|(sector, action)| {
@@ -257,6 +300,11 @@ impl ManagedSector {
     }
 
     #[inline]
+    pub fn not_empty(self) -> bool {
+        self.start != self.end
+    }
+
+    #[inline]
     pub fn size(self) -> u32 {
         self.end - self.start
     }
@@ -308,6 +356,17 @@ impl ManagedSector {
     #[inline]
     pub fn file_size(self) -> u64 {
         self.size() as u64 * 4096
+    }
+
+    #[inline]
+    pub fn gap(self, other: Self) -> Option<u32> {
+        if self.end < other.start {
+            Some(other.start - self.end)
+        } else if other.end < self.start {
+            Some(self.start - other.end)
+        } else {
+            None
+        }
     }
 }
 

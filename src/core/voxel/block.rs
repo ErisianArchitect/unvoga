@@ -29,7 +29,7 @@ pub trait Block: Any {
     fn rotation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Rotation {
         Rotation::new(Direction::PosY, 0)
     }
-    fn default_enabled(&self, world: &VoxelWorld, coord: Coord, state: Id) -> bool { false }
+    fn enable_on_place(&self, world: &VoxelWorld, coord: Coord, state: Id) -> bool { false }
     fn light_args(&self, world: &VoxelWorld, coord: Coord, state: Id) -> LightArgs {
         LightArgs::new(15, 0)
     }

@@ -27,6 +27,21 @@ impl SectorOffset {
     pub const fn block_offset(self) -> u32 {
         self.0 >> 8
     }
+
+    #[inline(always)]
+    pub const fn file_offset(self) -> u64 {
+        self.block_offset() as u64 * 4096
+    }
+
+    #[inline(always)]
+    pub const fn file_size(self) -> u64 {
+        self.block_size().file_size()
+    }
+
+    #[inline(always)]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
 }
 
 impl Writeable for SectorOffset {
@@ -56,7 +71,7 @@ impl Readable for SectorOffset {
 /// This allows for small chunks to be stored in 4KiB sections while larger chunks might take up more space.
 /// This allows for a maximum size of around 32MiB per chunk.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BlockSize(u8);
+pub struct BlockSize(pub(super) u8);
 
 impl BlockSize {
     pub const MAX_BLOCK_COUNT: u16 = 8033;
@@ -98,6 +113,11 @@ impl BlockSize {
     #[inline(always)]
     pub const fn block_count(self) -> u16 {
         Self::BLOCK_SIZE_TABLE[self.0 as usize]
+    }
+
+    #[inline(always)]
+    pub const fn file_size(self) -> u64 {
+        self.block_count() as u64 * 4096
     }
 
     pub fn reverse(size: u16) -> Option<Self> {

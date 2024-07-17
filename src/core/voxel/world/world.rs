@@ -231,7 +231,7 @@ impl VoxelWorld {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
                 let cur_ref = self.set_update_ref(coord, UpdateRef::NULL);
-                if state.block().default_enabled(self, coord, state) {
+                if state.block().enable_on_place(self, coord, state) {
                     if cur_ref.null() {
                         let new_ref = self.update_queue.push(coord);
                         self.set_update_ref(coord, new_ref);

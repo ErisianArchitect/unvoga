@@ -2,14 +2,22 @@ use std::io::{Read, Seek};
 
 use crate::prelude::{Readable, Writeable};
 
-use super::{regiontable::{Offsets, Timestamps}, sectoroffset::SectorOffset, timestamp::Timestamp};
+use super::{regiontable::{OffsetTable, TimestampTable}, sectoroffset::SectorOffset, timestamp::Timestamp};
 
 pub struct RegionHeader {
-    timestamps: Timestamps,
-    offsets: Offsets,
+    pub(super) timestamps: TimestampTable,
+    pub(super) offsets: OffsetTable,
 }
 
 impl RegionHeader {
+    #[inline(always)]
+    pub fn new() -> Self {
+        Self {
+            timestamps: TimestampTable::new(),
+            offsets: OffsetTable::new()
+        }
+    }
+    
     #[inline(always)]
     pub fn get_timestamp(&self, x: i32, y: i32) -> Timestamp {
         self.timestamps.get(x, y)
@@ -34,8 +42,8 @@ impl RegionHeader {
 impl Readable for RegionHeader {
     fn read_from<R: Read>(reader: &mut R) -> crate::prelude::VoxelResult<Self> {
         Ok(Self {
-            timestamps: Timestamps::read_from(reader)?,
-            offsets: Offsets::read_from(reader)?
+            timestamps: TimestampTable::read_from(reader)?,
+            offsets: OffsetTable::read_from(reader)?
         })
     }
 }

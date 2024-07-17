@@ -6,6 +6,18 @@ use std::io::{
 
 use crate::core::error::{Error, Result};
 
+pub fn write_zeros<W: Write>(writer: &mut W, count: u64) -> Result<u64> {
+    const ZEROS: [u8; 4096] = [0; 4096];
+    let mut count = count;
+    // If we don't use >=,  we can optimize for the case where count is a multiple of 4096.
+    while count > 4096 {
+        writer.write_all(&ZEROS)?;
+        count -= 4096;
+    }
+    writer.write_all(&ZEROS[0..count as usize])?;
+    Ok(count)
+}
+
 pub trait Readable: Sized {
     fn read_from<R: Read>(reader: &mut R) -> Result<Self>;
 }

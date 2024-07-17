@@ -186,7 +186,7 @@ impl Block for DebugBlock {
         println!("Update {coord} {state}");
         // world.set_block(coord + Direction::PosY, state);
     }
-    fn default_enabled(&self, world: &VoxelWorld, coord: Coord, state: Id) -> bool {
+    fn enable_on_place(&self, world: &VoxelWorld, coord: Coord, state: Id) -> bool {
         matches!(state["enabled"], StateValue::Bool(true))
     }
 }

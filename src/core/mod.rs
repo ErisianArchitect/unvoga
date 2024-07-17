@@ -73,4 +73,5 @@ Ctrl+K P                        Copy path of active file
 Ctrl+K R                        Reveal active file in Explorer
 Ctrl+K O                        Show active file in new window/instance
 F11                             Toggle Fullscreen
+Ctrl+K Ctrl+I                   Show Documentation
 */
