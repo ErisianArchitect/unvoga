@@ -170,7 +170,7 @@ mod tests {
             let mut region = RegionFile::open_or_create(path)?;
             for z in 0..32 {
                 for x in 0..32 {
-                    let array = Tag::from(Array::U8((0u32..4096*24+1234).map(|i| i.rem_euclid(256) as u8).collect()));
+                    let array = Tag::from(Array::U8((0u32..4096*511+1234).map(|i| i.rem_euclid(256) as u8).collect()));
                     let position = Tag::IVec2(IVec2::new(x as i32, z as i32));
                     let tag = Tag::from(HashMap::from([
                         ("array".to_owned(), array.clone()),
@@ -185,7 +185,7 @@ mod tests {
             for z in 0..32 {
                 for x in 0..32 {
                     // let tag: bool = region.read_value((x, z))?;
-                    let array = Box::new(Array::U8((0u32..4096*24+1234).map(|i| i.rem_euclid(256) as u8).collect()));
+                    let array = Box::new(Array::U8((0u32..4096*511+1234).map(|i| i.rem_euclid(256) as u8).collect()));
                     let position = IVec2::new(x as i32, z as i32);
                     let read_tag: Tag = region.read_value((x, z))?;
                     
@@ -195,6 +195,8 @@ mod tests {
                     ) = (&read_tag["array"], &read_tag["position"]) {
                         assert_eq!(&array, read_array);
                         assert_eq!(&position, read_position);
+                    } else {
+                        panic!("Tag not read.")
                     }
                 }
             }
