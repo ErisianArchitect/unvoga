@@ -153,7 +153,7 @@ mod tests {
 
     use super::*;
     #[test]
-    fn read_write_test() -> Result<()> {
+    fn write_read_test() -> Result<()> {
 
         // let mut region = RegionFile::open_or_create("ignore/test.rg")?;
         // region.write_value((0, 0), &Tag::from("Hello, world!"))?;
