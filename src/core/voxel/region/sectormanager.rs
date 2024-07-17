@@ -162,7 +162,7 @@ impl SectorManager {
         } else if free.block_size().block_count() == new_size.block_count() {
             Some(free)
         } else {
-            Some(self.reallocate_unchecked(free, new_size))
+            self.reallocate_unchecked(free, new_size)
         }
     }
 
@@ -170,7 +170,7 @@ impl SectorManager {
         self.reallocate(free, size).ok_or_else(|| Error::AllocationFailure)
     }
     
-    fn reallocate_unchecked(&mut self, free: SectorOffset, new_size: BlockSize) -> SectorOffset {
+    fn reallocate_unchecked(&mut self, free: SectorOffset, new_size: BlockSize) -> Option<SectorOffset> {
         let mut left = Option::<usize>::None;
         let mut right = Option::<usize>::None;
         let mut alloc = Option::<usize>::None;
@@ -262,11 +262,11 @@ impl SectorManager {
                 _ => ()
             }
             sector
-        }).expect("Failed operation.")
+        })
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ManagedSector {
     start: u32,
     end: u32
@@ -366,6 +366,24 @@ impl ManagedSector {
             Some(self.start - other.end)
         } else {
             None
+        }
+    }
+}
+
+impl PartialOrd for ManagedSector {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self.start.partial_cmp(&other.start) {
+            Some(core::cmp::Ordering::Equal) => self.end.partial_cmp(&other.end),
+            ord => ord,
+        }
+    }
+}
+
+impl Ord for ManagedSector {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.start.cmp(&other.start) {
+            core::cmp::Ordering::Equal => self.end.cmp(&other.end),
+            ord => ord,
         }
     }
 }

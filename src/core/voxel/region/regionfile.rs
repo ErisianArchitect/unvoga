@@ -1,7 +1,6 @@
-use std::{fs::File, io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Take, Write}, path::{Path, PathBuf}};
+use std::{borrow::Borrow, fs::File, io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Take, Write}, path::{Path, PathBuf}};
 
-use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
-
+use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use crate::{core::error::*, prelude::{write_zeros, Readable, WriteExt, Writeable}};
 use super::{header::RegionHeader, regioncoord::RegionCoord, sectormanager::SectorManager, sectoroffset::BlockSize};
 
@@ -73,7 +72,7 @@ impl RegionFile {
         }
     }
 
-    pub fn read<'a, C: Into<RegionCoord>, R, F: FnMut(ZlibDecoder<Take<BufReader<&'a mut File>>>) -> Result<R>>(&'a mut self, coord: C, mut read: F) -> Result<R> {
+    pub fn read<'a, C: Into<RegionCoord>, R, F: FnMut(&mut GzDecoder<Take<BufReader<&'a mut File>>>) -> Result<R>>(&'a mut self, coord: C, mut read: F) -> Result<R> {
         let coord: RegionCoord = coord.into();
         let sector = self.header.offsets[coord];
         if sector.is_empty() {
@@ -82,41 +81,45 @@ impl RegionFile {
         let mut reader = BufReader::new(&mut self.io);
         reader.seek(SeekFrom::Start(sector.file_offset()))?;
         let length = u32::read_from(&mut reader)?;
-        let decoder = ZlibDecoder::new(reader.take(length as u64));
-        read(decoder)
+        let mut decoder = GzDecoder::new(reader.take(length as u64));
+        read(&mut decoder)
     }
 
     pub fn read_value<C: Into<RegionCoord>, T: Readable>(&mut self, coord: C) -> Result<T> {
         #[inline(always)]
-        fn read_inner<'a, T: Readable>(mut reader: ZlibDecoder<Take<BufReader<&'a mut File>>>) -> Result<T> {
-            T::read_from(&mut reader)
+        fn read_inner<'a, T: Readable>(mut reader: &mut GzDecoder<Take<BufReader<&'a mut File>>>) -> Result<T> {
+            T::read_from(reader)
         }
         self.read(coord, read_inner)
     }
 
-    pub fn write<C: Into<RegionCoord>, F: FnMut(&mut ZlibEncoder<&mut Cursor<Vec<u8>>>) -> Result<()>>(&mut self, coord: C, mut write: F) -> Result<()> {
+    pub fn write<C: Into<RegionCoord>, F: FnMut(&mut GzEncoder<&mut Cursor<Vec<u8>>>) -> Result<()>>(&mut self, coord: C, mut write: F) -> Result<()> {
         let coord: RegionCoord = coord.into();
         self.write_buffer.get_mut().clear();
-        self.write_buffer.write_all(&[0u8; 4])?;
-        let mut encoder = ZlibEncoder::new(&mut self.write_buffer, Compression::best());
+        self.write_buffer.seek(SeekFrom::Start(0))?;
+        // self.write_buffer.write_all(&[0u8; 4])?;
+        let mut encoder = GzEncoder::new(&mut self.write_buffer, Compression::fast());
         write(&mut encoder)?;
         encoder.finish()?;
         let length = self.write_buffer.get_ref().len() as u64;
-        let padded_size = padded_size(length);
+        let padded_size = padded_size(length + 4);
         if padded_size > BlockSize::MAX_BLOCK_COUNT as u64 * 4096 {
             return Err(Error::ChunkTooLarge);
         }
         let block_size = (padded_size / 4096) as u16;
         let required_size = BlockSize::required(block_size);
-        self.write_buffer.set_position(0);
-        (length as u32).write_to(&mut self.write_buffer)?;
+        // self.write_buffer.set_position(0);
+        // self.write_buffer.seek(SeekFrom::Start(0));
+        // (length as u32).write_to(&mut self.write_buffer)?;
         let old_sector = self.header.offsets[coord];
         let new_sector = self.sector_manager.reallocate_err(old_sector, required_size)?;
         self.header.offsets[coord] = new_sector;
         let mut writer = BufWriter::new(&mut self.io);
-        writer.seek(SeekFrom::Start(new_sector.block_offset() as u64 * 4096))?;
+        writer.seek(SeekFrom::Start(new_sector.file_offset()))?;
+        let len = length as u32;
+        len.write_to(&mut writer)?;
         writer.write_all(self.write_buffer.get_ref().as_slice())?;
-        write_zeros(&mut writer, pad_size(length as u64))?;
+        write_zeros(&mut writer, pad_size(length as u64 + 4))?;
         writer.seek(SeekFrom::Start(coord.sector_offset()))?;
         new_sector.write_to(&mut writer)?;
         writer.flush()?;
@@ -141,13 +144,62 @@ fn padded_size(length: u64) -> u64 {
     length + pad_size(length)
 }
 
-#[test]
-fn sandbox() -> Result<()> {
-    let mut region = RegionFile::open_or_create("test.dat")?;
+#[cfg(test)]
+mod tests {
+    use bevy::math::IVec2;
+    use hashbrown::HashMap;
 
-    let result: String = region.read_value((1, 3))?;
+    use crate::prelude::{Array, Tag};
 
-    println!("{result}");
+    use super::*;
+    #[test]
+    fn read_write_test() -> Result<()> {
 
-    Ok(())
+        // let mut region = RegionFile::open_or_create("ignore/test.rg")?;
+        // region.write_value((0, 0), &Tag::from("Hello, world!"))?;
+        // // region.write_value((1, 0), &Tag::from("Hello, world!"))?;
+        // region.write_value((2, 0), &Tag::from("Hello, world!"))?;
+        // let tag: Tag = region.read_value((2, 0))?;
+        
+        {
+            // std::fs::remove_file("ignore/test.rg")?;
+            let path: PathBuf = "ignore/test.rg".into();
+            if path.exists() {
+                std::fs::remove_file(&path)?;
+            }
+            let mut region = RegionFile::open_or_create(path)?;
+            for z in 0..32 {
+                for x in 0..32 {
+                    let array = Tag::from(Array::U8((0u32..4096*24+1234).map(|i| i.rem_euclid(256) as u8).collect()));
+                    let position = Tag::IVec2(IVec2::new(x as i32, z as i32));
+                    let tag = Tag::from(HashMap::from([
+                        ("array".to_owned(), array.clone()),
+                        ("position".to_owned(), position.clone())
+                    ]));
+                    region.write_value((x, z), &tag)?;
+                }
+            }
+        }
+        {
+            let mut region = RegionFile::open_or_create("ignore/test.rg")?;
+            for z in 0..32 {
+                for x in 0..32 {
+                    // let tag: bool = region.read_value((x, z))?;
+                    let array = Box::new(Array::U8((0u32..4096*24+1234).map(|i| i.rem_euclid(256) as u8).collect()));
+                    let position = IVec2::new(x as i32, z as i32);
+                    let read_tag: Tag = region.read_value((x, z))?;
+                    
+                    if let (
+                        Tag::Array(read_array),
+                        Tag::IVec2(read_position)
+                    ) = (&read_tag["array"], &read_tag["position"]) {
+                        assert_eq!(&array, read_array);
+                        assert_eq!(&position, read_position);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }

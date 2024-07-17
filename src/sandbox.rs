@@ -43,13 +43,6 @@ pub fn sandbox() {
     println!("Memory: {usage}");
 }
 
-#[test]
-fn sandbox2() {
-    println!("{}", 
-    true && (true 
-    || false && true));
-}
-
 struct DirtBlock;
 impl Block for DirtBlock {
     fn as_any(&self) -> &dyn std::any::Any {

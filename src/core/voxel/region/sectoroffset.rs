@@ -1,4 +1,4 @@
-use crate::{core::{util::counter::Counter, voxel::block}, prelude::{Readable, SwapVal, Writeable}};
+use crate::{prelude::{Readable, SwapVal, Writeable}};
 
 
 
@@ -171,6 +171,8 @@ pub const fn block_size_notation(block_count: u64, exponent: u32, bit_size: u32)
 
 #[cfg(test)]
 mod tests {
+    use crate::core::util::counter::Counter;
+
     use super::*;
     #[test]
     fn req_test() {
