@@ -8,6 +8,7 @@ use super::section::{LightChange, Section, StateChange};
 use super::update::{BlockUpdateQueue, UpdateRef};
 
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::Id, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
+use crate::prelude::SwapVal;
 
 use super::chunk::Chunk;
 
@@ -190,14 +191,8 @@ impl VoxelWorld {
         if state == old {
             return old;
         }
-        let state = if state != Id::AIR {
-            let mut place_context = PlaceContext {
-                replacement: state,
-                data: None,
-                coord,
-                old,
-                changed: false,
-            };
+        let (state, enable) = if state != Id::AIR {
+            let mut place_context = PlaceContext::new(coord, state, old);
             state.block().on_place(self, &mut place_context);
             while place_context.changed {
                 place_context.changed = false;
@@ -217,9 +212,9 @@ impl VoxelWorld {
             if let Some(data) = place_context.data {
                 self.set_data(coord, data);
             }
-            place_context.replacement
+            (place_context.replacement, place_context.enable)
         } else {
-            state
+            (state, None)
         };
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
@@ -230,13 +225,14 @@ impl VoxelWorld {
         match change.change {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
-                let cur_ref = self.set_update_ref(coord, UpdateRef::NULL);
-                if state.block().enable_on_place(self, coord, state) {
-                    if cur_ref.null() {
-                        let new_ref = self.update_queue.push(coord);
-                        self.set_update_ref(coord, new_ref);
-                    }
-                } else {
+
+                let cur_ref = self.get_update_ref(coord);
+                if cur_ref.null() && (matches!(enable, Some(true))
+                || (!matches!(enable, Some(false)) && state.block().enable_on_place(self, coord, state))) {
+                    let new_ref = self.update_queue.push(coord);
+                    self.set_update_ref(coord, new_ref);
+                } else if !cur_ref.null() {
+                    self.set_update_ref(coord, UpdateRef::NULL);
                     self.update_queue.remove(cur_ref);
                 }
                 let block = state.block();
@@ -709,14 +705,27 @@ struct RenderChunk {
 }
 
 pub struct PlaceContext {
-    replacement: Id,
-    data: Option<Tag>,
     coord: Coord,
+    replacement: Id,
     old: Id,
+    data: Option<Tag>,
     changed: bool,
+    enable: Option<bool>,
 }
 
 impl PlaceContext {
+    #[inline(always)]
+    pub fn new(coord: Coord, replacement: Id, old: Id) -> Self {
+        Self {
+            coord,
+            replacement,
+            old,
+            data: None,
+            changed: false,
+            enable: None,
+        }
+    }
+
     #[inline(always)]
     pub fn replace(&mut self, state: Id) {
         self.replacement = state;
@@ -741,5 +750,31 @@ impl PlaceContext {
     #[inline(always)]
     pub fn replacement(&self) -> Id {
         self.replacement
+    }
+
+    #[inline(always)]
+    pub fn enabled(&self) -> bool {
+        matches!(self.enable, Some(true))
+    }
+
+    /// This is not the same as `!enabled()`!
+    #[inline(always)]
+    pub fn disabled(&self) -> bool {
+        matches!(self.enable, Some(false))
+    }
+
+    #[inline(always)]
+    pub fn enable(&mut self) {
+        self.enable = Some(true);
+    }
+
+    #[inline(always)]
+    pub fn disable(&mut self) {
+        self.enable = Some(false);
+    }
+
+    #[inline(always)]
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enable.swap(Some(true));
     }
 }

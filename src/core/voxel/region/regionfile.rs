@@ -144,10 +144,6 @@ fn padded_size(length: u64) -> u64 {
 #[test]
 fn sandbox() -> Result<()> {
     let mut region = RegionFile::open_or_create("test.dat")?;
-    // region.write(RegionCoord::new(1, 3), |writer| {
-    //     String::from("The quick brown fox jumps over the lazy dog.").write_to(writer)?;
-    //     Ok(())
-    // })?;
 
     let result: String = region.read_value((1, 3))?;
 
