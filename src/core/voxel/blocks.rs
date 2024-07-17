@@ -24,8 +24,8 @@ fn init() -> bool {
         if INITIALIZED.swap(true, Ordering::SeqCst) {
             return false;
         }
-        STATES.set(Vec::new());
-        BLOCKS.set(Vec::new());
+        STATES.set(Vec::with_capacity(4096));
+        BLOCKS.set(Vec::with_capacity(512));
         ID_LOOKUP.set(HashMap::new());
         BLOCK_LOOKUP.set(HashMap::new());
         register_block(AirBlock);
@@ -34,6 +34,7 @@ fn init() -> bool {
     }
 }
 
+#[must_use]
 pub fn register_state<B: Borrow<BlockState>>(state: B) -> Id {
     init();
     unsafe {
@@ -56,6 +57,7 @@ pub fn register_state<B: Borrow<BlockState>>(state: B) -> Id {
     }
 }
 
+#[must_use]
 pub fn register_block<B: Block>(block: B) -> BlockId {
     init();
     unsafe {
@@ -73,6 +75,7 @@ pub fn register_block<B: Block>(block: B) -> BlockId {
 
 /// If the [BlockState] has already been registered, find the associated [Id].
 #[inline(always)]
+#[must_use]
 pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<Id> {
     if init() {
         return None;
@@ -84,6 +87,7 @@ pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<Id> {
 }
 
 #[inline(always)]
+#[must_use]
 pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockId> {
     if init() {
         return None;
@@ -95,6 +99,7 @@ pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockId> {
 }
 
 #[inline(always)]
+#[must_use]
 pub fn get_block_ref(id: Id) -> BlockId {
     unsafe {
         let states = STATES.get().expect("Failed to get states");
@@ -103,6 +108,7 @@ pub fn get_block_ref(id: Id) -> BlockId {
 }
 
 #[inline(always)]
+#[must_use]
 pub fn get_state(id: Id) -> &'static BlockState {
     // Id is only issued by the registry, so this doesn't need
     // to call init because it can be assumed that init has already
@@ -115,6 +121,7 @@ pub fn get_state(id: Id) -> &'static BlockState {
 }
 
 #[inline(always)]
+#[must_use]
 pub fn get_block(id: BlockId) -> &'static dyn Block {
     // BlockRef is only issued by the registry, so this doesn't need
     // to call init because it can be assumed that init has already
@@ -127,6 +134,7 @@ pub fn get_block(id: BlockId) -> &'static dyn Block {
 }
 
 #[inline(always)]
+#[must_use]
 pub fn get_block_for(id: Id) -> &'static dyn Block {
     unsafe {
         let states = STATES.get().expect("Failed to get states");
@@ -137,6 +145,7 @@ pub fn get_block_for(id: Id) -> &'static dyn Block {
 }
 
 #[inline(always)]
+#[must_use]
 pub fn get_state_and_block(id: Id) -> (&'static BlockState, &'static dyn Block) {
     unsafe {
         let states = STATES.get().expect("Failed to get states");
@@ -158,17 +167,20 @@ impl Id {
     pub const AIR: Self = Id(0);
     /// Make sure you don't register any states while this reference is held.
     #[inline(always)]
+    #[must_use]
     pub unsafe fn unsafe_state(self) -> &'static BlockState {
         get_state(self)
     }
 
     /// Make sure you don't register any blocks while this reference is held.
     #[inline(always)]
+    #[must_use]
     pub unsafe fn unsafe_block(self) -> &'static dyn Block {
         get_block_for(self)
     }
 
     #[inline(always)]
+    #[must_use]
     pub fn block(self) -> BlockId {
         get_block_ref(self)
     }
@@ -181,6 +193,7 @@ impl Id {
 
     /// Don't register anything while these references are held.
     #[inline(always)]
+    #[must_use]
     pub unsafe fn unsafe_state_and_block(self) -> (&'static BlockState, &'static dyn Block) {
         get_state_and_block(self)
     }
@@ -198,6 +211,12 @@ impl Id {
     #[inline(always)]
     pub fn is_air(self) -> bool {
         self.0 == 0
+    }
+
+    #[inline(always)]
+    #[must_use]
+    pub fn clone_state(self) -> BlockState {
+        (*self).clone()
     }
 }
 

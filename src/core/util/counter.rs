@@ -43,3 +43,15 @@ impl AtomicCounter {
         self.0.store(0, Ordering::SeqCst);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::{Arc, OnceLock}, thread};
+
+    use super::blocks::Id;
+    #[test]
+    fn sandbox() {
+        
+    }
+    
+}

@@ -1,7 +1,13 @@
+use std::path::PathBuf;
 use std::{sync::Arc, thread, time::Duration};
 
+use bevy::math::IVec2;
+use hashbrown::HashMap;
 use rollgrid::rollgrid3d::Bounds3D;
 
+use crate::core::voxel::region::regionfile::RegionFile;
+use crate::prelude::*;
+use crate::core::error::*;
 use crate::{blockstate, core::{math::coordmap::Rotation, util::counter::AtomicCounter, voxel::{block::Block, blocks::{self, Id}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::{query::Enabled, PlaceContext, VoxelWorld}}}};
 
 pub fn sandbox() {
@@ -30,17 +36,113 @@ pub fn sandbox() {
         world.set_block((x, 0, y), enabled);
     });
     world.set_block((13,12, 69), debug_data);
-    world.set_enabled((13,12,69), true);
+    world.call((13,12,69), "test", Tag::from("Hello, world"));
+    world.call((13,12,69), "set_enabled", true);
     let (state, enabled): (Id, bool) = world.query::<_, (Id, Enabled)>((13,12,69));
     println!("{state} {enabled}");
     println!("Frame 1");
     world.update();
-    world.set_enabled((13,12,69), false);
+    world.call((13,12,69), "set_enabled", false);
     println!("Frame 2");
     world.update();
+
+    println!("Write/Read Test");
+    let now = std::time::Instant::now();
+    write_read_test().expect("Failure");
+    let elapsed = now.elapsed();
+    println!("Elapsed secs: {}", elapsed.as_secs_f64());
     
     let usage = world.dynamic_usage();
     println!("Memory: {usage}");
+}
+
+fn write_read_test() -> Result<()> {
+    let path: PathBuf = "ignore/test.rg".into();
+    use rand::prelude::*;
+    use rand::rngs::OsRng;
+    let mut seed = [0u8; 32];
+    OsRng.fill_bytes(&mut seed);
+    let mut rng = StdRng::from_seed(seed);
+    {
+        let mut region = RegionFile::create(&path)?;
+        for z in 0..32 {
+            for x in 0..32 {
+                let array = Tag::from(Array::U8((0u32..4096*511+1234).map(|i| rng.gen()).collect()));
+                let position = Tag::IVec2(IVec2::new(x as i32, z as i32));
+                let tag = Tag::from(HashMap::from([
+                    ("array".to_owned(), array.clone()),
+                    ("position".to_owned(), position.clone())
+                ]));
+                region.write_value((x, z), &tag)?;
+            }
+        }
+    }
+    let mut rng = StdRng::from_seed(seed);
+    {
+        let mut region = RegionFile::open(&path)?;
+        for z in 0..32 {
+            for x in 0..32 {
+                let array = Box::new(Array::U8((0u32..4096*511+1234).map(|i| rng.gen()).collect()));
+                let position = IVec2::new(x as i32, z as i32);
+                let read_tag: Tag = region.read_value((x, z))?;
+                
+                if let (
+                    Tag::Array(read_array),
+                    Tag::IVec2(read_position)
+                ) = (&read_tag["array"], &read_tag["position"]) {
+                    assert_eq!(&array, read_array);
+                    assert_eq!(&position, read_position);
+                } else {
+                    panic!("Tag not read.")
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod testing_sandbox {
+    use std::sync::OnceLock;
+
+    #[derive(Debug)]
+    struct OnDrop(u32);
+
+    impl OnDrop {
+        fn reset(&mut self) {
+            self.0 = 0;
+        }
+    }
+
+    impl Drop for OnDrop {
+        fn drop(&mut self) {
+            println!("Dropping id: {}", self.0);
+        }
+    }
+
+    use super::*;
+    #[test]
+    fn sandbox() {
+        static mut DATA: OnceLock<Vec<OnDrop>> = OnceLock::new();
+        unsafe {
+            DATA.set(Vec::new());
+            let Some(data) = DATA.get_mut() else {
+                panic!();
+            };
+            data.push(OnDrop(0));
+            data.push(OnDrop(1));
+            data.push(OnDrop(2));
+            println!("Before First Removal");
+            data[1] = OnDrop(5);
+            data[2].reset();
+            data[2] = OnDrop(0);
+            println!("After First Removal");
+            DATA.take();
+            println!("After Take");
+        }
+
+    }
 }
 
 struct DirtBlock;
@@ -151,6 +253,19 @@ impl Block for DebugBlock {
     }
     fn call(&self, world: &mut VoxelWorld, coord: Coord, state: Id, function: &str, arg: Tag) -> Tag {
         println!("Message received: {arg:?}");
+        match function {
+            "test" => println!("test({arg:?})"),
+            "disable" => {
+                println!("Disabling.");
+                world.disable(coord);
+            }
+            "set_enabled" => match arg {
+                Tag::Bool(true) => world.enable(coord),
+                Tag::Bool(false) => world.disable(coord),
+                _ => println!("Invalid argument."),
+            }
+            other => println!("{other}({arg:?})"),
+        }
         Tag::from("Debug Message Result")
     }
     fn on_place(&self, world: &mut VoxelWorld, context: &mut PlaceContext) {

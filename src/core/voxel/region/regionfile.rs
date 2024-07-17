@@ -40,7 +40,7 @@ impl RegionFile {
     }
 
     /// Returns error if the file already exists.
-    pub fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub fn create_new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         let parent = path.parent().ok_or(Error::ParentNotFound)?;
         std::fs::create_dir_all(parent)?;
@@ -58,13 +58,31 @@ impl RegionFile {
         })
     }
 
+    pub fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let path = path.as_ref();
+        let parent = path.parent().ok_or(Error::ParentNotFound)?;
+        std::fs::create_dir_all(parent)?;
+        let mut io = File::options()
+            .read(true).write(true)
+            .create(true)
+            .open(path)?;
+        write_zeros(&mut io, 4096*3)?;
+        Ok(Self {
+            io,
+            write_buffer: Cursor::new(Vec::with_capacity(4096*2)),
+            header: RegionHeader::new(),
+            sector_manager: SectorManager::new(),
+            path: path.to_owned()
+        })
+    }
+
     /// Returns error if the path exists but isn't a file.
     pub fn open_or_create<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
             let parent = path.parent().ok_or(Error::ParentNotFound)?;
             std::fs::create_dir_all(parent)?;
-            Self::create(path)
+            Self::create_new(path)
         } else if path.is_file() {
             Self::open(path)
         } else {
@@ -97,7 +115,6 @@ impl RegionFile {
         let coord: RegionCoord = coord.into();
         self.write_buffer.get_mut().clear();
         self.write_buffer.seek(SeekFrom::Start(0))?;
-        // self.write_buffer.write_all(&[0u8; 4])?;
         let mut encoder = GzEncoder::new(&mut self.write_buffer, Compression::fast());
         write(&mut encoder)?;
         encoder.finish()?;
@@ -108,9 +125,6 @@ impl RegionFile {
         }
         let block_size = (padded_size / 4096) as u16;
         let required_size = BlockSize::required(block_size);
-        // self.write_buffer.set_position(0);
-        // self.write_buffer.seek(SeekFrom::Start(0));
-        // (length as u32).write_to(&mut self.write_buffer)?;
         let old_sector = self.header.offsets[coord];
         let new_sector = self.sector_manager.reallocate_err(old_sector, required_size)?;
         self.header.offsets[coord] = new_sector;
@@ -148,29 +162,23 @@ fn padded_size(length: u64) -> u64 {
 mod tests {
     use bevy::math::IVec2;
     use hashbrown::HashMap;
+    use rand::rngs::OsRng;
 
     use crate::prelude::{Array, Tag};
 
     use super::*;
     #[test]
     fn write_read_test() -> Result<()> {
-
-        // let mut region = RegionFile::open_or_create("ignore/test.rg")?;
-        // region.write_value((0, 0), &Tag::from("Hello, world!"))?;
-        // // region.write_value((1, 0), &Tag::from("Hello, world!"))?;
-        // region.write_value((2, 0), &Tag::from("Hello, world!"))?;
-        // let tag: Tag = region.read_value((2, 0))?;
-        
+        let path: PathBuf = "ignore/test.rg".into();
+        use rand::prelude::*;
+        let mut seed = [0u8; 32];
+        OsRng.fill_bytes(&mut seed);
+        let mut rng = StdRng::from_seed(seed);
         {
-            // std::fs::remove_file("ignore/test.rg")?;
-            let path: PathBuf = "ignore/test.rg".into();
-            if path.exists() {
-                std::fs::remove_file(&path)?;
-            }
-            let mut region = RegionFile::open_or_create(path)?;
+            let mut region = RegionFile::create(&path)?;
             for z in 0..32 {
                 for x in 0..32 {
-                    let array = Tag::from(Array::U8((0u32..4096*511+1234).map(|i| i.rem_euclid(256) as u8).collect()));
+                    let array = Tag::from(Array::U8((0u32..4096*511+1234).map(|i| rng.gen()).collect()));
                     let position = Tag::IVec2(IVec2::new(x as i32, z as i32));
                     let tag = Tag::from(HashMap::from([
                         ("array".to_owned(), array.clone()),
@@ -180,12 +188,12 @@ mod tests {
                 }
             }
         }
+        let mut rng = StdRng::from_seed(seed);
         {
-            let mut region = RegionFile::open_or_create("ignore/test.rg")?;
+            let mut region = RegionFile::open(&path)?;
             for z in 0..32 {
                 for x in 0..32 {
-                    // let tag: bool = region.read_value((x, z))?;
-                    let array = Box::new(Array::U8((0u32..4096*511+1234).map(|i| i.rem_euclid(256) as u8).collect()));
+                    let array = Box::new(Array::U8((0u32..4096*511+1234).map(|i| rng.gen()).collect()));
                     let position = IVec2::new(x as i32, z as i32);
                     let read_tag: Tag = region.read_value((x, z))?;
                     
