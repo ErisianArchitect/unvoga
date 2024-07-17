@@ -5,7 +5,7 @@ use std::{num::NonZeroU64, sync::atomic::AtomicU64};
 /// Sounds too good to be true!
 #[derive(Debug)]
 pub struct ObjectPool<T> {
-    pool: Vec<(T, usize)>,
+    pool: Vec<(T, PoolId)>,
     indices: Vec<usize>,
     unused: Vec<PoolId>,
     id: u64,
@@ -42,9 +42,10 @@ impl<T> ObjectPool<T> {
         } else {
             let index = self.indices.len();
             let pool_index = self.pool.len();
-            self.pool.push((value, index));
+            let id = PoolId::new(self.id, index, 0);
+            self.pool.push((value, id));
             self.indices.push(pool_index);
-            PoolId::new(self.id, index, 0)
+            id
         }
     }
 
@@ -57,8 +58,14 @@ impl<T> ObjectPool<T> {
         }
         let pool_index = self.indices[id.index()];
         self.pool.swap_remove(pool_index);
+        if pool_index == self.pool.len() {
+            return;
+        }
+        if self.pool[pool_index].1 != id {
+            panic!("Dead pool ID");
+        }
         let index_index = self.pool[pool_index].1;
-        self.indices[index_index] = pool_index;
+        self.indices[index_index.index()] = pool_index;
         self.unused.push(id);
     }
 
@@ -90,6 +97,9 @@ impl<T> ObjectPool<T> {
             return None;
         }
         let pool_index = self.indices[id.index()];
+        if self.pool[pool_index].1 != id {
+            return None;
+        }
         Some(&self.pool[pool_index].0)
     }
 
@@ -100,6 +110,9 @@ impl<T> ObjectPool<T> {
             return None;
         }
         let pool_index = self.indices[id.index()];
+        if self.pool[pool_index].1 != id {
+            return None;
+        }
         Some(&mut self.pool[pool_index].0)
     }
 
@@ -214,6 +227,12 @@ mod tests {
     fn pool_test() {
         let mut pool = ObjectPool::new();
         let hello = pool.insert("Hello, world!");
+        let test = pool.insert("Test string");
         println!("{}", pool[hello]);
+        pool.remove(hello);
+        let fox = pool.insert("The quick brown fox jumps over the lazy dog.");
+        println!("{} -> {}", hello.id(), fox.id());
+        println!("{}", pool.get(hello).is_none());
+
     }
 }
