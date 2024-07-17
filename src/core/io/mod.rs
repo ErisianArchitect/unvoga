@@ -6,6 +6,26 @@ use std::io::{
 
 use crate::core::error::{Error, Result};
 
+pub trait ReadExt {
+    fn read_value<T: Readable>(&mut self) -> Result<T>;
+}
+
+pub trait WriteExt {
+    fn write_value<T: Writeable>(&mut self, value: &T) -> Result<u64>;
+}
+
+impl<R: Read> ReadExt for R {
+    fn read_value<T: Readable>(&mut self) -> Result<T> {
+        T::read_from(self)
+    }
+}
+
+impl<W: Write> WriteExt for W {
+    fn write_value<T: Writeable>(&mut self, value: &T) -> Result<u64> {
+        value.write_to(self)
+    }
+}
+
 pub fn write_zeros<W: Write>(writer: &mut W, count: u64) -> Result<u64> {
     const ZEROS: [u8; 4096] = [0; 4096];
     let mut count = count;
@@ -629,6 +649,18 @@ impl Readable for String {
 
 impl Writeable for String {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
+        if self.len() > MAX_LEN {
+            return Err(Error::StringTooLong);
+        }
+        let buf = (self.len() as u32).to_be_bytes();
+        writer.write_all(&buf[1..4])?;
+        write_bytes(writer, self.as_bytes())?;
+        Ok(self.len() as u64 + 3)
+    }
+}
+
+impl Writeable for &str {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
         if self.len() > MAX_LEN {
             return Err(Error::StringTooLong);
         }

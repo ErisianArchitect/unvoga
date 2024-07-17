@@ -2,7 +2,7 @@ use std::{fs::File, io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Tak
 
 use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
 
-use crate::{core::error::*, prelude::{write_zeros, Readable, Writeable}};
+use crate::{core::error::*, prelude::{write_zeros, Readable, WriteExt, Writeable}};
 use super::{header::RegionHeader, regioncoord::RegionCoord, sectormanager::SectorManager, sectoroffset::BlockSize};
 
 pub struct RegionFile {
@@ -43,6 +43,8 @@ impl RegionFile {
     /// Returns error if the file already exists.
     pub fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
+        let parent = path.parent().ok_or(Error::ParentNotFound)?;
+        std::fs::create_dir_all(parent)?;
         let mut io = File::options()
             .read(true).write(true)
             .create_new(true)
@@ -61,6 +63,8 @@ impl RegionFile {
     pub fn open_or_create<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = path.as_ref();
         if !path.exists() {
+            let parent = path.parent().ok_or(Error::ParentNotFound)?;
+            std::fs::create_dir_all(parent)?;
             Self::create(path)
         } else if path.is_file() {
             Self::open(path)
@@ -80,6 +84,14 @@ impl RegionFile {
         let length = u32::read_from(&mut reader)?;
         let decoder = ZlibDecoder::new(reader.take(length as u64));
         read(decoder)
+    }
+
+    pub fn read_value<C: Into<RegionCoord>, T: Readable>(&mut self, coord: C) -> Result<T> {
+        #[inline(always)]
+        fn read_inner<'a, T: Readable>(mut reader: ZlibDecoder<Take<BufReader<&'a mut File>>>) -> Result<T> {
+            T::read_from(&mut reader)
+        }
+        self.read(coord, read_inner)
     }
 
     pub fn write<C: Into<RegionCoord>, F: FnMut(&mut ZlibEncoder<&mut Cursor<Vec<u8>>>) -> Result<()>>(&mut self, coord: C, mut write: F) -> Result<()> {
@@ -110,6 +122,13 @@ impl RegionFile {
         writer.flush()?;
         Ok(())
     }
+
+    pub fn write_value<C: Into<RegionCoord>, T: Writeable>(&mut self, coord: C, value: &T) -> Result<()> {
+        self.write(coord, move |writer| {
+            value.write_to(writer)?;
+            Ok(())
+        })
+    }
 }
 
 #[inline(always)]
@@ -123,6 +142,16 @@ fn padded_size(length: u64) -> u64 {
 }
 
 #[test]
-fn sandbox() {
-    assert_eq!(pad_size(5), 4096)
+fn sandbox() -> Result<()> {
+    let mut region = RegionFile::open_or_create("test.dat")?;
+    // region.write(RegionCoord::new(1, 3), |writer| {
+    //     String::from("The quick brown fox jumps over the lazy dog.").write_to(writer)?;
+    //     Ok(())
+    // })?;
+
+    let result: String = region.read_value((1, 3))?;
+
+    println!("{result}");
+
+    Ok(())
 }

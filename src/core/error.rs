@@ -22,6 +22,10 @@ pub enum Error {
     AllocationFailure,
     #[error("Chunk not found")]
     ChunkNotFound,
+    #[error("Parent directory not found")]
+    ParentNotFound,
+    #[error("Temporary error")]
+    Temporary,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
