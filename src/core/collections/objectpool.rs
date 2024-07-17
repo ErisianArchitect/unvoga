@@ -152,8 +152,6 @@ impl std::fmt::Display for PoolId {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PoolId(u64);
 
-struct TestStruct<T, W = u32>(T, W);
-
 impl PoolId {
     const           INDEX_BITS: u64 = 0b0000000000000000000000000000000000000011111111111111111111111111;
     const         POOL_ID_BITS: u64 = 0b0000000000000000000011111111111111111100000000000000000000000000;
