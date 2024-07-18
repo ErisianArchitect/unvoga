@@ -392,7 +392,7 @@ impl Section {
             let sub_index = (index & 1) * 4;
             sky_light[mask_index] >> sub_index & 0xF
         } else {
-            0
+            15
         }
     }
 
@@ -407,16 +407,16 @@ impl Section {
         let block_light = if let Some(block_light) = &self.block_light {
             block_light[mask_index] >> shift & 0xF
         } else {
-            0
+            15
         };
         if self.sky_light.is_none() {
-            if level != 0 {
+            if level != 15 {
                 self.sky_light = Some(make_empty_section_light());
             } else {
                 return SectionUpdate::new(LightChange {
                     old_max: block_light,
-                    old_level: 0,
-                    new_level: 0,
+                    old_level: 15,
+                    new_level: 15,
                     new_max: block_light,
                 });
             }
@@ -439,9 +439,9 @@ impl Section {
         }
         let other = sky_light[mask_index] & (0xF << other_shift);
         sky_light[mask_index] = other | (level << shift);
-        if level != 0 && old_level == 0 {
+        if level != 15 && old_level == 15 {
             self.sky_light_count += 1;
-        } else if level == 0 && old_level != 0 {
+        } else if level == 15 && old_level != 15 {
             self.sky_light_count -= 1;
             if self.sky_light_count == 0 {
                 self.sky_light = None;
@@ -559,6 +559,15 @@ impl Section {
             dest[i] = light;
         });
     }
+
+    // Serialization/Deserialization
+    #[inline(always)]
+    pub fn write_to<W: std::fmt::Write>(&self, writer: &mut W) -> Result<u64> {
+        // First write the flags that determine what data this section has.
+        // If the section is empty, this will write a 0 byte and return.
+        
+        todo!()
+    }
 }
 
 
@@ -628,7 +637,7 @@ fn make_empty_section_blocks() -> Box<[Id]> {
 /// Create empty [Section] lightmap.
 #[inline(always)]
 fn make_empty_section_light() -> Box<[u8]> {
-    (0..2048).map(|_| 0).collect()
+    (0..2048).map(|_| 15).collect()
 }
 
 /// Create empty [Section] block data ref grid.
