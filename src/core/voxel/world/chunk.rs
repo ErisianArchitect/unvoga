@@ -3,6 +3,7 @@ use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, 
 use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
 use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
+use crate::core::error::*;
 
 pub struct Chunk {
     pub sections: Box<[Section]>,
