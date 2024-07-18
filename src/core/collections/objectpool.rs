@@ -1,4 +1,4 @@
-use std::{iter::Map, num::NonZeroU64, sync::atomic::AtomicU64};
+use std::{iter::Map, marker::PhantomData, num::NonZeroU64, sync::atomic::AtomicU64};
 
 
 /// An unordered object pool with O(1) lookup, insertion, deletion, and iteration.
@@ -7,14 +7,14 @@ use std::{iter::Map, num::NonZeroU64, sync::atomic::AtomicU64};
 /// You can store 2^32 elements.
 /// I
 #[derive(Debug)]
-pub struct ObjectPool<T> {
-    pool: Vec<(PoolId, T)>,
+pub struct ObjectPool<T, M: Copy = &'static T> {
+    pool: Vec<(PoolId<M>, T)>,
     indices: Vec<usize>,
-    unused: Vec<PoolId>,
+    unused: Vec<PoolId<M>>,
     id: u64,
 }
 
-impl<T> ObjectPool<T> {
+impl<T,M: Copy> ObjectPool<T,M> {
     #[inline]
     #[must_use]
     pub fn new() -> Self {
@@ -36,7 +36,7 @@ impl<T> ObjectPool<T> {
     }
 
     #[must_use]
-    pub fn insert(&mut self, value: T) -> PoolId {
+    pub fn insert(&mut self, value: T) -> PoolId<M> {
         if let Some(unused_index) = self.unused.pop() {
             let new_id = unused_index.increment_generation();
             self.indices[new_id.index()] = self.pool.len();
@@ -52,7 +52,7 @@ impl<T> ObjectPool<T> {
         }
     }
     // TODO: Handle when id points to freed slot.
-    pub fn remove(&mut self, id: PoolId) {
+    pub fn remove(&mut self, id: PoolId<M>) {
         if id.null() {
             return;
         }
@@ -60,7 +60,7 @@ impl<T> ObjectPool<T> {
             panic!("Id does not belong to this pool.");
         }
         let pool_index = self.indices[id.index()];
-        if self.pool[pool_index].0 != id {
+        if self.pool[pool_index].0.0 != id.0 {
             panic!("Dead pool ID");
         }
         self.pool.swap_remove(pool_index);
@@ -95,12 +95,12 @@ impl<T> ObjectPool<T> {
 
     #[inline]
     #[must_use]
-    pub fn get(&self, id: PoolId) -> Option<&T> {
+    pub fn get(&self, id: PoolId<M>) -> Option<&T> {
         if id.null() || id.pool_id() != self.id {
             return None;
         }
         let pool_index = self.indices[id.index()];
-        if self.pool[pool_index].0 != id {
+        if self.pool[pool_index].0.0 != id.0 {
             return None;
         }
         Some(&self.pool[pool_index].1)
@@ -108,12 +108,12 @@ impl<T> ObjectPool<T> {
 
     #[inline]
     #[must_use]
-    pub fn get_mut(&mut self, id: PoolId) -> Option<&mut T> {
+    pub fn get_mut(&mut self, id: PoolId<M>) -> Option<&mut T> {
         if id.null() || id.pool_id() != self.id {
             return None;
         }
         let pool_index = self.indices[id.index()];
-        if self.pool[pool_index].0 != id {
+        if self.pool[pool_index].0.0 != id.0 {
             return None;
         }
         Some(&mut self.pool[pool_index].1)
@@ -121,25 +121,25 @@ impl<T> ObjectPool<T> {
 
     #[inline(always)]
     #[must_use]
-    pub fn reconstruct_id(&self, index: usize, generation: u64) -> PoolId {
+    pub fn reconstruct_id(&self, index: usize, generation: u64) -> PoolId<M> {
         PoolId::new(self.id, index, generation)
     }
 
     #[inline(always)]
     #[must_use]
-    pub fn iter(&self) -> impl Iterator<Item = (PoolId, &T)> {
+    pub fn iter(&self) -> impl Iterator<Item = (PoolId<M>, &T)> {
         self.pool.iter().map(|(id, item)| (*id, item))
     }
 
     #[inline(always)]
     #[must_use]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (PoolId, &mut T)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (PoolId<M>, &mut T)> {
         self.pool.iter_mut().map(|(id, item)| (*id, item))
     }
 }
 
-impl<T> IntoIterator for ObjectPool<T> {
-    type IntoIter = ObjectPoolIterator<T>;
+impl<T,M: Copy> IntoIterator for ObjectPool<T,M> {
+    type IntoIter = ObjectPoolIterator<T,M>;
     type Item = T;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -149,11 +149,11 @@ impl<T> IntoIterator for ObjectPool<T> {
     }
 }
 
-pub struct ObjectPoolIterator<T> {
-    iter: std::vec::IntoIter<(PoolId, T)>,
+pub struct ObjectPoolIterator<T,M: Copy> {
+    iter: std::vec::IntoIter<(PoolId<M>, T)>,
 }
 
-impl<T> Iterator for ObjectPoolIterator<T> {
+impl<T,M: Copy> Iterator for ObjectPoolIterator<T,M> {
     type Item = T;
     #[inline(always)]
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -166,20 +166,20 @@ impl<T> Iterator for ObjectPoolIterator<T> {
     }
 }
 
-impl<T> std::ops::Index<PoolId> for ObjectPool<T> {
+impl<T,M: Copy> std::ops::Index<PoolId<M>> for ObjectPool<T,M> {
     type Output = T;
-    fn index(&self, index: PoolId) -> &Self::Output {
+    fn index(&self, index: PoolId<M>) -> &Self::Output {
         self.get(index).expect("PoolId was invalid")
     }
 }
 
-impl<T> std::ops::IndexMut<PoolId> for ObjectPool<T> {
-    fn index_mut(&mut self, index: PoolId) -> &mut Self::Output {
+impl<T, M: Copy> std::ops::IndexMut<PoolId<M>> for ObjectPool<T,M> {
+    fn index_mut(&mut self, index: PoolId<M>) -> &mut Self::Output {
         self.get_mut(index).expect("PoolId was invalid")
     }
 }
 
-impl std::fmt::Display for PoolId {
+impl<M: Copy> std::fmt::Display for PoolId<M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PoolId(pool_id={},index={},generation={})", self.pool_id(), self.index(), self.generation())
     }
@@ -187,9 +187,9 @@ impl std::fmt::Display for PoolId {
 
 // TODO: Maybe consider using PhantomData marker to distinguish PoolId subtypes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PoolId(u64);
+pub struct PoolId<M: Copy>(u64, PhantomData<M>);
 
-impl PoolId {
+impl<M: Copy> PoolId<M> {
     const           INDEX_BITS: u64 = 0b0000000000000000000000000000000011111111111111111111111111111111;
     const      GENERATION_BITS: u64 = 0b0000000000111111111111111111111100000000000000000000000000000000;
     const         POOL_ID_BITS: u64 = 0b1111111111000000000000000000000000000000000000000000000000000000;
@@ -199,7 +199,7 @@ impl PoolId {
     const            INDEX_MAX: u64 = Self::INDEX_BITS >> Self::INDEX_OFFSET;
     const       GENERATION_MAX: u64 = Self::GENERATION_BITS >> Self::GENERATION_ID_OFFSET; 
     const          POOL_ID_MAX: u64 = Self::POOL_ID_BITS >> Self::POOL_ID_OFFSET;
-    pub const NULL: Self = Self(0);
+    pub const NULL: Self = Self(0, PhantomData);
 
     #[inline(always)]
     #[must_use]
@@ -220,7 +220,7 @@ impl PoolId {
         if pool_id > Self::POOL_ID_MAX {
             panic!("Pool Id out of bounds.");
         }
-        Self(index | pool_id << Self::POOL_ID_OFFSET | generation << Self::GENERATION_ID_OFFSET)
+        Self(index | pool_id << Self::POOL_ID_OFFSET | generation << Self::GENERATION_ID_OFFSET, PhantomData)
     }
 
     #[inline(always)]
@@ -265,7 +265,7 @@ mod tests {
     use super::*;
     #[test]
     fn pool_test() {
-        let mut pool = ObjectPool::new();
+        let mut pool = ObjectPool::<&str>::new();
         let hello = pool.insert("Hello, world!");
         let test = pool.insert("Test string");
         let bob = pool.insert("Bob");
