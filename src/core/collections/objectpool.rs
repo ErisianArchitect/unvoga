@@ -241,9 +241,9 @@ mod tests {
         pool.remove(fox);
         println!("Second Iteration");
         pool.iter().for_each(|(id, s)| println!("{}", s));
-        assert_eq!(pool.get(sally), Some(&"Sally"));
-        assert_eq!(pool.get(fred), Some(&"Fred"));
-        assert_eq!(pool.get(test), Some(&"Test string"));
-        assert_eq!(pool.get(bob), Some(&"Bob"));
+        assert_eq!(pool[sally], "Sally");
+        assert_eq!(pool[fred], "Fred");
+        assert_eq!(pool[test], "Test string");
+        assert_eq!(pool[bob], "Bob");
     }
 }
