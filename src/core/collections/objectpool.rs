@@ -1,11 +1,14 @@
-use std::{num::NonZeroU64, sync::atomic::AtomicU64};
+use std::{iter::Map, num::NonZeroU64, sync::atomic::AtomicU64};
 
 
 /// An unordered object pool with O(1) lookup, insertion, deletion, and iteration.
 /// Sounds too good to be true!
+/// You can have 2^10 [ObjectPool]s before [PoolId]s between [ObjectPool]s start to collide.
+/// You can store 2^32 elements.
+/// I
 #[derive(Debug)]
 pub struct ObjectPool<T> {
-    pool: Vec<(T, PoolId)>,
+    pool: Vec<(PoolId, T)>,
     indices: Vec<usize>,
     unused: Vec<PoolId>,
     id: u64,
@@ -35,15 +38,15 @@ impl<T> ObjectPool<T> {
     #[must_use]
     pub fn insert(&mut self, value: T) -> PoolId {
         if let Some(unused_index) = self.unused.pop() {
-            let new_id = unused_index.inc_gen();
+            let new_id = unused_index.increment_generation();
             self.indices[new_id.index()] = self.pool.len();
-            self.pool.push((value, new_id));
+            self.pool.push((new_id, value, ));
             new_id
         } else {
             let index = self.indices.len();
             let pool_index = self.pool.len();
             let id = PoolId::new(self.id, index, 0);
-            self.pool.push((value, id));
+            self.pool.push((id, value));
             self.indices.push(pool_index);
             id
         }
@@ -57,14 +60,14 @@ impl<T> ObjectPool<T> {
             panic!("Id does not belong to this pool.");
         }
         let pool_index = self.indices[id.index()];
-        if self.pool[pool_index].1 != id {
+        if self.pool[pool_index].0 != id {
             panic!("Dead pool ID");
         }
         self.pool.swap_remove(pool_index);
         if pool_index == self.pool.len() {
             return;
         }
-        let index_index = self.pool[pool_index].1;
+        let index_index = self.pool[pool_index].0;
         self.indices[index_index.index()] = pool_index;
         self.unused.push(id);
     }
@@ -97,10 +100,10 @@ impl<T> ObjectPool<T> {
             return None;
         }
         let pool_index = self.indices[id.index()];
-        if self.pool[pool_index].1 != id {
+        if self.pool[pool_index].0 != id {
             return None;
         }
-        Some(&self.pool[pool_index].0)
+        Some(&self.pool[pool_index].1)
     }
 
     #[inline]
@@ -110,22 +113,56 @@ impl<T> ObjectPool<T> {
             return None;
         }
         let pool_index = self.indices[id.index()];
-        if self.pool[pool_index].1 != id {
+        if self.pool[pool_index].0 != id {
             return None;
         }
-        Some(&mut self.pool[pool_index].0)
+        Some(&mut self.pool[pool_index].1)
+    }
+
+    #[inline(always)]
+    #[must_use]
+    pub fn reconstruct_id(&self, index: usize, generation: u64) -> PoolId {
+        PoolId::new(self.id, index, generation)
     }
 
     #[inline(always)]
     #[must_use]
     pub fn iter(&self) -> impl Iterator<Item = (PoolId, &T)> {
-        self.pool.iter().map(|(item, id)| (*id, item))
+        self.pool.iter().map(|(id, item)| (*id, item))
     }
 
     #[inline(always)]
     #[must_use]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (PoolId, &mut T)> {
-        self.pool.iter_mut().map(|(item, id)| (*id, item))
+        self.pool.iter_mut().map(|(id, item)| (*id, item))
+    }
+}
+
+impl<T> IntoIterator for ObjectPool<T> {
+    type IntoIter = ObjectPoolIterator<T>;
+    type Item = T;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ObjectPoolIterator {
+            iter: self.pool.into_iter()
+        }
+    }
+}
+
+pub struct ObjectPoolIterator<T> {
+    iter: std::vec::IntoIter<(PoolId, T)>,
+}
+
+impl<T> Iterator for ObjectPoolIterator<T> {
+    type Item = T;
+    #[inline(always)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+
+    #[inline(always)]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(_, value)| value)
     }
 }
 
@@ -153,15 +190,15 @@ impl std::fmt::Display for PoolId {
 pub struct PoolId(u64);
 
 impl PoolId {
-    const           INDEX_BITS: u64 = 0b0000000000000000000000000000000000000011111111111111111111111111;
-    const         POOL_ID_BITS: u64 = 0b0000000000000000000011111111111111111100000000000000000000000000;
-    const      GENERATION_BITS: u64 = 0b1111111111111111111100000000000000000000000000000000000000000000;
-    const       GENERATION_MAX: u64 = 0b0000000000000000000000000000000000000000000011111111111111111111; 
-    const          POOL_ID_MAX: u64 = 0b0000000000000000000000000000000000000000000000111111111111111111;
-    // For readability I guess.
-    const            INDEX_MAX: u64 = Self::INDEX_BITS;
-    const       POOL_ID_OFFSET: u32 = 26;
-    const GENERATION_ID_OFFSET: u32 = 44;
+    const           INDEX_BITS: u64 = 0b0000000000000000000000000000000011111111111111111111111111111111;
+    const      GENERATION_BITS: u64 = 0b0000000000111111111111111111111100000000000000000000000000000000;
+    const         POOL_ID_BITS: u64 = 0b1111111111000000000000000000000000000000000000000000000000000000;
+    const         INDEX_OFFSET: u32 = Self::INDEX_BITS.trailing_zeros();
+    const       POOL_ID_OFFSET: u32 = Self::POOL_ID_BITS.trailing_zeros();
+    const GENERATION_ID_OFFSET: u32 = Self::GENERATION_BITS.trailing_zeros();
+    const            INDEX_MAX: u64 = Self::INDEX_BITS >> Self::INDEX_OFFSET;
+    const       GENERATION_MAX: u64 = Self::GENERATION_BITS >> Self::GENERATION_ID_OFFSET; 
+    const          POOL_ID_MAX: u64 = Self::POOL_ID_BITS >> Self::POOL_ID_OFFSET;
     pub const NULL: Self = Self(0);
 
     #[inline(always)]
@@ -213,10 +250,12 @@ impl PoolId {
     /// Increment Generation
     #[inline(always)]
     #[must_use]
-    fn inc_gen(self) -> Self {
+    fn increment_generation(self) -> Self {
         let pool_id = self.pool_id();
         let index = self.index();
-        let generation = self.generation();
+        let generation = self.generation()
+            // Roll the generation around. It's unlikely for IDs to collide.
+            .rem_euclid(Self::GENERATION_MAX);
         Self::new(pool_id, index, generation + 1)
     }
 }
