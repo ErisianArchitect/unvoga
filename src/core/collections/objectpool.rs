@@ -118,14 +118,14 @@ impl<T> ObjectPool<T> {
 
     #[inline(always)]
     #[must_use]
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.pool.iter().map(|(item, _)| item)
+    pub fn iter(&self) -> impl Iterator<Item = (PoolId, &T)> {
+        self.pool.iter().map(|(item, id)| (*id, item))
     }
 
     #[inline(always)]
     #[must_use]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
-        self.pool.iter_mut().map(|(item,_)| item)
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (PoolId, &mut T)> {
+        self.pool.iter_mut().map(|(item, id)| (*id, item))
     }
 }
 
