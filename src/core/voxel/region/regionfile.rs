@@ -155,7 +155,9 @@ fn pad_size(length: u64) -> u64 {
 
 #[inline(always)]
 fn padded_size(length: u64) -> u64 {
-    length + pad_size(length)
+    const INEG4096: i64 = -4096;
+    const NEG4096: u64 = INEG4096 as u64;
+    (length + 4095) & NEG4096
 }
 
 #[cfg(test)]
