@@ -36,8 +36,8 @@ impl<T> ObjectPool<T> {
     pub fn insert(&mut self, value: T) -> PoolId {
         if let Some(unused_index) = self.unused.pop() {
             let new_id = unused_index.inc_gen();
-            let pool_index = self.indices[new_id.index()];
-            self.pool[pool_index] = (value, new_id);
+            self.indices[new_id.index()] = self.pool.len();
+            self.pool.push((value, new_id));
             new_id
         } else {
             let index = self.indices.len();
@@ -48,7 +48,7 @@ impl<T> ObjectPool<T> {
             id
         }
     }
-
+    // TODO: Handle when id points to freed slot.
     pub fn remove(&mut self, id: PoolId) {
         if id.null() {
             return;
@@ -236,6 +236,14 @@ mod tests {
         println!("{} -> {}", hello, fox);
         println!("{}", pool.get(hello).is_none());
         pool.iter().for_each(|(id, s)| println!("{}", s));
-
+        let sally = pool.insert("Sally");
+        let fred = pool.insert("Fred");
+        pool.remove(fox);
+        println!("Second Iteration");
+        pool.iter().for_each(|(id, s)| println!("{}", s));
+        assert_eq!(pool.get(sally), Some(&"Sally"));
+        assert_eq!(pool.get(fred), Some(&"Fred"));
+        assert_eq!(pool.get(test), Some(&"Test string"));
+        assert_eq!(pool.get(bob), Some(&"Bob"));
     }
 }
