@@ -26,6 +26,8 @@ pub enum Error {
     ParentNotFound,
     #[error("Temporary error")]
     Temporary,
+    #[error("u24 was out of range")]
+    U24OutOfRange,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

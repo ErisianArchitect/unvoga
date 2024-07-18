@@ -13,7 +13,7 @@ pub enum Direction {
     PosZ = 2,// 4
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NoUninit)]
 #[repr(u8)]
 pub enum Cardinal {
     /// -X

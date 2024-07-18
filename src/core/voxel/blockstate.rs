@@ -1,6 +1,10 @@
 use std::{borrow::Borrow, fmt::Debug, ops::{Index, IndexMut}};
 
-use crate::core::{math::coordmap::{Flip, Rotation}, util::traits::StrToOwned};
+use bevy::math::{IVec2, IVec3};
+use itertools::Itertools;
+use crate::core::error::*;
+
+use crate::{core::{math::coordmap::{Flip, Rotation}, util::traits::StrToOwned}, prelude::{read_u24, write_u24, Readable, Writeable}};
 
 use super::{axis::Axis, blocks::{self, Id}, coord::Coord, direction::{Cardinal, Direction}, world::chunkcoord::ChunkCoord};
 
@@ -17,19 +21,76 @@ pub struct BlockProperty {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+#[repr(u8)]
 pub enum StateValue {
     #[default]
-    Null,
-    Int(i64),
-    Bool(bool),
-    String(String),
-    Direction(Direction),
-    Cardinal(Cardinal),
-    Rotation(Rotation),
-    Flip(Flip),
-    Axis(Axis),
-    Coord2(ChunkCoord),
-    Coord3(Coord),
+    Null = 0,
+    Int(i64) = 1,
+    Bool(bool) = 2,
+    String(String) = 3,
+    Direction(Direction) = 4,
+    Cardinal(Cardinal) = 5,
+    Rotation(Rotation) = 6,
+    // Flip(Flip),
+    Axis(Axis) = 7,
+    Coord2(IVec2) = 8,
+    Coord3(IVec3) = 9,
+}
+
+impl StateValue {
+    #[inline(always)]
+    pub fn id(&self) -> u8 {
+        match self {
+            StateValue::Null => 0,
+            StateValue::Int(_) => 1,
+            StateValue::Bool(_) => 2,
+            StateValue::String(_) => 3,
+            StateValue::Direction(_) => 4,
+            StateValue::Cardinal(_) => 5,
+            StateValue::Rotation(_) => 6,
+            // StateValue::Flip(_) => 7,
+            StateValue::Axis(_) => 7,
+            StateValue::Coord2(_) => 8,
+            StateValue::Coord3(_) => 9,
+        }
+    }
+}
+
+impl Readable for StateValue {
+    fn read_from<R: std::io::Read>(reader: &mut R) -> crate::prelude::VoxelResult<Self> {
+        let id = u8::read_from(reader)?;
+        Ok(match id {
+            0 => StateValue::Null,
+            1 => StateValue::Int(i64::read_from(reader)?),
+            2 => StateValue::Bool(bool::read_from(reader)?),
+            3 => StateValue::String(String::read_from(reader)?),
+            4 => StateValue::Direction(Direction::read_from(reader)?),
+            5 => StateValue::Cardinal(Cardinal::read_from(reader)?),
+            6 => StateValue::Rotation(Rotation::read_from(reader)?),
+            7 => StateValue::Axis(Axis::read_from(reader)?),
+            8 => StateValue::Coord2(IVec2::read_from(reader)?),
+            9 => StateValue::Coord3(IVec3::read_from(reader)?),
+            _ => return Err(crate::prelude::VoxelError::InvalidBinaryFormat),
+        })
+    }
+}
+
+impl Writeable for StateValue {
+    fn write_to<W: std::io::Write>(&self, writer: &mut W) -> crate::prelude::VoxelResult<u64> {
+        self.id().write_to(writer)?;
+        Ok(match self {
+            StateValue::Null => return Ok(1),
+            StateValue::Int(value) => value.write_to(writer)?,
+            StateValue::Bool(value) => value.write_to(writer)?,
+            StateValue::String(value) => value.write_to(writer)?,
+            StateValue::Direction(value) => value.write_to(writer)?,
+            StateValue::Cardinal(value) => value.write_to(writer)?,
+            StateValue::Rotation(value) => value.write_to(writer)?,
+            StateValue::Axis(value) => value.write_to(writer)?,
+            StateValue::Coord2(value) => value.write_to(writer)?,
+            StateValue::Coord3(value) => value.write_to(writer)?,
+        } + 1)
+    }
 }
 
 impl BlockState {
@@ -91,6 +152,38 @@ impl BlockState {
     /// Finds the [BlockState] in the block registry.
     pub fn find(&self) -> Option<Id> {
         blocks::find_state(self)
+    }
+}
+
+impl Readable for BlockState {
+    fn read_from<R: std::io::Read>(reader: &mut R) -> crate::prelude::VoxelResult<Self> {
+        let name = String::read_from(reader)?;
+        let props_len = read_u24(reader)?;
+        if props_len == 0 {
+            return Ok(BlockState::new(name, []));
+        }
+        let sorted_properties: Vec<BlockProperty> = (0..props_len).map(|_| {
+            let name = String::read_from(reader)?;
+            let field = StateValue::read_from(reader)?;
+            crate::core::error::Result::Ok(BlockProperty::new(name, field))
+        }).try_collect()?;
+        Ok(BlockState {
+            name,
+            sorted_properties
+        })
+    }
+}
+
+impl Writeable for BlockState {
+    fn write_to<W: std::io::Write>(&self, writer: &mut W) -> Result<u64> {
+        let mut length = self.name.write_to(writer)?;
+        length += write_u24(writer, self.sorted_properties.len() as u32)?;
+        self.sorted_properties.iter().try_for_each(|prop| {
+            length += prop.name.write_to(writer)?;
+            length += prop.value.write_to(writer)?;
+            Result::Ok(())
+        });
+        Ok(length)
     }
 }
 
@@ -166,6 +259,12 @@ impl From<Rotation> for StateValue {
 
 impl From<Coord> for StateValue {
     fn from(value: Coord) -> Self {
+        StateValue::Coord3(value.into())
+    }
+}
+
+impl From<IVec3> for StateValue {
+    fn from(value: IVec3) -> Self {
         StateValue::Coord3(value)
     }
 }
@@ -178,6 +277,12 @@ impl From<(i32, i32, i32)> for StateValue {
 
 impl From<ChunkCoord> for StateValue {
     fn from(value: ChunkCoord) -> Self {
+        StateValue::Coord2(value.into())
+    }
+}
+
+impl From<IVec2> for StateValue {
+    fn from(value: IVec2) -> Self {
         StateValue::Coord2(value)
     }
 }
@@ -188,11 +293,11 @@ impl From<(i32, i32)> for StateValue {
     }
 }
 
-impl From<Flip> for StateValue {
-    fn from(value: Flip) -> Self {
-        StateValue::Flip(value)
-    }
-}
+// impl From<Flip> for StateValue {
+//     fn from(value: Flip) -> Self {
+//         StateValue::Flip(value)
+//     }
+// }
 
 impl From<Axis> for StateValue {
     fn from(value: Axis) -> Self {
@@ -269,28 +374,28 @@ impl std::fmt::Display for StateValue {
                 write!(f, "Rotation(up={:?}, forward={:?}, angle={})", rotation.up(), rotation.forward(), rotation.angle())
             }
             StateValue::Coord2(coord) => {
-                write!(f, "({}, {})", coord.x, coord.z)
+                write!(f, "({}, {})", coord.x, coord.y)
             }
             StateValue::Coord3(coord) => {
                 write!(f, "({}, {}, {})", coord.x, coord.y, coord.z)
             }
-            &StateValue::Flip(flip) => {
-                write!(f, "Flip::")?;
-                if flip == Flip::NONE {
-                    write!(f, "None")?;
-                } else {
-                    if flip.x() {
-                        write!(f, "X")?;
-                    }
-                    if flip.y() {
-                        write!(f, "Y")?;
-                    }
-                    if flip.z() {
-                        write!(f, "Z")?;
-                    }
-                }
-                Ok(())
-            }
+            // &StateValue::Flip(flip) => {
+            //     write!(f, "Flip::")?;
+            //     if flip == Flip::NONE {
+            //         write!(f, "None")?;
+            //     } else {
+            //         if flip.x() {
+            //             write!(f, "X")?;
+            //         }
+            //         if flip.y() {
+            //             write!(f, "Y")?;
+            //         }
+            //         if flip.z() {
+            //             write!(f, "Z")?;
+            //         }
+            //     }
+            //     Ok(())
+            // }
             &StateValue::Axis(axis) => {
                 write!(f, "Axis::{axis:?}")
             }

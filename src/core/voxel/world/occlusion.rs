@@ -9,7 +9,7 @@ macro_rules! make_face_constants {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Occlusion(u8);
+pub struct Occlusion(pub u8);
 
 impl Occlusion {
     pub const UNOCCLUDED: Self = Occlusion(0);

@@ -9,4 +9,5 @@ pub mod blockdata;
 pub mod update;
 pub mod world;
 pub mod query;
+pub mod io;
 pub use world::*;

@@ -6,6 +6,23 @@ use std::io::{
 
 use crate::core::error::{Error, Result};
 
+#[inline]
+pub fn read_u24<R: Read>(reader: &mut R) -> Result<u32> {
+    let mut buf = [0u8; 4];
+    reader.read_exact(&mut buf[1..4])?;
+    Ok(u32::from_be_bytes(buf))
+}
+
+#[inline]
+pub fn write_u24<W: Write>(writer: &mut W, value: u32) -> Result<u64> {
+    if value > 0xffffff {
+        return Err(Error::U24OutOfRange);
+    }
+    let buf = value.to_be_bytes();
+    writer.write_all(&buf[1..4])?;
+    Ok(3)
+}
+
 pub trait ReadExt {
     fn read_value<T: Readable>(&mut self) -> Result<T>;
 }
@@ -72,6 +89,7 @@ use bevy::math::*;
 use bytemuck::NoUninit;
 use hashbrown::HashMap;
 use rollgrid::{rollgrid2d::Bounds2D, rollgrid3d::Bounds3D};
+use voxel::direction::Cardinal;
 
 use super::*;
 
@@ -267,6 +285,30 @@ impl Writeable for Direction {
     fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
         let mut writer = writer;
         (*self as u8).write_to(writer)
+    }
+}
+
+impl Readable for Cardinal {
+    fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
+        let id = u8::read_from(reader)?;
+        Ok(match id {
+            0 => Cardinal::West,
+            1 => Cardinal::North,
+            2 => Cardinal::East,
+            3 => Cardinal::South,
+            _ => return Err(Error::InvalidBinaryFormat),
+        })
+    }
+}
+
+impl Writeable for Cardinal {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
+        match self {
+            Cardinal::West => 0u8.write_to(writer),
+            Cardinal::North => 1u8.write_to(writer),
+            Cardinal::East => 2u8.write_to(writer),
+            Cardinal::South => 3u8.write_to(writer),
+        }
     }
 }
 
@@ -835,6 +877,36 @@ impl Writeable for Vec<Direction> {
     }
 }
 
+impl Readable for Vec<Cardinal> {
+    fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf[1..4])?;
+        let length = u32::from_be_bytes(buf);
+        let bytes = read_bytes(reader, length as usize/*  / 4 + (length % 4 != 0) as usize */)?;
+        bytes.into_iter().map(|b| {
+            Ok(match b {
+                0 => Cardinal::West,
+                1 => Cardinal::North,
+                2 => Cardinal::East,
+                3 => Cardinal::West,
+                _ => return Err(Error::InvalidBinaryFormat)
+            })
+        }).collect()
+    }
+}
+
+impl Writeable for Vec<Cardinal> {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
+        if self.len() > MAX_LEN {
+            return Err(Error::ArrayTooLong);
+        }
+        let buf = (self.len() as u32).to_be_bytes();
+        writer.write_all(&buf[1..4])?;
+        writer.write_all(bytemuck::cast_slice(self.as_slice()))?;
+        Ok(self.len() as u64 + 3)
+    }
+}
+
 impl Readable for Vec<Rotation> {
     fn read_from<R: Read>(mut reader: &mut R) -> Result<Self> {
         let mut buf = [0u8; 4];
@@ -917,7 +989,7 @@ impl Writeable for hashbrown::HashMap<String, Tag> {
 }
 
 /// Reads an exact number of bytes from a reader, returning them as a [Vec].
-fn read_bytes<R: Read>(reader: &mut R, length: usize) -> Result<Vec<u8>> {
+pub fn read_bytes<R: Read>(reader: &mut R, length: usize) -> Result<Vec<u8>> {
     let mut reader = reader;
     let mut buf: Vec<u8> = vec![0u8; length];
     reader.read_exact(&mut buf)?;
@@ -925,7 +997,7 @@ fn read_bytes<R: Read>(reader: &mut R, length: usize) -> Result<Vec<u8>> {
 }
 
 /// Writes a byte slice to a writer, returning the number of bytes that were written.
-fn write_bytes<W: Write>(writer: &mut W, data: &[u8]) -> Result<usize> {
+pub fn write_bytes<W: Write>(writer: &mut W, data: &[u8]) -> Result<usize> {
     let mut writer = writer;
     Ok(writer.write_all(data).map(|_| data.len())?)
 }

@@ -1,3 +1,5 @@
+use bevy::math::IVec2;
+
 use crate::core::voxel::{coord::Coord, direction::Cardinal};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -111,5 +113,24 @@ impl From<(i32, i32)> for ChunkCoord {
     #[inline]
     fn from(value: (i32, i32)) -> Self {
         ChunkCoord::new(value.0, value.1)
+    }
+}
+
+impl From<ChunkCoord> for IVec2 {
+    #[inline(always)]
+    fn from(value: ChunkCoord) -> Self {
+        IVec2 {
+            x: value.x,
+            y: value.z,
+        }
+    }
+}
+impl From<IVec2> for ChunkCoord {
+    #[inline(always)]
+    fn from(value: IVec2) -> Self {
+        Self {
+            x: value.x,
+            z: value.y
+        }
     }
 }
