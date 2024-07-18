@@ -235,7 +235,7 @@ mod tests {
         let fox = pool.insert("The quick brown fox jumps over the lazy dog.");
         println!("{} -> {}", hello, fox);
         println!("{}", pool.get(hello).is_none());
-        pool.iter().for_each(|s| println!("{}", s));
+        pool.iter().for_each(|(id, s)| println!("{}", s));
 
     }
 }
