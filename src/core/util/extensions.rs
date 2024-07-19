@@ -1,3 +1,7 @@
+use std::ops::Range;
+
+use crate::for_each_int_type;
+
 pub trait SwapVal {
     #[inline(always)]
     fn swap(&mut self, swap: Self) -> Self;
@@ -86,5 +90,41 @@ impl BoolExtension for bool {
         } else {
             _else()
         }
+    }
+}
+
+pub trait NumIter: Sized + Copy {
+    #[inline(always)]
+    fn iter(self) -> Range<Self>;
+    #[inline(always)]
+    fn iter_to(self, end: Self) -> Range<Self>;
+}
+
+macro_rules! num_iter_impls {
+    ($type:ty) => {
+        impl NumIter for $type {
+            #[inline(always)]
+            fn iter(self) -> Range<Self> {
+                0..self
+            }
+
+            #[inline(always)]
+            fn iter_to(self, end: Self) -> Range<Self> {
+                self..end
+            }
+        }
+    };
+}
+
+for_each_int_type!(num_iter_impls);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn num_iter_test() {
+        30i32.iter_to(32).for_each(|i| {
+            println!("{i}");
+        });
     }
 }

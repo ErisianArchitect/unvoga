@@ -66,10 +66,7 @@ impl BlockDataContainer {
         let tag = self.data[index as usize].take().expect("You done goofed");
         self.unused.push(index);
         if self.unused.len() == self.data.len() {
-            self.unused.clear();
-            self.unused.shrink_to_fit();
-            self.data.clear();
-            self.data.shrink_to_fit();
+            self.clear();
         }
         tag
     }
@@ -109,6 +106,14 @@ impl BlockDataContainer {
             data_size + unused_size,
             4096 * std::mem::size_of::<Option<Tag>>() + 4096*2
         )
+    }
+
+    #[inline(always)]
+    pub fn clear(&mut self) {
+        self.data.clear();
+        self.data.shrink_to_fit();
+        self.unused.clear();
+        self.unused.shrink_to_fit();
     }
 }
 

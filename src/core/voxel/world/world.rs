@@ -1,6 +1,7 @@
 use std::{collections::VecDeque, iter::Sum};
 
 use bevy::{asset::Handle, render::mesh::Mesh};
+use hashbrown::HashMap;
 use super::occlusion::Occlusion;
 use super::query::Query;
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
@@ -35,7 +36,6 @@ macro_rules! cast_coord {
 }
 
 /* todo
-Query Engine
 World Edit
 */
 
@@ -45,8 +45,20 @@ pub struct VoxelWorld {
     pub dirty_sections: Vec<Coord>,
     pub chunks: RollGrid2D<Chunk>,
     pub render_chunks: RollGrid3D<RenderChunk>,
+    // I gotta figure out grid positioning for the loaded region files.
+    // I can give it a buffer of 1 region so that there's room for the
+    // world to move around without overflow.
+    // I have an idea that involes rounding up to the next multiple of 32.
+    // (n + 31 - 1) & -32
+    // You'll have to do some hacky stuff to make -32u32.
     // pub regions: RollGrid2D<RegionFile>,
     pub update_queue: BlockUpdateQueue,
+    pub lock_update_queue: bool,
+    /// (Coord, new)
+    pub update_modification_queue: Vec<(Coord, bool)>,
+    /// The value is the index in the update_modification_queue where
+    /// the modification is stored.
+    pub update_modification_map: HashMap<Coord, u32>,
 }
 
 impl VoxelWorld {
@@ -83,6 +95,9 @@ impl VoxelWorld {
                 })
             }),
             update_queue: BlockUpdateQueue::default(),
+            lock_update_queue: false,
+            update_modification_queue: Vec::new(),
+            update_modification_map: HashMap::new(),
         }
     }
 
@@ -525,9 +540,31 @@ impl VoxelWorld {
         }
     }
 
+    #[inline]
+    pub fn enabled<C: Into<(i32, i32, i32)>>(&self, coord: C) -> bool {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        if self.lock_update_queue {
+            if let Some(index) = self.update_modification_map.get(&coord) {
+                return self.update_modification_queue[*index as usize].1;
+            }
+        }
+        !self.get_update_ref(coord).null()
+    }
+
     pub fn set_enabled<C: Into<(i32, i32, i32)>>(&mut self, coord: C, enabled: bool) -> bool {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
+        if self.lock_update_queue {
+            let index = self.update_modification_queue.len() as u32;
+            let current = self.update_modification_map.entry(coord).or_insert(index);
+            if *current == index {
+                self.update_modification_queue.push((coord, enabled));
+                return !self.get_update_ref(coord).null();
+            } else {
+                return self.update_modification_queue[*current as usize].1.swap(enabled);
+            }
+        }
         if !self.bounds().contains(coord) {
             return false;
         }
@@ -579,11 +616,21 @@ impl VoxelWorld {
 
     #[inline(always)]
     pub fn update(&mut self) {
+        if self.lock_update_queue.swap(true) {
+            panic!("World is already updating!");
+        }
+        self.update_modification_queue.clear();
+        self.update_modification_map.clear();
         (0..self.update_queue.update_queue.len()).for_each(|i| {
             let coord = self.update_queue.update_queue[i].0;
             let state = self.get_block(coord);
             state.block().on_update(self, coord, state);
         });
+        (0..self.update_modification_queue.len()).for_each(|i| {
+            let (coord, enabled) = self.update_modification_queue[i];
+            self.set_enabled(coord, enabled);
+        });
+        self.lock_update_queue = false;
     }
 
     pub fn height(&self, x: i32, z: i32) -> i32 {
