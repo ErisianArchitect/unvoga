@@ -12,9 +12,9 @@ use bevy::{
 };
 
 pub mod prelude;
-mod game;
-mod core;
-mod sandbox;
+pub mod game;
+pub mod core;
+pub mod sandbox;
 
 // use bevy::ecs::component::Component;
 use bevy_egui::{EguiContexts, EguiPlugin};

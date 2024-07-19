@@ -1,3 +1,16 @@
+
+/// ```no_run
+/// macro_rules! num_impl {
+///     ($type:ty) => {
+///         // impl here
+///     };
+/// }
+/// for_each_int_type!(num_impl)
+/// // or
+/// for_each_int_type!(num_impl;signed)
+/// // or
+/// for_each_int_type!(num_impl;unsigned)
+/// ```
 #[macro_export]
 macro_rules! for_each_int_type {
     ($macro:path) => {

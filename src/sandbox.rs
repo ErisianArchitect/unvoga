@@ -31,7 +31,12 @@ pub fn sandbox() {
     let dirt = blockstate!(dirt).register();
     let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();
     let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
-
+    let coord = Coord::new(13,12,69).chunk_coord();
+    {
+        let chunk = world.get_chunk((coord.x, coord.z)).unwrap();
+        println!("Edit Time: {}", chunk.edit_time.0);
+    }
+    std::thread::sleep(Duration::from_secs(2));
     itertools::iproduct!(0..2, 0..2).for_each(|(y, x)| {
         world.set_block((x, 0, y), enabled);
     });
@@ -41,10 +46,15 @@ pub fn sandbox() {
     let (state, enabled): (Id, bool) = world.query::<_, (Id, Enabled)>((13,12,69));
     println!("{state} {enabled}");
     println!("Frame 1");
+    {
+        let chunk = world.get_chunk((coord.x, coord.z)).unwrap();
+        println!("Edit Time: {}", chunk.edit_time.0);
+    }
     world.update();
     world.call((13,12,69), "set_enabled", false);
     println!("Frame 2");
     world.update();
+    
 
     println!("Write/Read Test");
     let now = std::time::Instant::now();
@@ -54,6 +64,12 @@ pub fn sandbox() {
     
     let usage = world.dynamic_usage();
     println!("Memory: {usage}");
+}
+
+#[test]
+fn bitmask_test() {
+    let mask = i8::bitmask_range(1..7);
+    println!("{mask:08b}");
 }
 
 fn write_read_test() -> Result<()> {

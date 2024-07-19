@@ -41,11 +41,12 @@ World Edit
 
 pub struct VoxelWorld {
     /// Determines if the render world has been initialized.
-    initialized: bool,
-    dirty_sections: Vec<Coord>,
-    chunks: RollGrid2D<Chunk>,
-    render_chunks: RollGrid3D<RenderChunk>,
-    update_queue: BlockUpdateQueue,
+    pub initialized: bool,
+    pub dirty_sections: Vec<Coord>,
+    pub chunks: RollGrid2D<Chunk>,
+    pub render_chunks: RollGrid3D<RenderChunk>,
+    // pub regions: RollGrid2D<RegionFile>,
+    pub update_queue: BlockUpdateQueue,
 }
 
 impl VoxelWorld {
@@ -119,6 +120,16 @@ impl VoxelWorld {
             return None;
         }
         Some(&mut chunk.sections[y as usize])
+    }
+
+    #[inline(always)]
+    pub fn get_chunk(&self, chunk_coord: (i32, i32)) -> Option<&Chunk> {
+        self.chunks.get(chunk_coord)
+    }
+
+    #[inline(always)]
+    pub fn get_chunk_mut(&mut self, chunk_coord: (i32, i32)) -> Option<&mut Chunk> {
+        self.chunks.get_mut(chunk_coord)
     }
 
     /// Calls a function on a block.
@@ -225,7 +236,6 @@ impl VoxelWorld {
         match change.change {
             StateChange::Unchanged => state,
             StateChange::Changed(old) => {
-
                 let cur_ref = self.get_update_ref(coord);
                 if cur_ref.null() && (matches!(enable, Some(true))
                 || (!matches!(enable, Some(false)) && state.block().enable_on_place(self, coord, state))) {
@@ -699,7 +709,7 @@ impl MemoryUsage {
     }
 }
 
-struct RenderChunk {
+pub struct RenderChunk {
     pub mesh: Handle<Mesh>,
     pub material: Handle<VoxelMaterial>,
 }

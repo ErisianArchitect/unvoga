@@ -84,6 +84,7 @@ pub trait Writeable {
 //     }
 // }
 
+use crate::prelude::{BitSize, SetBit};
 use crate::{core::{math::{bit::{BitFlags128, BitFlags16, BitFlags32, BitFlags64, BitFlags8}, coordmap::Rotation}, voxel::{axis::Axis, direction::Direction, rendering::color::{Rgb, Rgba}, tag::{Array, Byte, NonByte, Tag}}}, for_each_int_type};
 use bevy::math::*;
 use bytemuck::NoUninit;
@@ -91,6 +92,7 @@ use hashbrown::HashMap;
 use rollgrid::{rollgrid2d::Bounds2D, rollgrid3d::Bounds3D};
 use voxel::direction::Cardinal;
 
+use super::math::num::UnsignedNum;
 use super::*;
 
 const MAX_LEN: usize = 0xFFFFFF;
@@ -997,10 +999,15 @@ pub fn read_bytes<R: Read>(reader: &mut R, length: usize) -> Result<Vec<u8>> {
 }
 
 /// Writes a byte slice to a writer, returning the number of bytes that were written.
-pub fn write_bytes<W: Write>(writer: &mut W, data: &[u8]) -> Result<usize> {
+pub fn write_bytes<W: Write>(writer: &mut W, data: &[u8]) -> Result<u64> {
     let mut writer = writer;
-    Ok(writer.write_all(data).map(|_| data.len())?)
+    Ok(writer.write_all(data).map(|_| data.len() as u64)?)
 }
+
+// pub fn read_bits<R: Read, T: SetBit + UnsignedNum + BitSize>(reader: &mut R, bit_width: u32, length: usize) -> Result<Vec<T>> {
+//     todo!()
+//     T::set_bitmask(self, mask, value)
+// }
 
 #[cfg(test)]
 mod tests {

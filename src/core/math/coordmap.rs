@@ -845,21 +845,6 @@ pub fn rotate_face_coord(angle: u8, x: usize, y: usize, size: usize) -> (usize, 
     }
 }
 
-pub struct CoordTranslate(u8);
-
-impl CoordTranslate {
-    #[inline(always)]
-    pub fn translate(self, x: usize, y: usize, size: usize) -> (usize, usize) {
-        match self.0 & 0b11 {
-            0 => (x, y),
-            1 => (size - y - 1, x),
-            2 => todo!(),
-            3 => todo!(),
-            _ => unreachable!()
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use bevy::{asset::io::memory::Dir, math::vec3};

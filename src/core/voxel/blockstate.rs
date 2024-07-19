@@ -178,12 +178,10 @@ impl Writeable for BlockState {
     fn write_to<W: std::io::Write>(&self, writer: &mut W) -> Result<u64> {
         let mut length = self.name.write_to(writer)?;
         length += write_u24(writer, self.sorted_properties.len() as u32)?;
-        self.sorted_properties.iter().try_for_each(|prop| {
+        self.sorted_properties.iter().try_fold(length, |mut length, prop| {
             length += prop.name.write_to(writer)?;
-            length += prop.value.write_to(writer)?;
-            Result::Ok(())
-        });
-        Ok(length)
+            Result::Ok(length + prop.value.write_to(writer)?)
+        })
     }
 }
 

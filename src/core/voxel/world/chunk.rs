@@ -1,6 +1,6 @@
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
+use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, region::timestamp::Timestamp, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
 use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
 use crate::core::error::*;
@@ -10,6 +10,7 @@ pub struct Chunk {
     pub heightmap: Heightmap,
     /// The offset block coordinate.
     pub block_offset: Coord,
+    pub edit_time: Timestamp,
 }
 
 impl Chunk {
@@ -20,7 +21,13 @@ impl Chunk {
             sections: (0..Self::SECTION_COUNT).map(|_| Section::new()).collect(),
             heightmap: Heightmap::new(),
             block_offset: offset,
+            edit_time: Timestamp::utc_now(),
         }
+    }
+
+    #[inline(always)]
+    pub fn mark_modified(&mut self) {
+        self.edit_time = Timestamp::utc_now();
     }
 
     #[inline(always)]
@@ -37,7 +44,11 @@ impl Chunk {
     #[inline(always)]
     pub fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> UpdateRef {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
-        self.sections[section_index].set_update_ref(coord, value)
+        let old = self.sections[section_index].set_update_ref(coord, value);
+        if old != value {
+            self.mark_modified();
+        }
+        old
     }
 
     #[inline(always)]
@@ -61,7 +72,11 @@ impl Chunk {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
         let nonair = value != Id::AIR;
         self.heightmap.set(Coord::new(coord.x, coord.y - self.block_offset.y, coord.z), nonair);
-        self.sections[section_index].set_block(coord, value)
+        let update = self.sections[section_index].set_block(coord, value);
+        if update.change.changed() {
+            self.mark_modified();
+        }
+        update
     }
 
     #[inline(always)]
@@ -79,12 +94,14 @@ impl Chunk {
     #[inline(always)]
     pub fn show_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        // We don't mark the chunk as modified for occlusion updates.
         self.sections[section_index].show_face(coord, face)
     }
 
     #[inline(always)]
     pub fn hide_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        // We don't mark the chunk as modified for occlusion updates.
         self.sections[section_index].hide_face(coord, face)
     }
     
@@ -110,13 +127,21 @@ impl Chunk {
     #[inline(always)]
     pub fn set_block_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
-        self.sections[section_index].set_block_light(coord, level)
+        let update = self.sections[section_index].set_block_light(coord, level);
+        if update.change.changed() {
+            self.mark_modified();
+        }
+        update
     }
 
     #[inline(always)]
     pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
-        self.sections[section_index].set_sky_light(coord, level)
+        let update = self.sections[section_index].set_sky_light(coord, level);
+        if update.change.changed() {
+            self.mark_modified();
+        }
+        update
     }
 
     #[inline(always)]
@@ -146,12 +171,17 @@ impl Chunk {
     #[inline(always)]
     pub fn delete_data(&mut self, coord: Coord) -> Option<Tag> {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
-        self.sections[section_index].delete_data(coord)
+        let data = self.sections[section_index].delete_data(coord);
+        if data.is_some() {
+            self.mark_modified();
+        }
+        data
     }
 
     #[inline(always)]
     pub fn set_data(&mut self, coord: Coord, tag: Tag) -> Option<Tag> {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        self.mark_modified();
         self.sections[section_index].set_data(coord, tag)
     }
 

@@ -3,7 +3,7 @@ use chrono::*;
 use crate::prelude::{Readable, Writeable};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Timestamp(i64);
+pub struct Timestamp(pub i64);
 
 impl Timestamp {
     #[inline(always)]
