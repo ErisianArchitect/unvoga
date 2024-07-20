@@ -24,7 +24,8 @@ Keyboard shortcuts to practice:
 Ctrl+Shift+E                    Show Explorer / Toggle focus
 Ctrl+Shift+F                    Show Search
 Ctrl+Shift+G                    Show Source Control
-Ctrl+Shift+H                    Replace in files
+Ctrl+Shift+H                    Replace Nn Files
+Ctrl+Shift+F                    Find In Files
 Ctrl+K Z                        Zen Mode
 F12                             Goto Definition
 Alt + F12                       Peek Definition

@@ -6,24 +6,24 @@ use crate::prelude::{Readable, Writeable};
 pub struct Timestamp(pub i64);
 
 impl Timestamp {
-    #[inline(always)]
+    
     pub const fn new(timestamp: i64) -> Self {
         Self(timestamp)
     }
 
-    #[inline(always)]
+    
     pub fn utc_now() -> Self {
         Self(Utc::now().timestamp())
     }
 
     /// Gets the UNIX UTC timestamp.
-    #[inline(always)]
+    
     pub const fn timestamp(self) -> i64 {
         self.0
     }
 
     /// Gets the [Utc] [DateTime].
-    #[inline(always)]
+    
     pub fn time(self) -> DateTime<Utc> {
         chrono::DateTime::from_timestamp(self.0, 0).expect("Timestamp was invalid.")
     }

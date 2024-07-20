@@ -10,7 +10,7 @@ pub struct RegionHeader {
 }
 
 impl RegionHeader {
-    #[inline(always)]
+    
     pub fn new() -> Self {
         Self {
             timestamps: TimestampTable::new(),
@@ -18,22 +18,22 @@ impl RegionHeader {
         }
     }
     
-    #[inline(always)]
+    
     pub fn get_timestamp(&self, x: i32, y: i32) -> Timestamp {
         self.timestamps.get(x, y)
     }
 
-    #[inline(always)]
+    
     pub fn set_timestamp<T: Into<Timestamp>>(&mut self, x: i32, y: i32, timestamp: T) -> Timestamp {
         self.timestamps.set(x, y, timestamp.into())
     }
 
-    #[inline(always)]
+    
     pub fn get_offset(&self, x: i32, y: i32) -> SectorOffset {
         self.offsets.get(x, y)
     }
 
-    #[inline(always)]
+    
     pub fn set_offset(&mut self, x: i32, y: i32, offset: SectorOffset) -> SectorOffset {
         self.offsets.set(x, y, offset)
     }

@@ -6,17 +6,17 @@ pub struct UpdateRef(u32);
 impl UpdateRef {
     pub const NULL: Self = Self(0);
 
-    #[inline(always)]
+    
     pub const fn null(self) -> bool {
         self.0 == 0
     }
 
-    #[inline(always)]
+    
     pub const fn enabled(self) -> bool {
         self.0 != 0
     }
 
-    #[inline(always)]
+    
     pub const fn disabled(self) -> bool {
         self.0 == 0
     }
@@ -30,7 +30,7 @@ pub struct BlockUpdateQueue {
 }
 
 impl BlockUpdateQueue {
-    #[inline(always)]
+    
     pub fn push(&mut self, coord: Coord) -> UpdateRef {
         let ref_index = if let Some(ref_index) = self.unused_refs.pop() {
             ref_index
@@ -45,7 +45,7 @@ impl BlockUpdateQueue {
         UpdateRef(ref_index + 1)
     }
 
-    #[inline(always)]
+    
     pub fn remove(&mut self, key: UpdateRef) {
         if key.null() {
             return;
@@ -66,7 +66,7 @@ impl BlockUpdateQueue {
         *fix = ref_index as u32;
     }
 
-    #[inline(always)]
+    
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Coord> {
         self.update_queue.iter().map(|(coord, _)| coord)
     }

@@ -7,7 +7,7 @@ pub struct SectorOffset(u32);
 
 impl SectorOffset {
     pub const MAX_OFFSET: u32 = 0xffffff;
-    #[inline(always)]
+    
     pub const fn new(block_size: BlockSize, offset: u32) -> Self  {
         if offset > Self::MAX_OFFSET {
             panic!("Offset is greater than 0xffffff");
@@ -16,29 +16,29 @@ impl SectorOffset {
     }
 
     /// The size in 4KiB blocks. (multiply by 4096 to get size)
-    #[inline(always)]
+    
     pub const fn block_size(self) -> BlockSize {
         let mask = self.0 & 0xff;
         BlockSize(mask as u8)
     }
 
     /// The offset in 4KiB blocks. (multiply by 4096 to get file offset)
-    #[inline(always)]
+    
     pub const fn block_offset(self) -> u32 {
         self.0 >> 8
     }
 
-    #[inline(always)]
+    
     pub const fn file_offset(self) -> u64 {
         self.block_offset() as u64 * 4096
     }
 
-    #[inline(always)]
+    
     pub const fn file_size(self) -> u64 {
         self.block_size().file_size()
     }
 
-    #[inline(always)]
+    
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
@@ -88,7 +88,7 @@ impl BlockSize {
         /* 6 */ 2017,2081,2145,2209,2273,2337,2401,2465,2529,2593,2657,2721,2785,2849,2913,2977,3041,3105,3169,3233,3297,3361,3425,3489,3553,3617,3681,3745,3809,3873,3937,4001,
         /* 7 */ 4065,4193,4321,4449,4577,4705,4833,4961,5089,5217,5345,5473,5601,5729,5857,5985,6113,6241,6369,6497,6625,6753,6881,7009,7137,7265,7393,7521,7649,7777,7905,8033,
     ];
-    #[inline(always)]
+    
     pub const fn new(multiplier: u8, exponent: u8) -> Self {
         if multiplier > 0b11111 {
             panic!("Multiplier greater than 31.");
@@ -99,23 +99,23 @@ impl BlockSize {
         Self(multiplier | exponent << 5)
     }
 
-    #[inline(always)]
+    
     pub const fn multiplier(self) -> u8 {
         self.0 & 0b11111
     }
 
-    #[inline(always)]
+    
     pub const fn exponent(self) -> u8 {
         self.0 >> 5
     }
 
     /// The 4KiB block count. (multiply this by 4096 to get the size)
-    #[inline(always)]
+    
     pub const fn block_count(self) -> u16 {
         Self::BLOCK_SIZE_TABLE[self.0 as usize]
     }
 
-    #[inline(always)]
+    
     pub const fn file_size(self) -> u64 {
         self.block_count() as u64 * 4096
     }
@@ -157,7 +157,7 @@ impl BlockSize {
     }
 }
     
-#[inline(always)]
+
 pub const fn block_size_notation(block_count: u64, exponent: u32, bit_size: u32) -> u64 {
     let max_block_size = 2u64.pow(bit_size)-1;
     let spacer1 = (2u64.pow(exponent) - 1) * max_block_size;

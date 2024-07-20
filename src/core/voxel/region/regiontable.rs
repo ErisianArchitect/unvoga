@@ -20,26 +20,26 @@ pub struct RegionTable<T: RegionTableItem> {
 }
 
 impl<T: RegionTableItem> RegionTable<T> {
-    #[inline(always)]
+    
     pub fn new() -> Self {
         Self {
             table: (0..1024).map(|_| T::default()).collect(),
         }
     }
 
-    #[inline(always)]
+    
     pub fn get(&self, x: i32, y: i32) -> T {
         let index = index2::<32>(x, y);
         self.table[index]
     }
 
-    #[inline(always)]
+    
     pub fn set(&mut self, x: i32, y: i32, value: T) -> T {
         let index = index2::<32>(x, y);
         self.table[index].swap(value)
     }
 
-    #[inline(always)]
+    
     pub fn iter(&self) -> std::slice::Iter<'_, T> {
         self.table.iter()
     }
@@ -64,14 +64,14 @@ impl<T: RegionTableItem> Readable for RegionTable<T> {
 
 impl<T: RegionTableItem> std::ops::Index<RegionCoord> for RegionTable<T> {
     type Output = T;
-    #[inline(always)]
+    
     fn index(&self, index: RegionCoord) -> &Self::Output {
         &self.table[index.index()]
     }
 }
 
 impl<T: RegionTableItem> std::ops::IndexMut<RegionCoord> for RegionTable<T> {
-    #[inline(always)]
+    
     fn index_mut(&mut self, index: RegionCoord) -> &mut Self::Output {
         &mut self.table[index.index()]
     }

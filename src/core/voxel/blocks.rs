@@ -74,7 +74,7 @@ pub fn register_block<B: Block>(block: B) -> BlockId {
 }
 
 /// If the [BlockState] has already been registered, find the associated [Id].
-#[inline(always)]
+
 #[must_use]
 pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<Id> {
     if init() {
@@ -86,7 +86,7 @@ pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<Id> {
     }
 }
 
-#[inline(always)]
+
 #[must_use]
 pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockId> {
     if init() {
@@ -98,7 +98,7 @@ pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockId> {
     }
 }
 
-#[inline(always)]
+
 #[must_use]
 pub fn get_block_ref(id: Id) -> BlockId {
     unsafe {
@@ -107,7 +107,7 @@ pub fn get_block_ref(id: Id) -> BlockId {
     }
 }
 
-#[inline(always)]
+
 #[must_use]
 pub fn get_state(id: Id) -> &'static BlockState {
     // Id is only issued by the registry, so this doesn't need
@@ -120,7 +120,7 @@ pub fn get_state(id: Id) -> &'static BlockState {
     }
 }
 
-#[inline(always)]
+
 #[must_use]
 pub fn get_block(id: BlockId) -> &'static dyn Block {
     // BlockRef is only issued by the registry, so this doesn't need
@@ -133,7 +133,7 @@ pub fn get_block(id: BlockId) -> &'static dyn Block {
     }
 }
 
-#[inline(always)]
+
 #[must_use]
 pub fn get_block_for(id: Id) -> &'static dyn Block {
     unsafe {
@@ -144,7 +144,7 @@ pub fn get_block_for(id: Id) -> &'static dyn Block {
     }
 }
 
-#[inline(always)]
+
 #[must_use]
 pub fn get_state_and_block(id: Id) -> (&'static BlockState, &'static dyn Block) {
     unsafe {
@@ -166,54 +166,54 @@ pub struct BlockId(u32);
 impl Id {
     pub const AIR: Self = Id(0);
     /// Make sure you don't register any states while this reference is held.
-    #[inline(always)]
+    
     #[must_use]
     pub unsafe fn unsafe_state(self) -> &'static BlockState {
         get_state(self)
     }
 
     /// Make sure you don't register any blocks while this reference is held.
-    #[inline(always)]
+    
     #[must_use]
     pub unsafe fn unsafe_block(self) -> &'static dyn Block {
         get_block_for(self)
     }
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn block(self) -> BlockId {
         get_block_ref(self)
     }
 
     /// Returns true if this block is not air.
-    #[inline(always)]
+    
     pub fn is_non_air(self) -> bool {
         self.0 != 0
     }
 
     /// Don't register anything while these references are held.
-    #[inline(always)]
+    
     #[must_use]
     pub unsafe fn unsafe_state_and_block(self) -> (&'static BlockState, &'static dyn Block) {
         get_state_and_block(self)
     }
 
-    #[inline(always)]
+    
     pub fn id(self) -> u32 {
         self.0
     }
 
-    #[inline(always)]
+    
     pub fn block_id(self) -> u32 {
         get_block_ref(self).id()
     }
 
-    #[inline(always)]
+    
     pub fn is_air(self) -> bool {
         self.0 == 0
     }
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn clone_state(self) -> BlockState {
         (*self).clone()
@@ -234,7 +234,7 @@ impl AsRef<BlockState> for Id {
 
 impl<S: AsRef<str>> Index<S> for Id {
     type Output = StateValue;
-    #[inline(always)]
+    
     fn index(&self, index: S) -> &Self::Output {
         const NULL: StateValue = StateValue::Null;
         self.get_property(index).unwrap_or(&NULL)
@@ -242,12 +242,12 @@ impl<S: AsRef<str>> Index<S> for Id {
 }
 
 impl BlockId {
-    #[inline(always)]
+    
     pub unsafe fn unsafe_block(self) -> &'static dyn Block {
         get_block(self)
     }
 
-    #[inline(always)]
+    
     pub fn id(self) -> u32 {
         self.0
     }
@@ -256,7 +256,7 @@ impl BlockId {
 impl Deref for Id {
     type Target = BlockState;
 
-    #[inline(always)]
+    
     fn deref(&self) -> &Self::Target {
         unsafe {
             let states = STATES.get().expect("Failed to get");
@@ -268,7 +268,7 @@ impl Deref for Id {
 impl Deref for BlockId {
     type Target = dyn Block;
 
-    #[inline(always)]
+    
     fn deref(&self) -> &Self::Target {
         unsafe {
             let blocks = BLOCKS.get().expect("Failed to get");
@@ -278,7 +278,7 @@ impl Deref for BlockId {
 }
 
 impl std::fmt::Display for Id {
-    #[inline(always)]
+    
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.write_fmt(f)
     }
@@ -300,12 +300,12 @@ impl Block for AirBlock {
         self
     }
 
-    #[inline(always)]
+    
     fn light_args(&self, world: &VoxelWorld, coord: Coord, state: Id) -> LightArgs {
         LightArgs::new(1, 0)
     }
 
-    #[inline(always)]
+    
     fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
         &Occluder::EMPTY_FACES
     }

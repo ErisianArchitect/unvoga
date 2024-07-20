@@ -17,7 +17,7 @@ impl SectorManager {
     /// The max size representable by the [BlockSize] type.
     pub const MAX_SECTOR_SIZE: u32 = BlockSize::MAX_BLOCK_COUNT as u32 * 4096;
 
-    #[inline]
+    
     pub fn new() -> Self {
         Self {
             unused: Vec::new(),
@@ -175,7 +175,7 @@ impl SectorManager {
         let mut right = Option::<usize>::None;
         let mut alloc = Option::<usize>::None;
         let mut freed_sector = ManagedSector::from(free);
-        #[inline]
+        
         fn apply_some_cond(opt: &mut Option<usize>, condition: bool, index: usize) -> bool {
             if opt.is_none() && condition {
                 *opt = Some(index);
@@ -286,7 +286,7 @@ impl ManagedSector {
         end: 12288
     };
 
-    #[inline]
+    
     pub const fn new(start: u32, end: u32) -> Self {
         Self {
             start,
@@ -294,17 +294,17 @@ impl ManagedSector {
         }
     }
 
-    #[inline]
+    
     pub fn is_empty(self) -> bool {
         self.start == self.end
     }
 
-    #[inline]
+    
     pub fn not_empty(self) -> bool {
         self.start != self.end
     }
 
-    #[inline]
+    
     pub fn size(self) -> u32 {
         self.end - self.start
     }
@@ -313,7 +313,7 @@ impl ManagedSector {
     /// the size in the process. Returns `None` if there isn't enough
     /// space. This will reduce the size to 0 if that's all the space left.
     /// Does not allow allocation beyond 0x1000000 (2.pow(24))
-    #[inline]
+    
     pub fn allocate(&mut self, size: BlockSize) -> Option<SectorOffset> {
         let block_count = size.block_count();
         let new_start = self.start + block_count as u32;
@@ -326,7 +326,7 @@ impl ManagedSector {
         Some(SectorOffset::new(size, start))
     }
 
-    #[inline]
+    
     pub fn absorb(&mut self, other: Self) {
         if self.end != other.start &&
         self.start != other.end {
@@ -336,7 +336,7 @@ impl ManagedSector {
         self.end = self.end.max(other.end);
     }
 
-    #[inline]
+    
     pub fn split_left(self, sector_count: u32) -> (Self, Self) {
         if sector_count > self.size() {
             panic!("Sector not large enough to accomodate sector count.");
@@ -348,17 +348,17 @@ impl ManagedSector {
         )
     }
 
-    #[inline]
+    
     pub fn file_offset(self) -> u64 {
         self.start as u64 * 4096
     }
 
-    #[inline]
+    
     pub fn file_size(self) -> u64 {
         self.size() as u64 * 4096
     }
 
-    #[inline]
+    
     pub fn gap(self, other: Self) -> Option<u32> {
         if self.end < other.start {
             Some(other.start - self.end)
@@ -389,7 +389,7 @@ impl Ord for ManagedSector {
 }
 
 impl From<SectorOffset> for ManagedSector {
-    #[inline]
+    
     fn from(value: SectorOffset) -> Self {
         let start = value.block_offset();
         let size = value.block_size().block_count() as u32;

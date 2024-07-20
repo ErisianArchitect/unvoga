@@ -24,12 +24,12 @@ impl Occlusion {
     );
     const FLAGS_MASK: u8 = 0b111111;
 
-    #[inline]
+    
     pub fn fully_occluded(self) -> bool {
         self == Self::OCCLUDED
     }
 
-    #[inline]
+    
     pub fn show(&mut self, face: Direction) -> bool {
         let bit = face.bit();
         let old = self.0 & bit == bit;
@@ -37,7 +37,7 @@ impl Occlusion {
         old
     }
 
-    #[inline]
+    
     pub fn hide(&mut self, face: Direction) -> bool {
         let bit = face.bit();
         let old = self.0 & bit == bit;
@@ -45,44 +45,44 @@ impl Occlusion {
         old
     }
 
-    #[inline]
+    
     pub fn visible(self, face: Direction) -> bool {
         let bit = face.bit();
         self.0 & bit != bit
     }
 
-    #[inline]
+    
     pub fn hidden(self, face: Direction) -> bool {
         let bit = face.bit();
         self.0 & bit == bit
     }
 
-    #[inline]
+    
     pub fn neg_x(self) -> bool {
         self.visible(Direction::NegX)
     }
 
-    #[inline]
+    
     pub fn neg_y(self) -> bool {
         self.visible(Direction::NegY)
     }
 
-    #[inline]
+    
     pub fn neg_z(self) -> bool {
         self.visible(Direction::NegZ)
     }
 
-    #[inline]
+    
     pub fn pos_x(self) -> bool {
         self.visible(Direction::PosX)
     }
 
-    #[inline]
+    
     pub fn pos_y(self) -> bool {
         self.visible(Direction::PosY)
     }
 
-    #[inline]
+    
     pub fn pos_z(self) -> bool {
         self.visible(Direction::PosZ)
     }
@@ -90,7 +90,7 @@ impl Occlusion {
 
 impl std::ops::BitOr<Occlusion> for Occlusion {
     type Output = Occlusion;
-    #[inline]
+    
     fn bitor(self, rhs: Occlusion) -> Self::Output {
         Self(self.0 | rhs.0)
     }
@@ -98,7 +98,7 @@ impl std::ops::BitOr<Occlusion> for Occlusion {
 
 impl std::ops::BitAnd<Occlusion> for Occlusion {
     type Output = Occlusion;
-    #[inline]
+    
     fn bitand(self, rhs: Occlusion) -> Self::Output {
         Self(self.0 & rhs.0)
     }
@@ -106,7 +106,7 @@ impl std::ops::BitAnd<Occlusion> for Occlusion {
 
 impl std::ops::Sub<Occlusion> for Occlusion {
     type Output = Occlusion;
-    #[inline]
+    
     fn sub(self, rhs: Occlusion) -> Self::Output {
         Self(self.0 & !rhs.0)
     }

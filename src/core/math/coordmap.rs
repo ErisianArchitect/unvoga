@@ -9,14 +9,14 @@ use crate::core::voxel::direction::Direction;
 pub struct Rotation(pub u8);
 
 impl Rotation {
-    #[inline(always)]
+    
     pub const fn new(up: Direction, angle: i32) -> Self {
         let up = up as u8;
         let rotation = angle.rem_euclid(4) as u8;
         Self(rotation | up << 2)
     }
 
-    #[inline(always)]
+    
     pub const fn from_up_and_forward(up: Direction, forward: Direction) -> Option<Rotation> {
         Some(Rotation::new(up, match up {
             Direction::NegX => match forward {
@@ -70,19 +70,19 @@ impl Rotation {
         }))
     }
 
-    #[inline(always)]
+    
     pub const fn cycle(self, offset: i32) -> Rotation {
         let index = self.0 as i32;
         let new_index = (index as i64 + offset as i64).rem_euclid(24) as u8;
         Rotation(new_index)
     }
 
-    #[inline(always)]
+    
     pub const fn angle(self) -> i32 {
         (self.0 & 0b11) as i32
     }
 
-    #[inline(always)]
+    
     pub const fn up(self) -> Direction {
         let up = self.0 >> 2 & 0b111;
         match up {
@@ -96,7 +96,7 @@ impl Rotation {
         }
     }
 
-    #[inline(always)]
+    
     pub const fn down(self) -> Direction {
         let up = self.0 >> 2 & 0b111;
         match up {
@@ -110,7 +110,7 @@ impl Rotation {
         }
     }
 
-    #[inline(always)]
+    
     pub const fn forward(self) -> Direction {
         use Direction::*;
         match self.up() {
@@ -159,7 +159,7 @@ impl Rotation {
         }
     }
 
-    #[inline(always)]
+    
     pub const fn backward(self) -> Direction {
         // self.forward().invert()
         use Direction::*;
@@ -209,7 +209,7 @@ impl Rotation {
         }
     }
 
-    #[inline(always)]
+    
     pub const fn left(self) -> Direction {
         use Direction::*;
         match self.up() {
@@ -258,7 +258,7 @@ impl Rotation {
         }
     }
 
-    #[inline(always)]
+    
     pub const fn right(self) -> Direction {
         use Direction::*;
         match self.up() {
@@ -308,7 +308,7 @@ impl Rotation {
     }
 
     /// Rotates `coord`.
-    #[inline(always)]
+    
     pub fn rotate(self, coord: Vec3) -> Vec3 {
         match self.up() {
             Direction::NegX => match self.angle() {
@@ -357,7 +357,7 @@ impl Rotation {
     }
 
     /// Rotates direction.
-    #[inline(always)]
+    
     pub fn reface(self, direction: Direction) -> Direction {
         match direction {
             Direction::NegX => self.left(),
@@ -370,7 +370,7 @@ impl Rotation {
     }
 
     /// Tells which [Direction] rotated to `destination`.
-    #[inline(always)]
+    
     pub fn source_face(self, destination: Direction) -> Direction {
         // This code was bootstrap generated. I wrote a naive solution,
         // then generated this code with the naive solution.
@@ -764,17 +764,17 @@ impl Flip {
     pub const ALL: Flip = Flip(7);
     pub const NONE: Flip = Flip(0);
 
-    #[inline(always)]
+    
     pub fn x(self) -> bool {
         self & Flip::X == Flip::X
     }
 
-    #[inline(always)]
+    
     pub fn y(self) -> bool {
         self & Flip::Y == Flip::Y
     }
 
-    #[inline(always)]
+    
     pub fn z(self) -> bool {
         self & Flip::Z == Flip::Z
     }
@@ -783,21 +783,21 @@ impl Flip {
 impl std::ops::BitOr<Flip> for Flip {
     type Output = Self;
     
-    #[inline(always)]
+    
     fn bitor(self, rhs: Flip) -> Self::Output {
         Self(self.0 | rhs.0)
     }
 }
 
 impl std::ops::BitOrAssign<Flip> for Flip {
-    #[inline(always)]
+    
     fn bitor_assign(&mut self, rhs: Flip) {
         *self = *self | rhs;
     }
 }
 
 impl std::ops::BitAndAssign<Flip> for Flip {
-    #[inline(always)]
+    
     fn bitand_assign(&mut self, rhs: Flip) {
         *self = *self & rhs;
     }
@@ -805,7 +805,7 @@ impl std::ops::BitAndAssign<Flip> for Flip {
 
 impl std::ops::Add<Flip> for Flip {
     type Output = Flip;
-    #[inline(always)]
+    
     fn add(self, rhs: Flip) -> Self::Output {
         self | rhs
     }
@@ -813,7 +813,7 @@ impl std::ops::Add<Flip> for Flip {
 
 impl std::ops::Sub<Flip> for Flip {
     type Output = Flip;
-    #[inline(always)]
+    
     fn sub(self, rhs: Flip) -> Self::Output {
         self & !rhs
     }
@@ -821,7 +821,7 @@ impl std::ops::Sub<Flip> for Flip {
 
 impl std::ops::BitAnd<Flip> for Flip {
     type Output = Self;
-    #[inline(always)]
+    
     fn bitand(self, rhs: Flip) -> Self::Output {
         Self(self.0 & rhs.0)
     }
@@ -829,7 +829,7 @@ impl std::ops::BitAnd<Flip> for Flip {
 
 impl std::ops::Not for Flip {
     type Output = Self;
-    #[inline(always)]
+    
     fn not(self) -> Self::Output {
         Self(!self.0 & 0b111)
     }

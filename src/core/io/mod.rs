@@ -6,14 +6,14 @@ use std::io::{
 
 use crate::core::error::{Error, Result};
 
-#[inline]
+
 pub fn read_u24<R: Read>(reader: &mut R) -> Result<u32> {
     let mut buf = [0u8; 4];
     reader.read_exact(&mut buf[1..4])?;
     Ok(u32::from_be_bytes(buf))
 }
 
-#[inline]
+
 pub fn write_u24<W: Write>(writer: &mut W, value: u32) -> Result<u64> {
     if value > 0xffffff {
         return Err(Error::U24OutOfRange);

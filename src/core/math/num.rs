@@ -146,112 +146,112 @@ macro_rules! num_impls {
         }
 
         impl Add for $type {
-            #[inline(always)]
+            
             fn add(self, rhs: Self) -> Self {
                 self + rhs
             }
         }
 
         impl Sub for $type {
-            #[inline(always)]
+            
             fn sub(self, rhs: Self) -> Self {
                 self - rhs
             }
         }
 
         impl Mul for $type {
-            #[inline(always)]
+            
             fn mul(self, rhs: Self) -> Self {
                 self * rhs
             }
         }
 
         impl Div for $type {
-            #[inline(always)]
+            
             fn div(self, rhs: Self) -> Self {
                 self / rhs
             }
         }
 
         impl Not for $type {
-            #[inline(always)]
+            
             fn not(self) -> Self {
                 !self
             }
         }
 
         impl Rem for $type {
-            #[inline(always)]
+            
             fn rem(self, rhs: Self) -> Self {
                 self % rhs
             }
         }
 
         impl RemEuclid for $type {
-            #[inline(always)]
+            
             fn rem_euclid(self, rhs: Self) -> Self {
                 <$type>::rem_euclid(self, rhs)
             }
         }
 
         impl LeadingZeros for $type {
-            #[inline(always)]
+            
             fn leading_zeros(self) -> u32 {
                 <$type>::leading_zeros(self)
             }
         }
 
         impl TrailingZeros for $type {
-            #[inline(always)]
+            
             fn trailing_zeros(self) -> u32 {
                 <$type>::trailing_zeros(self)
             }
         }
 
         impl LeadingOnes for $type {
-            #[inline(always)]
+            
             fn leading_ones(self) -> u32 {
                 <$type>::leading_ones(self)
             }
         }
 
         impl TrailingOnes for $type {
-            #[inline(always)]
+            
             fn trailing_ones(self) -> u32 {
                 <$type>::trailing_ones(self)
             }
         }
 
         impl Shl for $type {
-            #[inline(always)]
+            
             fn shl(self, rhs: Self) -> Self {
                 self << rhs
             }
         }
 
         impl Shr for $type {
-            #[inline(always)]
+            
             fn shr(self, rhs: Self) -> Self {
                 self >> rhs
             }
         }
 
         impl BitAnd for $type {
-            #[inline(always)]
+            
             fn bitand(self, rhs: Self) -> Self {
                 self & rhs
             }
         }
 
         impl BitOr for $type {
-            #[inline(always)]
+            
             fn bitor(self, rhs: Self) -> Self {
                 self | rhs
             }
         }
 
         impl BitXor for $type {
-            #[inline(always)]
+            
             fn bitxor(self, rhs: Self) -> Self {
                 self ^ rhs
             }
@@ -271,7 +271,7 @@ macro_rules! neg_impls {
         }
 
         impl Neg for $type {
-            #[inline(always)]
+            
             fn neg(self) -> Self {
                 -self
             }

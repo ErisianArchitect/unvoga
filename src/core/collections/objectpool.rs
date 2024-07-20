@@ -15,7 +15,7 @@ pub struct ObjectPool<T, M: Copy = &'static T> {
 }
 
 impl<T,M: Copy> ObjectPool<T,M> {
-    #[inline]
+    
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -27,7 +27,7 @@ impl<T,M: Copy> ObjectPool<T,M> {
     }
 
     #[must_use]
-    #[inline(always)]
+    
     fn next_id() -> u64 {
         static mut ID: AtomicU64 = AtomicU64::new(0);
         unsafe {
@@ -72,17 +72,17 @@ impl<T,M: Copy> ObjectPool<T,M> {
         self.unused.push(id);
     }
 
-    #[inline]
+    
     pub fn len(&self) -> usize {
         self.pool.len()
     }
 
-    #[inline]
+    
     pub fn id(&self) -> u64 {
         self.id
     }
 
-    #[inline]
+    
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -93,7 +93,7 @@ impl<T,M: Copy> ObjectPool<T,M> {
         }
     }
 
-    #[inline]
+    
     #[must_use]
     pub fn get(&self, id: PoolId<M>) -> Option<&T> {
         if id.null() || id.pool_id() != self.id {
@@ -106,7 +106,7 @@ impl<T,M: Copy> ObjectPool<T,M> {
         Some(&self.pool[pool_index].1)
     }
 
-    #[inline]
+    
     #[must_use]
     pub fn get_mut(&mut self, id: PoolId<M>) -> Option<&mut T> {
         if id.null() || id.pool_id() != self.id {
@@ -119,19 +119,19 @@ impl<T,M: Copy> ObjectPool<T,M> {
         Some(&mut self.pool[pool_index].1)
     }
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn reconstruct_id(&self, index: usize, generation: u64) -> PoolId<M> {
         PoolId::new(self.id, index, generation)
     }
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn iter(&self) -> impl Iterator<Item = (PoolId<M>, &T)> {
         self.pool.iter().map(|(id, item)| (*id, item))
     }
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (PoolId<M>, &mut T)> {
         self.pool.iter_mut().map(|(id, item)| (*id, item))
@@ -155,12 +155,12 @@ pub struct ObjectPoolIterator<T,M: Copy> {
 
 impl<T,M: Copy> Iterator for ObjectPoolIterator<T,M> {
     type Item = T;
-    #[inline(always)]
+    
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.iter.size_hint()
     }
 
-    #[inline(always)]
+    
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|(_, value)| value)
     }
@@ -201,13 +201,13 @@ impl<M: Copy> PoolId<M> {
     const          POOL_ID_MAX: u64 = Self::POOL_ID_BITS >> Self::POOL_ID_OFFSET;
     pub const NULL: Self = Self(0, PhantomData);
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn null(self) -> bool {
         self.0 == 0
     }
 
-    #[inline(always)]
+    
     #[must_use]
     fn new(pool_id: u64, index: usize, generation: u64) -> Self {
         let index = index as u64 + 1;
@@ -223,32 +223,32 @@ impl<M: Copy> PoolId<M> {
         Self(index | pool_id << Self::POOL_ID_OFFSET | generation << Self::GENERATION_ID_OFFSET, PhantomData)
     }
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn id(self) -> u64 {
         self.0
     }
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn index(self) -> usize {
         ((self.0 & Self::INDEX_BITS) as usize) - 1
     }
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn generation(self) -> u64 {
         self.0 >> Self::GENERATION_ID_OFFSET
     }
 
-    #[inline(always)]
+    
     #[must_use]
     pub fn pool_id(self) -> u64 {
         self.0 >> Self::POOL_ID_OFFSET & Self::POOL_ID_MAX
     }
 
     /// Increment Generation
-    #[inline(always)]
+    
     #[must_use]
     fn increment_generation(self) -> Self {
         let pool_id = self.pool_id();

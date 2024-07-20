@@ -51,7 +51,7 @@ pub struct RollingGrid<const W: usize, const H: usize, T> {
 /// `itertools::iproduct!(2..4, 0..2).map(iprod_swap).for_each(|(x, y)| ())`
 /// It would have been easier to read the code to see what it does, but
 /// then you wouldn't have known what it was for.
-#[inline(always)]
+
 fn iproduct_rev<T>(input: (T, T)) -> (T, T) {
     (input.1, input.0)
 }
@@ -693,7 +693,7 @@ impl<const W: usize, const H: usize, T> RollingGrid<W,H,T> {
     /// ```
     /// Where the return value of `reload` is the new value for that slot.
     pub fn reposition<F: FnMut((i64, i64), (i64, i64), Option<T>) -> Option<T>>(&mut self, position: (i64, i64), reload: F) {
-        // #[inline(always)]
+        // 
         // fn offset_value(value: i64, offset: i64, wrap: i64) -> i64 {
         //     (value + offset).rem_euclid(wrap)
         // }

@@ -29,7 +29,7 @@ impl Occluder {
         OcclusionShape::Full
     );
 
-    #[inline(always)]
+    
     pub const fn new(
         neg_x: OcclusionShape, neg_y: OcclusionShape, neg_z: OcclusionShape,
         pos_x: OcclusionShape, pos_y: OcclusionShape, pos_z: OcclusionShape
@@ -40,7 +40,7 @@ impl Occluder {
         }
     }
     
-    #[inline(always)]
+    
     pub fn face(&self, face: Direction) -> &OcclusionShape {
         match face {
             Direction::NegX => &self.neg_x,
@@ -52,7 +52,7 @@ impl Occluder {
         }
     }
 
-    #[inline(always)]
+    
     pub fn face_mut(&mut self, face: Direction) -> &mut OcclusionShape {
         match face {
             Direction::NegX => &mut self.neg_x,
@@ -64,7 +64,7 @@ impl Occluder {
         }
     }
 
-    #[inline(always)]
+    
     pub fn iter(&self) -> impl Iterator<Item = (Direction, &OcclusionShape)> {
         use Direction::*;
         [
@@ -77,7 +77,7 @@ impl Occluder {
         ].into_iter()
     }
 
-    #[inline(always)]
+    
     pub fn occluded_by(&self, rotation: Rotation, face: Direction, other: &Occluder, other_rotation: Rotation) -> bool {
         let other_face = face.invert();
         let face_angle = rotation.face_angle(face);

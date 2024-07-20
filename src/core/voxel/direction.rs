@@ -113,7 +113,7 @@ impl Direction {
 
 impl std::ops::Neg for Cardinal {
     type Output = Self;
-    #[inline]
+    
     fn neg(self) -> Self::Output {
         self.invert()
     }
@@ -121,7 +121,7 @@ impl std::ops::Neg for Cardinal {
 
 impl std::ops::Neg for Direction {
     type Output = Self;
-    #[inline]
+    
     fn neg(self) -> Self::Output {
         self.invert()
     }

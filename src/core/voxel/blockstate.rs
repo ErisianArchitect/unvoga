@@ -38,7 +38,7 @@ pub enum StateValue {
 }
 
 impl StateValue {
-    #[inline(always)]
+    
     pub fn id(&self) -> u8 {
         match self {
             StateValue::Null => 0,

@@ -27,7 +27,7 @@ pub struct Enabled(pub bool);
 
 impl<'a> Query<'a> for Id {
     type Output = Id;
-    #[inline(always)]
+    
     fn read(section: &'a Section, index: usize) -> Self::Output {
         if let Some(blocks) = &section.blocks {
             blocks[index]
@@ -35,7 +35,7 @@ impl<'a> Query<'a> for Id {
             Id::AIR
         }
     }
-    #[inline(always)]
+    
     fn default() -> Self::Output {
         Id::AIR
     }
@@ -43,7 +43,7 @@ impl<'a> Query<'a> for Id {
 
 impl<'a> Query<'a> for Occlusion {
     type Output = Occlusion;
-    #[inline(always)]
+    
     fn read(section: &'a Section, index: usize) -> Self::Output {
         if let Some(occlusion) = &section.occlusion {
             occlusion[index]
@@ -51,7 +51,7 @@ impl<'a> Query<'a> for Occlusion {
             Occlusion::UNOCCLUDED
         }
     }
-    #[inline(always)]
+    
     fn default() -> Self::Output {
         Occlusion::UNOCCLUDED
     }
@@ -59,7 +59,7 @@ impl<'a> Query<'a> for Occlusion {
 
 impl<'a> Query<'a> for BlockLight {
     type Output = u8;
-    #[inline(always)]
+    
     fn read(section: &'a Section, index: usize) -> Self::Output {
         if let Some(light) = &section.block_light {
             light[index]
@@ -67,7 +67,7 @@ impl<'a> Query<'a> for BlockLight {
             0
         }
     }
-    #[inline(always)]
+    
     fn default() -> Self::Output {
         0
     }
@@ -75,7 +75,7 @@ impl<'a> Query<'a> for BlockLight {
 
 impl<'a> Query<'a> for SkyLight {
     type Output = u8;
-    #[inline(always)]
+    
     fn read(section: &'a Section, index: usize) -> Self::Output {
         if let Some(light) = &section.sky_light {
             light[index]
@@ -83,7 +83,7 @@ impl<'a> Query<'a> for SkyLight {
             0
         }
     }
-    #[inline(always)]
+    
     fn default() -> Self::Output {
         0
     }
@@ -91,7 +91,7 @@ impl<'a> Query<'a> for SkyLight {
 
 impl<'a> Query<'a> for Tag {
     type Output = Option<&'a Tag>;
-    #[inline(always)]
+    
     fn read(section: &'a Section, index: usize) -> Self::Output {
         if let Some(data) = &section.block_data_refs {
             let dataref = data[index];
@@ -100,7 +100,7 @@ impl<'a> Query<'a> for Tag {
             None
         }
     }
-    #[inline(always)]
+    
     fn default() -> Self::Output {
         None
     }
@@ -108,7 +108,7 @@ impl<'a> Query<'a> for Tag {
 
 impl<'a> Query<'a> for Enabled {
     type Output = bool;
-    #[inline(always)]
+    
     fn read(section: &'a Section, index: usize) -> Self::Output {
         if let Some(refs) = &section.update_refs {
             refs[index].enabled()
@@ -116,7 +116,7 @@ impl<'a> Query<'a> for Enabled {
             false
         }
     }
-    #[inline(always)]
+    
     fn default() -> Self::Output {
         false
     }
@@ -127,7 +127,7 @@ macro_rules! tuple_query {
     ($($terms:ident),+) => {
         impl<'a, $($terms: Query<'a>,)+> Query<'a> for ($($terms,)+) {
             type Output = ($($terms::Output,)+);
-            #[inline(always)]
+            
             fn read(section: &'a Section, index: usize) -> Self::Output {
                 (
                     $(
@@ -135,7 +135,7 @@ macro_rules! tuple_query {
                     )+
                 )
             }
-            #[inline(always)]
+            
             fn default() -> Self::Output {
                 (
                     $(

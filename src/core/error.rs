@@ -28,6 +28,8 @@ pub enum Error {
     Temporary,
     #[error("u24 was out of range")]
     U24OutOfRange,
+    #[error("Custom Error: {0}")]
+    Custom(&'static str),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

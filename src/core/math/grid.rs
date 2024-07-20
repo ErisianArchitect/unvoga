@@ -2,7 +2,7 @@ use rollgrid::rollgrid3d::Bounds3D;
 
 use crate::core::voxel::coord::Coord;
 
-#[inline]
+
 pub const fn snap(value: i32, snap: i32, offset: i32) -> i32 {
     let snap = snap.abs();
     let snap_offset = offset.rem_euclid(snap);
@@ -10,6 +10,7 @@ pub const fn snap(value: i32, snap: i32, offset: i32) -> i32 {
     value - cutoff
 }
 
+/// Given a radius in chunks, gets the min position of those bounds given the center poisition. (within optional bounds)
 pub fn calculate_center_offset(chunk_radius: i32, center: Coord, bounds: Option<Bounds3D>) -> Coord {
     let offset = center - Coord::splat(8);
     let radius_offset = (chunk_radius - 1) * 16;
@@ -36,18 +37,18 @@ pub fn calculate_center_offset(chunk_radius: i32, center: Coord, bounds: Option<
     Coord::new(x, y, z)
 }
 
-#[inline(always)]
+
 pub fn round_up_to_multiple_of_32(value: i32) -> i32 {
     (value + 31) & -32
 }
 
-#[inline(always)]
+
 pub fn round_down_to_multiple_of_32(value: i32) -> i32 {
     value & -32
 }
 
 /// chunk_width is the width in chunks, that is, the number of chunks wide.
-#[inline(always)]
+
 pub fn calculate_region_requirement(chunk_width: i32) -> i32 {
     let rd32 = round_up_to_multiple_of_32(chunk_width);
     let rdw = rd32 / 32;
@@ -55,7 +56,7 @@ pub fn calculate_region_requirement(chunk_width: i32) -> i32 {
 }
 
 /// world_chunk_min is the chunk coordinate of the world minimum bound.
-#[inline(always)]
+
 pub fn calculate_region_min(world_chunk_min: (i32, i32)) -> (i32, i32) {
     (
         round_down_to_multiple_of_32(world_chunk_min.0) / 32,

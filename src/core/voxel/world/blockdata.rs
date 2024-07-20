@@ -19,7 +19,7 @@ pub struct BlockDataRef(u16);
 impl BlockDataRef {
     pub const NULL: BlockDataRef = BlockDataRef(0);
     /// Checks to see if this is the NULL value (0).
-    #[inline(always)]
+    
     pub const fn null(self) -> bool {
         self.0 == 0
     }
@@ -32,7 +32,7 @@ pub struct BlockDataContainer {
 }
 
 impl BlockDataContainer {
-    #[inline(always)]
+    
     pub fn new() -> Self {
         Self {
             data: Vec::new(),
@@ -41,7 +41,7 @@ impl BlockDataContainer {
     }
 
     /// Insert new data returning the reference to the slot.
-    #[inline(always)]
+    
     pub fn insert<T: Into<Tag>>(&mut self, tag: T) -> BlockDataRef {
         if let Some(index) = self.unused.pop() {
             self.data[index as usize] = Some(tag.into());
@@ -57,7 +57,7 @@ impl BlockDataContainer {
     }
 
     /// Delete data from the container, returning the data that was deleted.
-    #[inline(always)]
+    
     pub fn delete(&mut self, dataref: BlockDataRef) -> Tag {
         if dataref.null() {
             return Tag::Null;
@@ -72,7 +72,7 @@ impl BlockDataContainer {
     }
 
     /// Get a reference to the [Tag] data.
-    #[inline(always)]
+    
     pub fn get(&self, dataref: BlockDataRef) -> Option<&Tag> {
         if dataref.null() {
             return None;
@@ -85,7 +85,7 @@ impl BlockDataContainer {
     }
 
     /// Get a mutable reference to the [Tag] data.
-    #[inline(always)]
+    
     pub fn get_mut(&mut self, dataref: BlockDataRef) -> Option<&mut Tag> {
         if dataref.null() {
             return None;
@@ -98,7 +98,7 @@ impl BlockDataContainer {
     }
 
     /// Gets the dynamic memory usage.
-    #[inline(always)]
+    
     pub fn dynamic_usage(&self) -> MemoryUsage {
         let data_size = self.data.capacity() * std::mem::size_of::<Option<Tag>>();
         let unused_size = self.unused.capacity() * 2;
@@ -108,7 +108,7 @@ impl BlockDataContainer {
         )
     }
 
-    #[inline(always)]
+    
     pub fn clear(&mut self) {
         self.data.clear();
         self.data.shrink_to_fit();

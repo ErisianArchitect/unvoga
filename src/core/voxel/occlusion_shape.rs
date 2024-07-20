@@ -16,7 +16,7 @@ use super::faces::Faces;
 pub struct OcclusionShape16x16([u16; 16]);
 
 impl OcclusionShape16x16 {
-    #[inline(always)]
+    
     pub const fn new(masks: [u16; 16]) -> Self {
         Self(masks)
     }
@@ -284,13 +284,13 @@ impl OcclusionShape16x16 {
         Self(masks)
     }
 
-    #[inline(always)]
+    
     pub fn get(&self, x: usize, y: usize) -> bool {
         let sub = self.0[y];
         sub & (1 << x) != 0
     }
 
-    #[inline(always)]
+    
     pub fn set(&mut self, x: usize, y: usize, value: bool) -> bool {
         let sub = self.0[y];
         self.0[y] = if value {
@@ -306,7 +306,7 @@ impl OcclusionShape16x16 {
 pub struct OcclusionShape8x8(u64);
 
 impl OcclusionShape8x8 {
-    #[inline(always)]
+    
     pub const fn new(mask: u64) -> Self {
         Self(mask)
     }
@@ -401,7 +401,7 @@ impl OcclusionShape8x8 {
 pub struct OcclusionShape4x4(u16);
 
 impl OcclusionShape4x4 {
-    #[inline(always)]
+    
     pub const fn new(mask: u16) -> Self {
         Self(mask)
     }
@@ -448,12 +448,12 @@ impl OcclusionShape4x4 {
 pub struct OcclusionShape2x2(u8);
 
 impl OcclusionShape2x2 {
-    #[inline(always)]
+    
     pub const fn new(mask: u8) -> Self {
         Self(mask)
     }
 
-    #[inline(always)]
+    
     pub const fn from_matrix(matrix: [[u8; 2]; 2]) -> Self {
         let mut mask = 0u8;
         mask |= ((matrix[0][0] != 0) as u8) << 0;
@@ -551,7 +551,7 @@ impl OcclusionRect {
         }
     }
 
-    #[inline(always)]
+    
     pub fn rotate(self, angle: u8) -> Self {
         let (x1, y1) = rotate_face_coord(angle, self.left as usize, self.top as usize, 16);
         let (x2, y2) = rotate_face_coord(angle, self.right as usize, self.bottom as usize, 16);
@@ -596,17 +596,17 @@ impl OcclusionShape {
         OcclusionShape::Empty,
     );
 
-    #[inline(always)]
+    
     pub fn is_empty(&self) -> bool {
         matches!(self, OcclusionShape::Empty)
     }
 
-    #[inline(always)]
+    
     pub fn is_full(&self) -> bool {
         matches!(self, OcclusionShape::Full)
     }
 
-    #[inline(always)]
+    
     pub fn fully_occluded(&self) -> bool {
         self.is_full() || {
             match self {
@@ -621,7 +621,7 @@ impl OcclusionShape {
         }
     }
 
-    #[inline(always)]
+    
     pub fn occludes(&self) -> bool {
         match self {
             OcclusionShape::S16x16(shape) => shape.0.iter().find(|&&sub| sub != 0).is_some(),

@@ -1,5 +1,6 @@
 use std::{borrow::Borrow, fs::File, io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Take, Write}, path::{Path, PathBuf}};
 
+use bevy::asset::io::file;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use crate::{core::{error::*, voxel::region::sectoroffset::SectorOffset}, prelude::{write_zeros, Readable, WriteExt, Writeable}};
 use super::{header::RegionHeader, regioncoord::RegionCoord, sectormanager::SectorManager, sectoroffset::BlockSize, timestamp::Timestamp};
@@ -11,6 +12,73 @@ pub struct RegionFile {
     write_buffer: Cursor<Vec<u8>>,
     header: RegionHeader,
     path: PathBuf,
+}
+
+enum MaybeOpen {
+    Opened(File),
+    Open(PathBuf),
+    Create(PathBuf),
+    CreateNew(PathBuf),
+    OpenOrCreate(PathBuf),
+}
+
+impl MaybeOpen {
+    pub fn open<P: AsRef<Path>>(path: P) -> Self {
+        Self::Open(path.as_ref().to_owned())
+    }
+
+    pub fn create<P: AsRef<Path>>(path: P) -> Self {
+        Self::Create(path.as_ref().to_owned())
+    }
+
+    pub fn create_new<P: AsRef<Path>>(path: P) -> Self {
+        Self::CreateNew(path.as_ref().to_owned())
+    }
+
+    pub fn open_or_create<P: AsRef<Path>>(path: P) -> Self {
+        Self::OpenOrCreate(path.as_ref().to_owned())
+    }
+
+    /// Gets the file or maybe opens it.
+    pub fn maybe_open(&mut self) -> Result<&mut File> {
+        let file = match self {
+            MaybeOpen::Opened(file) => return Ok(file),
+            MaybeOpen::Open(path) => {
+                File::options()
+                    .read(true).write(true)
+                    .open(path)?
+            },
+            MaybeOpen::Create(path) => {
+                File::options()
+                    .read(true).write(true)
+                    .create(true)
+                    .open(path)?
+            },
+            MaybeOpen::CreateNew(path) => {
+                File::options()
+                    .read(true).write(true)
+                    .create_new(true)
+                    .open(path)?
+            },
+            MaybeOpen::OpenOrCreate(path) => {
+                if path.exists() {
+                    File::options()
+                        .read(true).write(true)
+                        .open(path)?
+                } else {
+                    File::options()
+                        .read(true).write(true)
+                        .create_new(true)
+                        .open(path)?
+                }
+            },
+        };
+        *self = MaybeOpen::Opened(file);
+        let MaybeOpen::Opened(file) = self else {
+            unreachable!()
+        };
+        Ok(file)
+    }
 }
 
 impl RegionFile {
@@ -109,7 +177,6 @@ impl RegionFile {
     }
 
     pub fn read_value<C: Into<RegionCoord>, T: Readable>(&mut self, coord: C) -> Result<T> {
-        #[inline(always)]
         fn read_inner<'a, T: Readable>(mut reader: &mut GzDecoder<Take<BufReader<&'a mut File>>>) -> Result<T> {
             T::read_from(reader)
         }
@@ -183,12 +250,12 @@ impl RegionFile {
     }
 } 
 
-#[inline(always)]
+
 fn pad_size(length: u64) -> u64 {
     4096 - (length & 4095) & 4095
 }
 
-#[inline(always)]
+
 fn padded_size(length: u64) -> u64 {
     const INEG4096: i64 = -4096;
     const NEG4096: u64 = INEG4096 as u64;

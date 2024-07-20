@@ -63,6 +63,7 @@ pub struct VoxelWorld {
     /// the modification is stored.
     pub update_modification_map: HashMap<Coord, u32>,
     pub world_directory: PathBuf,
+    render_distance: i32,
 }
 
 impl VoxelWorld {
@@ -100,18 +101,11 @@ impl VoxelWorld {
         });
         Self {
             initialized: false,
+            render_distance: render_distance as i32,
             world_directory: directory.to_owned(),
             dirty_sections: Vec::new(),
             chunks: RollGrid2D::new_with_init(pad_size, pad_size, (chunk_x, chunk_z), |(x, z): (i32, i32)| {
-                let mut chunk = Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16));
-                // let rx = x >> 5;
-                // let rz = z >> 5;
-                // if let Some(region) = regions.get_mut((rx, rz)) {
-                //     region.read((x, z), |reader| {
-                //         chunk.read_from(reader, world)
-                //     });
-                // }
-                Some(chunk)
+                Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
             }),
             render_chunks: RollGrid3D::new_with_init(render_size, render_size.min(WORLD_HEIGHT / 16), render_size, (render_x, render_y, render_z), |pos: Coord| {
                 Some(RenderChunk {
@@ -125,6 +119,20 @@ impl VoxelWorld {
             update_modification_queue: Vec::new(),
             update_modification_map: HashMap::new(),
         }.initial_load()
+    }
+
+    pub fn move_center<C: Into<(i32, i32, i32)>>(&mut self, center: C) {
+        let center: (i32, i32, i32) = center.into();
+        let center: Coord = center.into();
+        let padded_distance = self.render_distance + WORLD_SIZE_PAD as i32;
+        let padded_size = padded_distance * 2;
+        let (chunk_x, chunk_z) = calculate_center_offset(padded_distance, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
+        let region_min = calculate_region_min((chunk_x, chunk_z));
+        let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
+        // TODO: Figure out a better system than this.
+        // I need to save the chunks that are being unloaded before the world moves
+        // because I can't have the region world in two places at once.
+        self.save_world()
     }
 
     pub fn save_world(&mut self) {
@@ -142,7 +150,7 @@ impl VoxelWorld {
         });
     }
 
-    #[inline(always)]
+    
     fn initial_load(mut self) -> Self {
         self.chunks.bounds().iter().for_each(|(chunk_x, chunk_z)| {
             let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
@@ -169,7 +177,7 @@ impl VoxelWorld {
         self
     }
 
-    #[inline(always)]
+    
     pub fn offset(&self) -> Coord {
         let grid_offset = self.chunks.offset();
         Coord::new(
@@ -179,7 +187,7 @@ impl VoxelWorld {
         )
     }
 
-    #[inline(always)]
+    
     fn get_section(&self, section_coord: Coord) -> Option<&Section> {
         if section_coord.y < 0 {
             return None;
@@ -192,7 +200,7 @@ impl VoxelWorld {
         Some(&chunk.sections[y as usize])
     }
 
-    #[inline(always)]
+    
     fn get_section_mut(&mut self, section_coord: Coord) -> Option<&mut Section> {
         if section_coord.y < 0 {
             return None;
@@ -205,12 +213,12 @@ impl VoxelWorld {
         Some(&mut chunk.sections[y as usize])
     }
 
-    #[inline(always)]
+    
     pub fn get_chunk(&self, chunk_coord: (i32, i32)) -> Option<&Chunk> {
         self.chunks.get(chunk_coord)
     }
 
-    #[inline(always)]
+    
     pub fn get_chunk_mut(&mut self, chunk_coord: (i32, i32)) -> Option<&mut Chunk> {
         self.chunks.get_mut(chunk_coord)
     }
@@ -608,7 +616,7 @@ impl VoxelWorld {
         }
     }
 
-    #[inline]
+    
     pub fn enabled<C: Into<(i32, i32, i32)>>(&self, coord: C) -> bool {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
@@ -670,19 +678,16 @@ impl VoxelWorld {
     }
 
     /// Enable a block, adding it to the update queue.
-    #[inline(always)]
     pub fn enable<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
         self.set_enabled(coord, true);
     }
 
 
     /// Disable a block, removing it from the update queue if it's in the update queue.
-    #[inline(always)]
     pub fn disable<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
         self.set_enabled(coord, false);
     }
 
-    #[inline(always)]
     pub fn update(&mut self) {
         if self.lock_update_queue.swap(true) {
             panic!("World is already updating!");
@@ -839,7 +844,6 @@ pub struct PlaceContext {
 }
 
 impl PlaceContext {
-    #[inline(always)]
     pub fn new(coord: Coord, replacement: Id, old: Id) -> Self {
         Self {
             coord,
@@ -851,54 +855,44 @@ impl PlaceContext {
         }
     }
 
-    #[inline(always)]
     pub fn replace(&mut self, state: Id) {
         self.replacement = state;
         self.changed = true;
     }
 
-    #[inline(always)]
     pub fn set_data<T: Into<Tag>>(&mut self, data: T) {
         self.data = Some(data.into());
     }
 
-    #[inline(always)]
     pub fn coord(&self) -> Coord {
         self.coord
     }
 
-    #[inline(always)]
     pub fn old(&self) -> Id {
         self.old
     }
 
-    #[inline(always)]
     pub fn replacement(&self) -> Id {
         self.replacement
     }
 
-    #[inline(always)]
     pub fn enabled(&self) -> bool {
         matches!(self.enable, Some(true))
     }
 
     /// This is not the same as `!enabled()`!
-    #[inline(always)]
     pub fn disabled(&self) -> bool {
         matches!(self.enable, Some(false))
     }
 
-    #[inline(always)]
     pub fn enable(&mut self) {
         self.enable = Some(true);
     }
 
-    #[inline(always)]
     pub fn disable(&mut self) {
         self.enable = Some(false);
     }
 
-    #[inline(always)]
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enable.swap(Some(true));
     }

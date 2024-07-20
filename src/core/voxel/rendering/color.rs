@@ -9,7 +9,7 @@ pub struct Rgb {
 }
 
 impl Rgb {
-    #[inline(always)]
+    
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self{r,g,b}
     }
@@ -25,7 +25,7 @@ pub struct Rgba {
 }
 
 impl Rgba {
-    #[inline(always)]
+    
     pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self{r,g,b,a}
     }

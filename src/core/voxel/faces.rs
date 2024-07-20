@@ -13,7 +13,7 @@ pub struct Faces<T> {
 }
 
 impl<T> Faces<T> {
-    #[inline(always)]
+    
     pub const fn new(
         neg_x: T,
         neg_y: T,
@@ -32,7 +32,7 @@ impl<T> Faces<T> {
         }
     }
 
-    #[inline(always)]
+    
     pub const fn face(&self, direction: Direction) -> &T {
         match direction {
             Direction::NegX => &self.neg_x,
@@ -45,7 +45,7 @@ impl<T> Faces<T> {
     }
 
 
-    #[inline(always)]
+    
     pub fn face_mut(&mut self, direction: Direction) -> &mut T {
         match direction {
             Direction::NegX => &mut self.neg_x,
@@ -57,7 +57,7 @@ impl<T> Faces<T> {
         }
     }
 
-    #[inline(always)]
+    
     pub fn iter(&self) -> impl Iterator<Item = (Direction, &T)> {
         use Direction::*;
         [
@@ -74,14 +74,14 @@ impl<T> Faces<T> {
 impl<T> std::ops::Index<Direction> for Faces<T> {
     type Output = T;
 
-    #[inline(always)]
+    
     fn index(&self, index: Direction) -> &Self::Output {
         self.face(index)
     }
 }
 
 impl<T> std::ops::IndexMut<Direction> for Faces<T> {
-    #[inline(always)]
+    
     fn index_mut(&mut self, index: Direction) -> &mut Self::Output {
         self.face_mut(index)
     }
