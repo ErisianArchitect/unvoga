@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::{collections::VecDeque, iter::Sum};
 
 use bevy::{asset::Handle, render::mesh::Mesh};
@@ -8,6 +9,8 @@ use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 use super::section::{LightChange, Section, StateChange};
 use super::update::{BlockUpdateQueue, UpdateRef};
 
+use crate::core::math::grid::{calculate_region_min, calculate_region_requirement};
+use crate::core::voxel::region::regionfile::RegionFile;
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::Id, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 use crate::prelude::SwapVal;
 
@@ -49,9 +52,9 @@ pub struct VoxelWorld {
     // I can give it a buffer of 1 region so that there's room for the
     // world to move around without overflow.
     // I have an idea that involes rounding up to the next multiple of 32.
-    // (n + 31 - 1) & -32
+    // (n + 30) & -32
     // You'll have to do some hacky stuff to make -32u32.
-    // pub regions: RollGrid2D<RegionFile>,
+    pub regions: RollGrid2D<RegionFile>,
     pub update_queue: BlockUpdateQueue,
     pub lock_update_queue: bool,
     /// (Coord, new)
@@ -59,6 +62,7 @@ pub struct VoxelWorld {
     /// The value is the index in the update_modification_queue where
     /// the modification is stored.
     pub update_modification_map: HashMap<Coord, u32>,
+    pub world_directory: PathBuf,
 }
 
 impl VoxelWorld {
@@ -69,7 +73,7 @@ impl VoxelWorld {
     };
     /// Create a new world centered at the specified block coordinate with the (chunk) render distance specified.
     /// The resulting width in chunks will be `render_distance * 2`.
-    pub fn new(render_distance: u8, center: Coord) -> Self {
+    pub fn new<P: AsRef<Path>>(render_distance: u8, center: Coord, directory: P) -> Self {
         let mut center = center;
         // clamp Y to world Y range
         // center.y = center.y.min(WORLD_TOP).max(WORLD_BOTTOM);
@@ -81,12 +85,33 @@ impl VoxelWorld {
         let render_size = render_distance as usize * 2;
         let render_height = render_size.min(WORLD_HEIGHT);
         let (chunk_x, chunk_z) = calculate_center_offset(pad_distance as i32, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
+        let region_size = calculate_region_requirement(pad_size as i32);
+        let region_min = calculate_region_min((chunk_x, chunk_z));
         let (render_x, render_y, render_z) = calculate_center_offset(render_distance as i32, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
+        let directory = directory.as_ref();
+        std::fs::create_dir_all(directory);
+        let subworlds = directory.join("subworlds");
+        std::fs::create_dir(&subworlds);
+        let main_world = subworlds.join("main");
+        std::fs::create_dir(&main_world);
+        let mut regions = RollGrid2D::new_with_init(region_size as usize, region_size as usize, region_min, |pos: (i32, i32)| {
+            let region_path = main_world.join(format!("r.{}.{}.rg", pos.0, pos.1));
+            Some(RegionFile::open_or_create(region_path).expect("Failed to open region file."))
+        });
         Self {
             initialized: false,
+            world_directory: directory.to_owned(),
             dirty_sections: Vec::new(),
             chunks: RollGrid2D::new_with_init(pad_size, pad_size, (chunk_x, chunk_z), |(x, z): (i32, i32)| {
-                Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
+                let mut chunk = Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16));
+                // let rx = x >> 5;
+                // let rz = z >> 5;
+                // if let Some(region) = regions.get_mut((rx, rz)) {
+                //     region.read((x, z), |reader| {
+                //         chunk.read_from(reader, world)
+                //     });
+                // }
+                Some(chunk)
             }),
             render_chunks: RollGrid3D::new_with_init(render_size, render_size.min(WORLD_HEIGHT / 16), render_size, (render_x, render_y, render_z), |pos: Coord| {
                 Some(RenderChunk {
@@ -94,11 +119,54 @@ impl VoxelWorld {
                     material: Handle::default(),
                 })
             }),
+            regions,
             update_queue: BlockUpdateQueue::default(),
             lock_update_queue: false,
             update_modification_queue: Vec::new(),
             update_modification_map: HashMap::new(),
-        }
+        }.initial_load()
+    }
+
+    pub fn save_world(&mut self) {
+        self.chunks.bounds().iter().for_each(|(chunk_x, chunk_z)| {
+            let chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
+            let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
+            let mut region = self.regions.take((region_x, region_z)).expect("Region was None");
+            use crate::core::error::*;
+            let result = region.write((chunk_x & 31, chunk_z & 31), |writer| {
+                chunk.write_to(writer)?;
+                Ok(())
+            }).expect("Error error error");
+            self.chunks.set((chunk_x, chunk_z), chunk);
+            self.regions.set((region_x, region_z), region);
+        });
+    }
+
+    #[inline(always)]
+    fn initial_load(mut self) -> Self {
+        self.chunks.bounds().iter().for_each(|(chunk_x, chunk_z)| {
+            let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
+            let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
+            let mut region = self.regions.take((region_x, region_z)).expect("Region was None");
+            use crate::core::error::*;
+            let result = region.read((chunk_x & 31, chunk_z & 31), |reader| {
+                chunk.read_from(reader, &mut self)
+            });
+            match result {
+                Err(Error::ChunkNotFound) => {
+                    /* chunk.unload() */
+                    // chunk.unload(self);
+                },
+                Err(other) => {
+                    println!("{other:?}");
+                    panic!();
+                },
+                _ => (),
+            }
+            self.chunks.set((chunk_x, chunk_z), chunk);
+            self.regions.set((region_x, region_z), region);
+        });
+        self
     }
 
     #[inline(always)]

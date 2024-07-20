@@ -12,6 +12,7 @@ use std::io::{Read, Write};
 use super::blockdata::{BlockDataContainer, BlockDataRef};
 use super::section::Section;
 use super::update::UpdateRef;
+use super::VoxelWorld;
 
 #[inline(always)]
 pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]>>, block_count: &mut u16) -> Result<()> {
@@ -72,6 +73,9 @@ pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]
         fn push_byte(&mut self, byte: u8) {
             // This is the number of bits we need to read in order
             // to produce a new Id.
+            if self.accum_size > self.bit_width {
+                println!("{}, {}", self.accum_size, self.bit_width);
+            }
             let end_size = self.bit_width - self.accum_size;
             // take the whole byte
             if end_size >= 8 {
@@ -361,12 +365,12 @@ pub fn read_block_data<R: Read>(reader: &mut R, block_data_refs: &mut Option<Box
 }
 
 #[inline(always)]
-pub fn write_block_data<W: Write>(writer: &mut W, block_data_refs: &Option<Box<[BlockDataRef]>>, container: &BlockDataContainer) -> Result<u64> {
+pub fn write_block_data<W: Write>(writer: &mut W, block_data_refs: &Option<Box<[BlockDataRef]>>, container: &BlockDataContainer, data_count: u16) -> Result<u64> {
     let Some(data) = block_data_refs else {
         return 0u16.write_to(writer);
     };
     // let's assume there might be 256 blocks that have data
-    let mut data_ids = Vec::with_capacity(256);
+    let mut data_ids = Vec::with_capacity(data_count as usize);
     for (i, &id) in data.iter().enumerate() {
         if !id.null() {
             data_ids.push((i as u16, id));

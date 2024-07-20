@@ -1,8 +1,10 @@
+use std::io::{Read, Write};
+
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
 use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, region::timestamp::Timestamp, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
+use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, VoxelWorld, WORLD_BOTTOM, WORLD_HEIGHT};
 use crate::core::error::*;
 
 pub struct Chunk {
@@ -188,6 +190,56 @@ impl Chunk {
     #[inline(always)]
     pub fn height(&self, x: i32, z: i32) -> i32 {
         self.heightmap.height(x, z) + self.block_offset.y
+    }
+
+    #[inline(always)]
+    pub fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
+        let mut length = 0;
+        for i in 0..self.sections.len() {
+            // the y offset of the bottom-most block
+            length += self.sections[i].write_to(writer)?;
+        }
+        Ok(length)
+    }
+
+    #[inline(always)]
+    pub fn read_from<R: Read>(&mut self, reader: &mut R, world: &mut VoxelWorld) -> Result<()> {
+        for i in 0..self.sections.len() {
+            let y = i as i32 * 16 + self.block_offset.y;
+            let offset = Coord::new(self.block_offset.x, y, self.block_offset.z);
+            let marked = self.sections[i].read_from(reader, world, offset)?;
+            // if offset is not in the render bounds, we don't want to add it
+            // to the dirty_queue
+            if world.render_bounds().contains(offset) {
+                world.dirty_sections.push(offset.section_coord());
+            }
+        }
+        Ok(())
+    }
+
+    #[inline(always)]
+    pub fn unload(&mut self, world: &mut VoxelWorld) {
+        for i in 0..self.sections.len() {
+            let y = i as i32 * 16 + self.block_offset.y;
+            let offset = Coord::new(self.block_offset.x, y, self.block_offset.z);
+            let marked = self.sections[i].unload(world);
+            if world.render_bounds().contains(offset) {
+                world.dirty_sections.push(offset.section_coord());
+            }
+        }
+    }
+
+}
+
+#[cfg(test)]
+mod testing_sandbox {
+    use super::*;
+    #[test]
+    fn sandbox() {
+        let neg8 = -8;
+        let neg8 = neg8 as usize;
+        let bit_count = (31 + 8 - 1) & neg8;
+        println!("{bit_count}");
     }
 }
 

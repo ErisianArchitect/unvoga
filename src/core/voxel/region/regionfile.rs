@@ -1,8 +1,8 @@
 use std::{borrow::Borrow, fs::File, io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Take, Write}, path::{Path, PathBuf}};
 
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
-use crate::{core::error::*, prelude::{write_zeros, Readable, WriteExt, Writeable}};
-use super::{header::RegionHeader, regioncoord::RegionCoord, sectormanager::SectorManager, sectoroffset::BlockSize};
+use crate::{core::{error::*, voxel::region::sectoroffset::SectorOffset}, prelude::{write_zeros, Readable, WriteExt, Writeable}};
+use super::{header::RegionHeader, regioncoord::RegionCoord, sectormanager::SectorManager, sectoroffset::BlockSize, timestamp::Timestamp};
 
 pub struct RegionFile {
     sector_manager: SectorManager,
@@ -14,6 +14,11 @@ pub struct RegionFile {
 }
 
 impl RegionFile {
+
+    pub fn get_timestamp<C: Into<RegionCoord>>(&self, coord: C) -> Timestamp {
+        self.header.timestamps[coord.into()]
+    }
+
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut file_handle = File::options()
             .read(true)
@@ -146,7 +151,37 @@ impl RegionFile {
             Ok(())
         })
     }
-}
+
+    pub fn write_timestamped<C: Into<RegionCoord>, Ts: Into<Timestamp>, F: FnMut(&mut GzEncoder<&mut Cursor<Vec<u8>>>) -> Result<()>>(&mut self, coord: C, timestamp: Ts, mut write: F) -> Result<()> {
+        let coord: RegionCoord = coord.into();
+        let allocation = self.write(coord, write)?;
+        let timestamp: Timestamp = timestamp.into();
+        self.header.timestamps[coord] = timestamp;
+        let mut writer = BufWriter::new(&mut self.io);
+        writer.seek(SeekFrom::Start(coord.timestamp_offset()))?;
+        timestamp.write_to(&mut writer)?;
+        writer.flush()?;
+        Ok(())
+    }
+
+    pub fn delete_data<C: Into<RegionCoord>>(&mut self, coord: C) -> Result<()> {
+        let coord: RegionCoord = coord.into();
+        let sector = self.header.offsets[coord];
+        if sector.is_empty() {
+            return Ok(());
+        }
+        self.sector_manager.deallocate(sector);
+        self.header.offsets[coord] = SectorOffset::default();
+        self.header.timestamps[coord] = Timestamp::default();
+        let mut writer = BufWriter::new(&mut self.io);
+        writer.seek(SeekFrom::Start(coord.sector_offset()))?;
+        write_zeros(&mut writer, 4)?;
+        writer.seek(SeekFrom::Start(coord.timestamp_offset()))?;
+        write_zeros(&mut writer, 8)?;
+        writer.flush()?;
+        Ok(())
+    }
+} 
 
 #[inline(always)]
 fn pad_size(length: u64) -> u64 {

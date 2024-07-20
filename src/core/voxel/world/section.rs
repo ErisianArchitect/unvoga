@@ -1,9 +1,10 @@
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::core::error::*;
+use crate::{core::error::*, prelude::Writeable};
 use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, update::UpdateRef, MemoryUsage, WORLD_HEIGHT};
+use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, io::{read_block_data, read_enabled, read_section_blocks, read_section_light, read_section_occlusions}, occlusion::Occlusion, query::Query, update::UpdateRef, MemoryUsage, VoxelWorld, WORLD_HEIGHT};
+use crate::core::io::*;
 
 // 4096*4+4096+2048+2048+4096*2
 // 32768 bytes
@@ -30,6 +31,8 @@ pub struct Section {
     pub update_ref_count: u16,
     pub blocks_dirty: Dirty,
     pub light_dirty: Dirty,
+    /// I use this flag to determine if this section has been added
+    /// to the dirty queue in the [VoxelWorld].
     pub section_dirty: Dirty,
 }
 
@@ -111,11 +114,19 @@ impl Section {
     /// Gets the index in the 16x16x16 [Section].
     /// This is yzx order (x | z << 4 | y << 8)
     #[inline(always)]
-    fn index(coord: Coord) -> usize {
+    pub fn index(coord: Coord) -> usize {
         let x = (coord.x & 0xF) as usize;
         let y = (coord.y & 0xF) as usize;
         let z = (coord.z & 0xF) as usize;
         x | z << 4 | y << 8
+    }
+
+    #[inline(always)]
+    pub fn coord(index: u16) -> Coord {
+        let x = index & 0xf;
+        let y = index >> 4 & 0xf;
+        let z = index >> 8 & 0xf;
+        Coord::new(x as i32, y as i32, z as i32)
     }
 
     #[inline(always)]
@@ -563,11 +574,85 @@ impl Section {
 
     // Serialization/Deserialization
     #[inline(always)]
-    pub fn write_to<W: std::fmt::Write>(&self, writer: &mut W) -> Result<u64> {
+    pub fn write_to<W: std::io::Write>(&self, writer: &mut W) -> Result<u64> {
         // First write the flags that determine what data this section has.
         // If the section is empty, this will write a 0 byte and return.
-        
-        todo!()
+        use super::io::*;
+        if self.block_count == 0
+        && self.occlusion_count == 0
+        && self.block_light_count == 0
+        && self.sky_light_count == 0
+        && self.block_data_count == 0
+        && self.update_ref_count == 0 {
+            return false.write_to(writer);
+        }
+        let mut length = true.write_to(writer)?;
+        length += write_section_blocks(writer, &self.blocks)?;
+        length += write_section_occlusions(writer, &self.occlusion)?;
+        length += write_section_light(writer, &self.block_light)?;
+        length += write_section_light(writer, &self.sky_light)?;
+        length += write_block_data(writer, &self.block_data_refs, &self.block_data, self.block_data_count)?;
+        length += write_enabled(writer, &self.update_refs)?;
+        Ok(length)
+    }
+
+    #[inline(always)]
+    pub fn read_from<R: std::io::Read>(&mut self, reader: &mut R, world: &mut VoxelWorld, offset: Coord) -> Result<bool> {
+        let flag = bool::read_from(reader)?;
+        if !flag {
+            return Ok(self.unload(world));
+        }
+        read_section_blocks(reader, &mut self.blocks, &mut self.block_count)?;
+        read_section_occlusions(reader, &mut self.occlusion, &mut self.occlusion_count)?;
+        read_section_light(reader, &mut self.block_light, &mut self.block_light_count)?;
+        read_section_light(reader, &mut self.sky_light, &mut self.sky_light_count)?;
+        read_block_data(reader, &mut self.block_data_refs, &mut self.block_data, &mut self.block_data_count)?;
+        // We're assuming that the old data hasn't been safely unloaded yet.
+        self.disable_all(world);
+        read_enabled(reader, |index| {
+            let block_coord = Section::coord(index) + offset;
+            world.set_enabled(block_coord, true);
+        }, &mut self.update_ref_count)?;
+        self.blocks_dirty.mark();
+        self.light_dirty.mark();
+        return Ok(self.section_dirty.mark());
+    }
+
+    #[inline(always)]
+    pub fn disable_all(&mut self, world: &mut VoxelWorld) {
+        if let Some(refs) = self.update_refs.take() {
+            assert!(!world.lock_update_queue, "Update queue was locked.");
+            refs.into_iter().for_each(|&uref| {
+                world.update_queue.remove(uref);
+            });
+        }
+        self.update_ref_count = 0;
+    }
+
+    #[inline(always)]
+    pub fn unload(&mut self, world: &mut VoxelWorld) -> bool {
+        self.blocks = None;
+        self.occlusion = None;
+        self.block_light = None;
+        self.sky_light = None;
+        self.block_data_refs = None;
+        self.disable_all(world);
+        self.block_data.clear();
+        self.block_count = 0;
+        self.occlusion_count = 0;
+        self.block_light_count = 0;
+        self.sky_light_count = 0;
+        self.block_data_count = 0;
+        self.blocks_dirty.mark();
+        self.light_dirty.mark();
+        self.section_dirty.mark()
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.block_count == 0
+        && self.block_light_count == 0
+        && self.sky_light_count == 0
     }
 }
 

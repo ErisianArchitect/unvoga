@@ -15,15 +15,16 @@ pub fn sandbox() {
     use crate::core::voxel::direction::Direction;
 
     println!("World Test");
-    let mut world = VoxelWorld::new(16, Coord::new(0, 0, 0));
-    let usage = world.dynamic_usage();
-    println!("Memory Usage: {usage}");
     blocks::register_block(DirtBlock);
     blocks::register_block(RotatedBlock);
     blocks::register_block(DebugBlock);
+    let mut world = VoxelWorld::new(16, Coord::new(0, 0, 0), "ignore/test_world");
+    let usage = world.dynamic_usage();
+    println!("Memory Usage: {usage}");
     println!(" World Bounds: {:?}", world.bounds());
     println!("Render Bounds: {:?}", world.render_bounds());
     println!("  Block Count: {}", world.bounds().volume());
+
     let air = Id::AIR;
     let debug = blockstate!(debug).register();
     let debug_data = blockstate!(debug, withdata = true).register();
@@ -31,39 +32,45 @@ pub fn sandbox() {
     let dirt = blockstate!(dirt).register();
     let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();
     let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
-    let coord = Coord::new(13,12,69).chunk_coord();
-    {
-        let chunk = world.get_chunk((coord.x, coord.z)).unwrap();
-        println!("Edit Time: {}", chunk.edit_time.0);
-    }
-    std::thread::sleep(Duration::from_secs(2));
-    itertools::iproduct!(0..2, 0..2).for_each(|(y, x)| {
-        world.set_block((x, 0, y), enabled);
-    });
-    world.set_block((13,12, 69), debug_data);
-    world.call((13,12,69), "test", Tag::from("Hello, world"));
-    world.call((13,12,69), "set_enabled", true);
-    let (state, enabled): (Id, bool) = world.query::<_, (Id, Enabled)>((13,12,69));
-    println!("{state} {enabled}");
-    println!("Frame 1");
-    {
-        let chunk = world.get_chunk((coord.x, coord.z)).unwrap();
-        println!("Edit Time: {}", chunk.edit_time.0);
-    }
-    world.update();
-    world.call((13,12,69), "set_enabled", false);
-    println!("Frame 2");
-    world.update();
+
+    println!("Getting block");
+    let block = world.get_block((0, 0, 0));
+    println!("{block}");
+    world.set_block((0, 0, 0), debug_data);
+    world.save_world();
+    // let coord = Coord::new(13,12,69).chunk_coord();
+    // {
+    //     let chunk = world.get_chunk((coord.x, coord.z)).unwrap();
+    //     println!("Edit Time: {}", chunk.edit_time.0);
+    // }
+    // std::thread::sleep(Duration::from_secs(2));
+    // itertools::iproduct!(0..2, 0..2).for_each(|(y, x)| {
+    //     world.set_block((x, 0, y), enabled);
+    // });
+    // world.set_block((13,12, 69), debug_data);
+    // world.call((13,12,69), "test", Tag::from("Hello, world"));
+    // world.call((13,12,69), "set_enabled", true);
+    // let (state, enabled): (Id, bool) = world.query::<_, (Id, Enabled)>((13,12,69));
+    // println!("{state} {enabled}");
+    // println!("Frame 1");
+    // {
+    //     let chunk = world.get_chunk((coord.x, coord.z)).unwrap();
+    //     println!("Edit Time: {}", chunk.edit_time.0);
+    // }
+    // world.update();
+    // world.call((13,12,69), "set_enabled", false);
+    // println!("Frame 2");
+    // world.update();
     
 
-    println!("Write/Read Test");
-    let now = std::time::Instant::now();
-    write_read_test().expect("Failure");
-    let elapsed = now.elapsed();
-    println!("Elapsed secs: {}", elapsed.as_secs_f64());
+    // println!("Write/Read Test");
+    // let now = std::time::Instant::now();
+    // write_read_test().expect("Failure");
+    // let elapsed = now.elapsed();
+    // println!("Elapsed secs: {}", elapsed.as_secs_f64());
     
-    let usage = world.dynamic_usage();
-    println!("Memory: {usage}");
+    // let usage = world.dynamic_usage();
+    // println!("Memory: {usage}");
 }
 
 #[test]
