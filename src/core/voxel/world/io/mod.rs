@@ -504,7 +504,7 @@ mod tests {
         blocks::register_block(TestBlock::new("testblock".to_owned()));
         // register blocks
         {
-            let mut blocks: Option<Box<[Id]>> = Some((0i64..4096).map(|i| blockstate!(testblock, i=i.rem_euclid(29)).register()).collect());
+            let mut blocks: Option<Box<[Id]>> = Some((0i64..4096).map(|i| blockstate!(testblock, i=i.rem_euclid(300)).register()).collect());
             
             let mut buffy = Cursor::new(Vec::<u8>::new());
             write_section_blocks(&mut buffy, &blocks)?;
