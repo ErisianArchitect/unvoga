@@ -9,75 +9,63 @@ pub struct RegionFile {
     sector_manager: SectorManager,
     /// Used for both reading and writing. The file is kept locked while the region is open.
     io: File,
+    // maybe_file: MaybeOpen,
     write_buffer: Cursor<Vec<u8>>,
     header: RegionHeader,
     path: PathBuf,
 }
 
 enum MaybeOpen {
-    Opened(File),
-    Open(PathBuf),
+    Opened(File, RegionHeader, PathBuf),
     Create(PathBuf),
     CreateNew(PathBuf),
-    OpenOrCreate(PathBuf),
 }
 
 impl MaybeOpen {
-    pub fn open<P: AsRef<Path>>(path: P) -> Self {
-        Self::Open(path.as_ref().to_owned())
+    pub fn get_header(&self) -> Option<&RegionHeader> {
+        let MaybeOpen::Opened(_, header, _) = self else {
+            return None;
+        };
+        Some(header)
     }
 
-    pub fn create<P: AsRef<Path>>(path: P) -> Self {
-        Self::Create(path.as_ref().to_owned())
+    pub fn get_path(&self) -> &Path {
+        match self {
+            MaybeOpen::Opened(_, _, path) => path.as_path(),
+            MaybeOpen::Create(path) => path.as_path(),
+            MaybeOpen::CreateNew(path) => path.as_path(),
+        }
     }
 
-    pub fn create_new<P: AsRef<Path>>(path: P) -> Self {
-        Self::CreateNew(path.as_ref().to_owned())
-    }
-
-    pub fn open_or_create<P: AsRef<Path>>(path: P) -> Self {
-        Self::OpenOrCreate(path.as_ref().to_owned())
-    }
-
-    /// Gets the file or maybe opens it.
-    pub fn maybe_open(&mut self) -> Result<&mut File> {
-        let file = match self {
-            MaybeOpen::Opened(file) => return Ok(file),
-            MaybeOpen::Open(path) => {
-                File::options()
-                    .read(true).write(true)
-                    .open(path)?
-            },
+    pub fn get_mut(&mut self) -> Result<(&mut File, &mut RegionHeader, &Path)> {
+        let (file, header, path) = match self {
+            MaybeOpen::Opened(file, header, path) => return Ok((file, header, path)),
             MaybeOpen::Create(path) => {
-                File::options()
+                let mut file = File::options()
                     .read(true).write(true)
                     .create(true)
-                    .open(path)?
+                    .open(path.as_path())?;
+                let mut writer = BufWriter::new(&mut file);
+                write_zeros(&mut writer, RegionHeader::HEADER_SIZE)?;
+                drop(writer);
+                (file, RegionHeader::new(), path.clone())
             },
             MaybeOpen::CreateNew(path) => {
-                File::options()
+                let mut file = File::options()
                     .read(true).write(true)
                     .create_new(true)
-                    .open(path)?
-            },
-            MaybeOpen::OpenOrCreate(path) => {
-                if path.exists() {
-                    File::options()
-                        .read(true).write(true)
-                        .open(path)?
-                } else {
-                    File::options()
-                        .read(true).write(true)
-                        .create_new(true)
-                        .open(path)?
-                }
+                    .open(path.as_path())?;
+                let mut writer = BufWriter::new(&mut file);
+                write_zeros(&mut writer, RegionHeader::HEADER_SIZE)?;
+                drop(writer);
+                (file, RegionHeader::new(), path.clone())
             },
         };
-        *self = MaybeOpen::Opened(file);
-        let MaybeOpen::Opened(file) = self else {
+        *self = MaybeOpen::Opened(file, header, path);
+        let MaybeOpen::Opened(file, header, path) = self else {
             unreachable!()
         };
-        Ok(file)
+        Ok((file, header, path))
     }
 }
 
@@ -94,7 +82,7 @@ impl RegionFile {
             .open(path.as_ref())?;
         let file_size = file_handle.seek(SeekFrom::End(0))?;
         // The file is too small to contain the header.
-        if file_size < 4096 + 8192 {
+        if file_size < RegionHeader::HEADER_SIZE {
             return Err(Error::NoHead);
         }
         file_handle.seek(SeekFrom::Start(0))?;
@@ -121,7 +109,7 @@ impl RegionFile {
             .read(true).write(true)
             .create_new(true)
             .open(path)?;
-        write_zeros(&mut io, 4096*3)?;
+        write_zeros(&mut io, RegionHeader::HEADER_SIZE)?;
         Ok(Self {
             io,
             write_buffer: Cursor::new(Vec::with_capacity(4096*2)),
@@ -139,7 +127,7 @@ impl RegionFile {
             .read(true).write(true)
             .create(true)
             .open(path)?;
-        write_zeros(&mut io, 4096*3)?;
+        write_zeros(&mut io, RegionHeader::HEADER_SIZE)?;
         Ok(Self {
             io,
             write_buffer: Cursor::new(Vec::with_capacity(4096*2)),

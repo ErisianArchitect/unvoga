@@ -10,7 +10,8 @@ pub struct RegionHeader {
 }
 
 impl RegionHeader {
-    
+    // sizeof(Timestamp) * 1024 + sizeof(Offset) * 1024
+    pub const HEADER_SIZE: u64 = 12288;
     pub fn new() -> Self {
         Self {
             timestamps: TimestampTable::new(),
