@@ -62,7 +62,7 @@ pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]
     }
     impl<'a> BitReader<'a> {
         #[inline(always)]
-        fn push_block(&mut self, id: Id) {
+        fn push_id(&mut self, id: Id) {
             if id.is_non_air() {
                 *self.block_count += 1;
             }
@@ -81,14 +81,12 @@ pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]
                 self.accum = self.accum.set_bitmask(start..end, bits as u16);
                 self.accum_size += count;
                 if self.accum_size == self.bit_width {
-                    let id = self.id_table[self.accum as usize];
-                    self.push_block(id);
+                    self.push_id(self.id_table[self.accum as usize]);
                     self.accum = 0;
                     self.accum_size = 0;
                 }
             } else { // space < count
-                let take = bits.get_bitmask(0..space);
-                self.push_bits(take, space);
+                self.push_bits(bits, space);
                 self.push_bits(bits >> space, count - space);
             }
         }
