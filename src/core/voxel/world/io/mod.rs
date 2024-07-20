@@ -62,41 +62,44 @@ pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]
     }
     impl<'a> BitReader<'a> {
         #[inline(always)]
-        fn set_block(&mut self, id: Id) {
+        fn push_block(&mut self, id: Id) {
             if id.is_non_air() {
                 *self.block_count += 1;
             }
             self.blocks[self.block_index] = id;
             self.block_index += 1;
         }
-        #[inline(always)]
-        fn push_byte(&mut self, byte: u8) {
-            // This is the number of bits we need to read in order
-            // to produce a new Id.
-            if self.accum_size > self.bit_width {
-                println!("{}, {}", self.accum_size, self.bit_width);
+
+        fn push_bits(&mut self, bits: u8, count: u32) {
+            if self.block_index == 4096 {
+                return;
             }
-            let end_size = self.bit_width - self.accum_size;
-            // take the whole byte
-            if end_size >= 8 {
-                self.accum = self.accum.set_bitmask(self.accum_size..self.accum_size+8, byte as u16);
-                self.accum_size += 8;
-                // Accumilated a new Id
+            let space = self.bit_width - self.accum_size;
+            if space >= count {
+                let start = self.accum_size;
+                let end = start + count;
+                self.accum = self.accum.set_bitmask(start..end, bits as u16);
+                self.accum_size += count;
                 if self.accum_size == self.bit_width {
                     let id = self.id_table[self.accum as usize];
-                    self.set_block(id);
+                    self.push_block(id);
                     self.accum = 0;
                     self.accum_size = 0;
                 }
-            } else { // end_size < 8
-                // end_size is the number of bits to take.
-                let mask = byte.get_bitmask(0..end_size) as u16;
-                let accum = self.accum.set_bitmask(self.accum_size..self.bit_width, mask);
-                self.accum = (byte >> end_size) as u16;
-                self.accum_size = 8 - end_size;
-                let id = self.id_table[accum as usize];
-                self.set_block(id);
+            } else { // space < count
+                let take = bits.get_bitmask(0..space);
+                self.push_bits(take, space);
+                self.push_bits(bits >> space, count - space);
             }
+        }
+
+        // #[inline(always)]
+        // fn push_byte2(&mut self, byte: u8) {
+
+        // }
+        #[inline(always)]
+        fn push_byte(&mut self, byte: u8) {
+            self.push_bits(byte, 8);
         }
     }
     let mut bitreader = BitReader {
@@ -112,6 +115,7 @@ pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]
     bytes.into_iter().for_each(|byte| {
         bitreader.push_byte(byte);
     });
+    assert!(bitreader.accum_size == 0);
     Ok(())
 }
 
@@ -336,6 +340,7 @@ pub fn write_section_light<W: Write>(writer: &mut W, block_light: &Option<Box<[u
     let Some(light) = block_light else {
         return false.write_to(writer);
     };
+    true.write_to(writer)?;
     writer.write_all(light)?;
     Ok(2049)
 }
@@ -501,7 +506,7 @@ mod tests {
         blocks::register_block(TestBlock::new("testblock".to_owned()));
         // register blocks
         {
-            let mut blocks: Option<Box<[Id]>> = Some((0..4096).map(|i| blockstate!(testblock, i=i).register()).collect());
+            let mut blocks: Option<Box<[Id]>> = Some((0i64..4096).map(|i| blockstate!(testblock, i=i.rem_euclid(29)).register()).collect());
             
             let mut buffy = Cursor::new(Vec::<u8>::new());
             write_section_blocks(&mut buffy, &blocks)?;

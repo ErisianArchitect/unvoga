@@ -32,11 +32,27 @@ pub fn sandbox() {
     let dirt = blockstate!(dirt).register();
     let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();
     let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
-
+    println!("Update after load.");
+    world.update();
     println!("Getting block");
     let block = world.get_block((0, 0, 0));
-    println!("{block}");
+    let occ = world.occlusion((0,0,0));
+    let block_light = world.get_block_light((0,0,0));
+    let sky_light = world.get_sky_light((0,0,0));
+    let enabled = world.enabled((0,0,0));
+    let data = world.get_data((0,0,0));
+    println!("      Block: {block}");
+    println!("  Occlusion: {occ}");
+    println!("Block Light: {block_light}");
+    println!("  Sky Light: {sky_light}");
+    println!("    Enabled: {enabled}");
+    println!("       Data: {data:?}");
+    // drop(data);
     world.set_block((0, 0, 0), debug_data);
+    world.set_block((1, 0, 0), dirt);
+    world.set_block_light((0,0,0), 8);
+    world.set_sky_light((0,0,0), 6);
+    world.set_enabled((0,0,0), true);
     world.save_world();
     // let coord = Coord::new(13,12,69).chunk_coord();
     // {

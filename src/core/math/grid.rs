@@ -46,19 +46,20 @@ pub fn round_down_to_multiple_of_32(value: i32) -> i32 {
     value & -32
 }
 
+/// chunk_width is the width in chunks, that is, the number of chunks wide.
 #[inline(always)]
 pub fn calculate_region_requirement(chunk_width: i32) -> i32 {
-    let rd16 = chunk_width * 16;
-    let rd32 = round_up_to_multiple_of_32(rd16);
+    let rd32 = round_up_to_multiple_of_32(chunk_width);
     let rdw = rd32 / 32;
     (rdw + 1)
 }
 
+/// world_chunk_min is the chunk coordinate of the world minimum bound.
 #[inline(always)]
 pub fn calculate_region_min(world_chunk_min: (i32, i32)) -> (i32, i32) {
     (
-        round_down_to_multiple_of_32(world_chunk_min.0 * 16) / 32,
-        round_down_to_multiple_of_32(world_chunk_min.1 * 16) / 32
+        round_down_to_multiple_of_32(world_chunk_min.0) / 32,
+        round_down_to_multiple_of_32(world_chunk_min.1) / 32
     )
 }
 

@@ -608,10 +608,18 @@ impl Section {
         read_section_light(reader, &mut self.sky_light, &mut self.sky_light_count)?;
         read_block_data(reader, &mut self.block_data_refs, &mut self.block_data, &mut self.block_data_count)?;
         // We're assuming that the old data hasn't been safely unloaded yet.
-        self.disable_all(world);
+        let update_refs = self.update_refs.get_or_insert_with(|| (0..4096).map(|_| UpdateRef::NULL).collect());
+        update_refs.iter_mut().for_each(|uref| {
+            if !uref.null() {
+                world.update_queue.remove(*uref);
+                *uref = UpdateRef::NULL;
+            }
+        });
         read_enabled(reader, |index| {
             let block_coord = Section::coord(index) + offset;
-            world.set_enabled(block_coord, true);
+            // world.set_enabled(block_coord, true);
+            let uref = world.update_queue.push(block_coord);
+            update_refs[index as usize] = uref;
         }, &mut self.update_ref_count)?;
         self.blocks_dirty.mark();
         self.light_dirty.mark();
