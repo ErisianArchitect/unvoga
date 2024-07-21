@@ -60,6 +60,8 @@ pub fn sandbox() {
     world.set_sky_light((0,0,0), 6);
     world.set_enabled((0,0,0), true);
     world.save_world();
+    let tag = Tag::from(["test", "Hello, world"]);
+    println!("{tag:?}");
     // let coord = Coord::new(13,12,69).chunk_coord();
     // {
     //     let chunk = world.get_chunk((coord.x, coord.z)).unwrap();

@@ -107,11 +107,6 @@ impl VoxelWorld {
         std::fs::create_dir(&subworlds);
         let main_world = subworlds.join("main");
         std::fs::create_dir(&main_world);
-        let mut regions = RollGrid2D::new_with_init(region_size as usize, region_size as usize, region_min, |pos: (i32, i32)| {
-            // let region_path = main_world.join(format!("r.{}.{}.rg", pos.0, pos.1));
-            // Some(RegionFile::open_or_create(region_path).expect("Failed to open region file."))
-            None
-        });
         Self {
             initialized: false,
             subworld_directory: main_world,
@@ -129,7 +124,7 @@ impl VoxelWorld {
                     material: Handle::default(),
                 })
             }),
-            regions,
+            regions: RollGrid2D::new(region_size as usize, region_size as usize, region_min),
             update_queue: BlockUpdateQueue::default(),
             lock_update_queue: false,
             update_modification_queue: Vec::new(),

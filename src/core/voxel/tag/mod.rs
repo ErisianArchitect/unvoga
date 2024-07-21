@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use hashbrown::HashMap;
 
 use crate::core::{error::{Error, Result}, io::{Readable, Writeable}, math::{bit::*, coordmap::{Flip, Rotation}}, voxel::{axis::Axis, coord::Coord, direction::Direction, world::chunkcoord::ChunkCoord}};
-
+use crate::core::io::*;
 pub trait NonByte {}
 pub trait Byte {}
 macro_rules! tag_table {
@@ -47,6 +47,10 @@ macro_rules! tag_table {
             [35 String        NonByte   box     <String>                                    ]
             [36 Array         NonByte   box     <crate::core::voxel::tag::Array>            ]
             [37 Map           NonByte   box     <hashbrown::HashMap<String, Tag>>           ]
+            /* This line should remain commented out. It is a representation of what I wrote manually
+            [38 Tag           NonByte   box     <Tag>                                       ]
+            Continue writing new rows at index 39
+            */
         }
     };
 }
@@ -112,6 +116,7 @@ macro_rules! table_impls {
             $(
                 $name(Vec<$type>) = $id,
             )*
+            Tag(Vec<Tag>) = 38,
         }
 
         impl Array {
@@ -121,6 +126,7 @@ macro_rules! table_impls {
                     $(
                         Array::$name(_) => $id,
                     )*
+                    Array::Tag(_) => 38,
                 }
             }
 
@@ -130,9 +136,36 @@ macro_rules! table_impls {
                     $(
                         Array::$name(array) => array.len(),
                     )*
+                    Array::Tag(array) => array.len(),
                 }
             }
         }
+
+        $(
+            impl From<Vec<$type>> for Array {
+                fn from(value: Vec<$type>) -> Self {
+                    Array::$name(value)
+                }
+            }
+
+            impl<const SIZE: usize> From<[$type; SIZE]> for Array {
+                fn from(value: [$type; SIZE]) -> Self {
+                    Array::$name(value.into())
+                }
+            }
+
+            impl From<Vec<$type>> for Tag {
+                fn from(value: Vec<$type>) -> Self {
+                    Tag::Array(Box::new(value.into()))
+                }
+            }
+
+            impl<const SIZE: usize> From<[$type; SIZE]> for Tag {
+                fn from(value: [$type; SIZE]) -> Self {
+                    Tag::Array(Box::new(value.into()))
+                }
+            }
+        )*
 
         impl Readable for Array {
             fn read_from<R: Read>(mut reader: &mut R) -> Result<Self> {
@@ -142,6 +175,7 @@ macro_rules! table_impls {
                     $(
                         $id => Array::$name(Vec::<$type>::read_from(reader)?),
                     )*
+                    38 => Array::Tag(Vec::<Tag>::read_from(reader)?),
                     _ => return Err(Error::InvalidBinaryFormat),
                 })
             }
@@ -155,6 +189,7 @@ macro_rules! table_impls {
                     $(
                         Array::$name(array) => array.write_to(writer)?,
                     )*
+                    Array::Tag(array) => array.write_to(writer)?,
                 } + 1)
             }
         }
@@ -165,6 +200,55 @@ macro_rules! table_impls {
     (@box_unbox: unbox $type:ty) => {
         $type
     };
+}
+
+impl NonByte for Tag {}
+impl From<Vec<Tag>> for Array {
+    fn from(value: Vec<Tag>) -> Self {
+        Array::Tag(value)
+    }
+}
+
+impl From<Vec<Tag>> for Tag {
+    fn from(value: Vec<Tag>) -> Self {
+        Tag::Array(Box::new(value.into()))
+    }
+}
+
+impl<const SIZE: usize> From<[Tag; SIZE]> for Array {
+    fn from(value: [Tag; SIZE]) -> Self {
+        Array::Tag(value.into())
+    }
+}
+
+impl<const SIZE: usize> From<[Tag; SIZE]> for Tag {
+    fn from(value: [Tag; SIZE]) -> Self {
+        Tag::Array(Box::new(value.into()))
+    }
+}
+
+impl<'a> From<Vec<&'a str>> for Array {
+    fn from(value: Vec<&'a str>) -> Self {
+        Array::String(value.into_iter().map(str::to_owned).collect())
+    }
+}
+
+impl<'a, const SIZE: usize> From<[&'a str; SIZE]> for Array {
+    fn from(value: [&'a str; SIZE]) -> Self {
+        Array::String(value.into_iter().map(str::to_owned).collect())
+    }
+}
+
+impl<'a> From<Vec<&'a str>> for Tag {
+    fn from(value: Vec<&'a str>) -> Self {
+        Tag::Array(Box::new(Array::String(value.into_iter().map(str::to_owned).collect())))
+    }
+}
+
+impl<'a, const SIZE: usize> From<[&'a str; SIZE]> for Tag {
+    fn from(value: [&'a str; SIZE]) -> Self {
+        Tag::Array(Box::new(Array::String(value.into_iter().map(str::to_owned).collect())))
+    }
 }
 
 tag_table!(table_impls);
