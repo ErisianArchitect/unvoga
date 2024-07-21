@@ -240,9 +240,9 @@ macro_rules! __bitsize_impls {
 for_each_int_type!(__bitsize_impls);
 
 pub trait SetBit {
-    
+    #[must_use]
     fn set_bit<I: ShiftIndex>(self, index: I, on: bool) -> Self;
-    
+    #[must_use]
     fn set_bitmask(self, mask: Range<u32>, value: Self) -> Self;
     
     fn bitmask_range(mask: Range<u32>) -> Self;
@@ -256,12 +256,12 @@ pub trait GetBit {
 }
 
 pub trait InvertBit {
-    
+    #[must_use]
     fn invert_bit<I: ShiftIndex>(self, index: I) -> Self;
 }
 
 impl<T: GetBit + SetBit + Copy> InvertBit for T {
-    
+    #[must_use]
     fn invert_bit<I: ShiftIndex>(self, index: I) -> Self {
         let bit = self.get_bit(index);
         self.set_bit(index, !bit)
@@ -272,7 +272,7 @@ macro_rules! __get_set_impl {
     ($type:ty) => {
 
         impl SetBit for $type {
-            
+            #[must_use]
             fn set_bit<I: ShiftIndex>(self, index: I, on: bool) -> Self {
                 if let (mask, false) = (1 as $type).overflowing_shl(index.shift_index()) {
                     if on {
@@ -285,7 +285,7 @@ macro_rules! __get_set_impl {
                 }
             }
 
-            
+            #[must_use]
             fn set_bitmask(self, mask: Range<u32>, value: Self) -> Self {
                 let mask_len = mask.len();
                 let size_mask = ((1 as Self) << mask_len)-1;

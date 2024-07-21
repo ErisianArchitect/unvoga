@@ -2,9 +2,9 @@ use std::io::{Read, Write};
 
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, region::timestamp::Timestamp, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
+use crate::core::{collections::objectpool::PoolId, voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, region::timestamp::Timestamp, rendering::voxelmaterial::VoxelMaterial, tag::Tag}};
 
-use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, VoxelWorld, WORLD_BOTTOM, WORLD_HEIGHT};
+use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_BOTTOM, WORLD_HEIGHT};
 use crate::core::error::*;
 
 pub struct Chunk {
@@ -13,6 +13,7 @@ pub struct Chunk {
     /// The offset block coordinate.
     pub block_offset: Coord,
     pub edit_time: Timestamp,
+    pub save_id: PoolId<SaveIdMarker>,
 }
 
 impl Chunk {
@@ -24,10 +25,24 @@ impl Chunk {
             heightmap: Heightmap::new(),
             block_offset: offset,
             edit_time: Timestamp::utc_now(),
+            save_id: PoolId::NULL,
         }
     }
 
-    
+    pub fn clear(&mut self, world: &mut VoxelWorld) {
+        self.sections.iter_mut().for_each(|section| {
+            section.unload(world);
+        })
+    }
+
+    pub fn y(&self) -> i32 {
+        self.block_offset.y
+    }
+
+    pub fn section_y(&self) -> i32 {
+        self.block_offset.y >> 4
+    }
+
     pub fn mark_modified(&mut self) {
         self.edit_time = Timestamp::utc_now();
     }
@@ -210,9 +225,6 @@ impl Chunk {
             let marked = self.sections[i].read_from(reader, world, offset)?;
             // if offset is not in the render bounds, we don't want to add it
             // to the dirty_queue
-            if world.render_bounds().contains(offset) {
-                world.dirty_sections.push(offset.section_coord());
-            }
         }
         Ok(())
     }

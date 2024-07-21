@@ -1,9 +1,9 @@
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::{core::error::*, prelude::Writeable};
+use crate::{core::{collections::objectpool::PoolId, error::*}, prelude::Writeable};
 use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, io::{read_block_data, read_enabled, read_section_blocks, read_section_light, read_section_occlusions}, occlusion::Occlusion, query::Query, update::UpdateRef, MemoryUsage, VoxelWorld, WORLD_HEIGHT};
+use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, io::{read_block_data, read_enabled, read_section_blocks, read_section_light, read_section_occlusions}, occlusion::Occlusion, query::Query, update::UpdateRef, DirtyIdMarker, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_HEIGHT};
 use crate::core::io::*;
 
 // 4096*4+4096+2048+2048+4096*2
@@ -34,6 +34,7 @@ pub struct Section {
     /// I use this flag to determine if this section has been added
     /// to the dirty queue in the [VoxelWorld].
     pub section_dirty: Dirty,
+    pub dirty_id: PoolId<DirtyIdMarker>,
 }
 
 impl Section {
@@ -56,6 +57,7 @@ impl Section {
             blocks_dirty: Dirty::new(),
             light_dirty: Dirty::new(),
             section_dirty: Dirty::new(),
+            dirty_id: PoolId::NULL,
         }
     }
 

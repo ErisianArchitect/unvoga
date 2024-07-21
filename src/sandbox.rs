@@ -49,8 +49,14 @@ pub fn sandbox() {
     println!("       Data: {data:?}");
     // drop(data);
     world.set_block((0, 0, 0), debug_data);
-    world.set_block((1, 0, 0), dirt);
-    world.set_block_light((0,0,0), 8);
+    world.set_block((1, 0, 0), rot1);
+    world.set_block_light((0,0,0), 1);
+    world.set_sky_light((0,0,0), 6);
+    world.set_enabled((0,0,0), true);
+    world.save_world();
+    world.set_block((0, 0, 0), debug_data);
+    world.set_block((1, 0, 0), rot1);
+    world.set_block_light((0,0,0), 1);
     world.set_sky_light((0,0,0), 6);
     world.set_enabled((0,0,0), true);
     world.save_world();

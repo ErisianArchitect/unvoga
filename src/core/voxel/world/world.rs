@@ -3,20 +3,24 @@ use std::{collections::VecDeque, iter::Sum};
 
 use bevy::{asset::Handle, render::mesh::Mesh};
 use hashbrown::HashMap;
+use super::chunkcoord::ChunkCoord;
 use super::occlusion::Occlusion;
 use super::query::Query;
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 use super::section::{LightChange, Section, StateChange};
 use super::update::{BlockUpdateQueue, UpdateRef};
 
+use crate::core::collections::objectpool::{ObjectPool, PoolId};
 use crate::core::math::grid::{calculate_region_min, calculate_region_requirement};
 use crate::core::voxel::region::regionfile::RegionFile;
+use crate::core::voxel::region::timestamp::Timestamp;
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::Id, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 use crate::prelude::SwapVal;
 
 use super::chunk::Chunk;
 
 use crate::core::voxel::tag::Tag;
+use crate::core::error::*;
 
 // Make sure this value is always a multiple of 16 and
 // preferably a multiple of 128.
@@ -42,10 +46,17 @@ macro_rules! cast_coord {
 World Edit
 */
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DirtyIdMarker;
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SaveIdMarker;
+
 pub struct VoxelWorld {
     /// Determines if the render world has been initialized.
     pub initialized: bool,
     pub dirty_sections: Vec<Coord>,
+    pub dirty_queue: ObjectPool<Coord, DirtyIdMarker>,
+    pub save_queue: ObjectPool<ChunkCoord, SaveIdMarker>,
     pub chunks: RollGrid2D<Chunk>,
     pub render_chunks: RollGrid3D<RenderChunk>,
     // I gotta figure out grid positioning for the loaded region files.
@@ -63,6 +74,7 @@ pub struct VoxelWorld {
     /// the modification is stored.
     pub update_modification_map: HashMap<Coord, u32>,
     pub world_directory: PathBuf,
+    pub subworld_directory: PathBuf,
     render_distance: i32,
 }
 
@@ -96,11 +108,15 @@ impl VoxelWorld {
         let main_world = subworlds.join("main");
         std::fs::create_dir(&main_world);
         let mut regions = RollGrid2D::new_with_init(region_size as usize, region_size as usize, region_min, |pos: (i32, i32)| {
-            let region_path = main_world.join(format!("r.{}.{}.rg", pos.0, pos.1));
-            Some(RegionFile::open_or_create(region_path).expect("Failed to open region file."))
+            // let region_path = main_world.join(format!("r.{}.{}.rg", pos.0, pos.1));
+            // Some(RegionFile::open_or_create(region_path).expect("Failed to open region file."))
+            None
         });
         Self {
             initialized: false,
+            subworld_directory: main_world,
+            dirty_queue: ObjectPool::new(),
+            save_queue: ObjectPool::new(),
             render_distance: render_distance as i32,
             world_directory: directory.to_owned(),
             dirty_sections: Vec::new(),
@@ -126,58 +142,146 @@ impl VoxelWorld {
         let center: Coord = center.into();
         let padded_distance = self.render_distance + WORLD_SIZE_PAD as i32;
         let padded_size = padded_distance * 2;
+        let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
         let (chunk_x, chunk_z) = calculate_center_offset(padded_distance, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
         let region_min = calculate_region_min((chunk_x, chunk_z));
-        let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
-        // TODO: Figure out a better system than this.
-        // I need to save the chunks that are being unloaded before the world moves
-        // because I can't have the region world in two places at once.
-        self.save_world()
+        self.save_world().expect("Failed to save the world");
+        todo!()
     }
 
-    pub fn save_world(&mut self) {
-        self.chunks.bounds().iter().for_each(|(chunk_x, chunk_z)| {
-            let chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
+    pub fn save_world(&mut self) -> Result<()> {
+        self.save_queue.drain().try_for_each(|coord| {
+            println!("Saving {coord:?}");
+            let (chunk_x, chunk_z) = coord.xz();
+            let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
+            // chunk.save_id = PoolId::NULL;
             let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
-            let mut region = self.regions.take((region_x, region_z)).expect("Region was None");
-            use crate::core::error::*;
-            let result = region.write((chunk_x & 31, chunk_z & 31), |writer| {
+            let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
+                region
+            } else {
+                RegionFile::open_or_create(self.subworld_directory.join(format!("{region_x}.{region_z}.rg")))?
+            };
+            let result = region.write_timestamped((chunk_x & 31, chunk_z & 31), chunk.edit_time, |writer| {
                 chunk.write_to(writer)?;
                 Ok(())
-            }).expect("Error error error");
+            })?;
             self.chunks.set((chunk_x, chunk_z), chunk);
             self.regions.set((region_x, region_z), region);
-        });
+            Ok(())
+        })
     }
 
+    // fn save_chunk(&mut self, chunk_x: i32, chunk_z: i32, chunk: &mut Chunk) -> Result<()> {
+    //     chunk.save_id = PoolId::NULL;
+    //     let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
+    //     let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
+    //         region
+    //     } else {
+    //         RegionFile::open_or_create(self.subworld_directory.join(format!("{region_x}.{region_z}.rg")))?
+    //     };
+    //     let result = region.write_timestamped((chunk_x & 31, chunk_z & 31), chunk.edit_time, |writer| {
+    //         chunk.write_to(writer)?;
+    //         Ok(())
+    //     })?;
+    //     Ok(())
+    // }
+
+    /// This does not save the chunk!
+    fn unload_chunk(&mut self, chunk: &mut Chunk) {
+        chunk.sections.iter_mut().for_each(|section| {
+            let dirty_id = section.dirty_id.swap(PoolId::NULL);
+            if !dirty_id.null() {
+                self.dirty_queue.remove(dirty_id);
+            }
+        });
+        let save_id = chunk.save_id.swap(PoolId::NULL);
+        if !save_id.null() {
+            self.save_queue.remove(save_id);
+        }
+        chunk.unload(self);
+    }
+
+    /// This method assumes the chunk has already been unloaded with unload_chunk()
+    fn load_chunk(&mut self, chunk_x: i32, chunk_z: i32) -> Result<()> {
+        let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
+        let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
+        let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
+            region
+        } else {
+            let region_path = self.subworld_directory.join(format!("{region_x}.{region_z}.rg"));
+            if region_path.is_file() {
+                RegionFile::open_or_create(region_path)?
+            } else {
+                chunk.edit_time = Timestamp::new(0);
+                self.chunks.set((chunk_x, chunk_z), chunk);
+                return Ok(());
+            }
+        };
+        let result = region.read((chunk_x & 31, chunk_z & 31), |reader| {
+            chunk.read_from(reader, self)
+        });
+        let chunk_y = chunk.section_y();
+        for i in 0..chunk.sections.len() {
+            let section_y = chunk_y + i as i32;
+            let section_coord = Coord::new(chunk_x, section_y, chunk_z);
+            if self.render_chunks.bounds().contains(section_coord) 
+            && chunk.sections[i].dirty_id.null(){
+                let id = self.dirty_queue.insert(section_coord);
+                chunk.sections[i].dirty_id = id;
+            }
+        }
+        chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
+        match result {
+            Err(Error::ChunkNotFound) => {
+                /* chunk.unload() */
+                // chunk.unload(self);
+            },
+            Err(other) => {
+                println!("{other:?}");
+                panic!();
+            },
+            _ => (),
+        }
+        self.chunks.set((chunk_x, chunk_z), chunk);
+        self.regions.set((region_x, region_z), region);
+        Ok(())
+    }
     
     fn initial_load(mut self) -> Self {
         self.chunks.bounds().iter().for_each(|(chunk_x, chunk_z)| {
-            let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
-            let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
-            let mut region = self.regions.take((region_x, region_z)).expect("Region was None");
-            use crate::core::error::*;
-            let result = region.read((chunk_x & 31, chunk_z & 31), |reader| {
-                chunk.read_from(reader, &mut self)
-            });
-            match result {
-                Err(Error::ChunkNotFound) => {
-                    /* chunk.unload() */
-                    // chunk.unload(self);
-                },
-                Err(other) => {
-                    println!("{other:?}");
-                    panic!();
-                },
-                _ => (),
-            }
-            self.chunks.set((chunk_x, chunk_z), chunk);
-            self.regions.set((region_x, region_z), region);
+            self.load_chunk(chunk_x, chunk_z);
         });
         self
     }
 
-    
+    fn mark_section_dirty(&mut self, section_coord: Coord) {
+        let block_y = section_coord.y * 16;
+        if !self.render_chunks.bounds().contains(section_coord)
+        || block_y < WORLD_BOTTOM
+        || block_y >= WORLD_TOP {
+            return;
+        }
+        let Some(mut chunk) = self.chunks.take(section_coord.xz()) else {
+            panic!("Chunk was None");
+        };
+        let section_index = (section_coord.y - chunk.section_y()) as usize;
+        if chunk.sections[section_index].dirty_id.null() {
+            chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
+        }
+        
+        self.chunks.set(section_coord.xz(), chunk);
+    }
+
+    fn mark_modified(&mut self, chunk_coord: ChunkCoord) {
+        let Some(mut chunk) = self.chunks.take(chunk_coord.xz()) else {
+            panic!("Chunk was None");
+        };
+        if chunk.save_id.null() {
+            chunk.save_id = self.save_queue.insert(chunk_coord);
+        }
+        self.chunks.set(chunk_coord.xz(), chunk);
+    }
+
     pub fn offset(&self) -> Coord {
         let grid_offset = self.chunks.offset();
         Coord::new(
@@ -365,10 +469,12 @@ impl VoxelWorld {
                         self.show_face(coord, dir);
                     }
                 });
+                self.mark_modified(coord.chunk_coord());
                 if change.marked_dirty {
                     if self.render_bounds().contains(coord) {
                         let section_coord = coord.section_coord();
-                        self.dirty_sections.push(section_coord);
+                        // self.dirty_sections.push(section_coord);
+                        self.mark_section_dirty(section_coord);
                     }
                 }
                 old
@@ -410,10 +516,14 @@ impl VoxelWorld {
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         let change = chunk.show_face(coord, face);
+        if change.change {
+            self.mark_modified(coord.chunk_coord());
+        }
         if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
-                self.dirty_sections.push(section_coord);
+                // self.dirty_sections.push(section_coord);
+                self.mark_section_dirty(section_coord);
             }
         }
         change.change
@@ -429,10 +539,14 @@ impl VoxelWorld {
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         let change = chunk.hide_face(coord, face);
+        if !change.change {
+            self.mark_modified(coord.chunk_coord());
+        }
         if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
-                self.dirty_sections.push(section_coord);
+                // self.dirty_sections.push(section_coord);
+                self.mark_section_dirty(section_coord);
             }
         }
         change.change
@@ -460,10 +574,14 @@ impl VoxelWorld {
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         let change = chunk.set_block_light(coord, level);
+        if change.change.changed() {
+            self.mark_modified(coord.chunk_coord());
+        }
         if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
-                self.dirty_sections.push(section_coord);
+                // self.dirty_sections.push(section_coord);
+                self.mark_section_dirty(section_coord);
             }
         }
         if change.change.new_max != change.change.old_max {
@@ -497,10 +615,14 @@ impl VoxelWorld {
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         let change = chunk.set_sky_light(coord, level);
+        if change.change.changed() {
+            self.mark_modified(coord.chunk_coord());
+        }
         if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
-                self.dirty_sections.push(section_coord);
+                // self.dirty_sections.push(section_coord);
+                self.mark_section_dirty(section_coord);
             }
         }
         if change.change.new_max != change.change.old_max {
@@ -536,7 +658,7 @@ impl VoxelWorld {
         chunk.get_data_mut(coord)
     }
 
-    pub fn get_or_insert_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C, default: Tag) -> &mut Tag {
+    pub fn get_or_insert_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C, value: Tag) -> &mut Tag {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
@@ -544,8 +666,26 @@ impl VoxelWorld {
         }
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
+        if self.get_data(coord).is_none() {
+            self.mark_modified(coord.chunk_coord());
+        }
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
-        chunk.get_or_insert_data(coord, default)
+        chunk.get_or_insert_data(coord, value)
+    }
+
+    pub fn get_or_insert_data_with<C: Into<(i32, i32, i32)>, F: FnOnce() -> Tag>(&mut self, coord: C, f: F) -> &mut Tag {
+        let coord: (i32, i32, i32) = coord.into();
+        let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            panic!("Out of bounds.");
+        }
+        let chunk_x = coord.x >> 4;
+        let chunk_z = coord.z >> 4;
+        if self.get_data(coord).is_none() {
+            self.mark_modified(coord.chunk_coord());
+        }
+        let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.get_or_insert_data_with(coord, f)
     }
 
     pub fn take_data<C: Into<(i32, i32, i32)>>(&mut self, coord: C) -> Tag {
@@ -558,6 +698,7 @@ impl VoxelWorld {
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         if let Some(data) = chunk.delete_data(coord) {
+            self.mark_modified(coord.chunk_coord());
             data
         } else {
             Tag::Null
@@ -578,6 +719,7 @@ impl VoxelWorld {
             if !state.is_air() {
                 state.block().on_data_delete(self, coord, state, data);
             }
+            self.mark_modified(coord.chunk_coord());
         }
     }
 
@@ -594,6 +736,7 @@ impl VoxelWorld {
             if !old_state.is_air() {
                 old_state.block().on_data_delete(self, coord, old_state, data);
             }
+            self.mark_modified(coord.chunk_coord());
         }
     }
 
@@ -614,6 +757,7 @@ impl VoxelWorld {
                 state.block().on_data_delete(self, coord, state, data);
             }
         }
+        self.mark_modified(coord.chunk_coord());
     }
 
     
@@ -656,6 +800,7 @@ impl VoxelWorld {
                 if state.is_air() {
                     return false;
                 }
+                self.mark_modified(coord.chunk_coord());
                 let new_ref = self.update_queue.push(coord);
                 self.set_update_ref(coord, new_ref);
                 state.block().on_enabled_changed(self, coord, state, true);
@@ -666,8 +811,9 @@ impl VoxelWorld {
         } else {
             if cur_ref.null() {
                 false
-            // currently enabled, so disable it (lol)
+            // currently enabled, so disable it
             } else {
+                self.mark_modified(coord.chunk_coord());
                 let cur_ref = self.set_update_ref(coord, UpdateRef::NULL);
                 self.update_queue.remove(cur_ref);
                 state.block().on_enabled_changed(self, coord, state, false);

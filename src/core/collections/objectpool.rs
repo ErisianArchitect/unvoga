@@ -1,4 +1,4 @@
-use std::{iter::Map, marker::PhantomData, num::NonZeroU64, sync::atomic::AtomicU64};
+use std::{iter::Map, marker::PhantomData, num::NonZeroU64, sync::atomic::AtomicU64, vec::Drain};
 
 
 /// An unordered object pool with O(1) lookup, insertion, deletion, and iteration.
@@ -51,7 +51,7 @@ impl<T,M: Copy> ObjectPool<T,M> {
             id
         }
     }
-    // TODO: Handle when id points to freed slot.
+    
     pub fn remove(&mut self, id: PoolId<M>) {
         if id.null() {
             return;
@@ -135,6 +135,22 @@ impl<T,M: Copy> ObjectPool<T,M> {
     #[must_use]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (PoolId<M>, &mut T)> {
         self.pool.iter_mut().map(|(id, item)| (*id, item))
+    }
+
+    #[must_use]
+    pub fn drain(&mut self) -> Map<Drain<'_, (PoolId<M>, T)>, fn((PoolId<M>, T)) -> T> {
+        self.unused.clear();
+        self.indices.clear();
+        fn drain_helper<T,M: Copy>((id, item): (PoolId<M>, T)) -> T {
+            item
+        }
+        self.pool.drain(..).map(drain_helper::<T,M>)
+    }
+
+    pub fn clear(&mut self) {
+        self.indices.clear();
+        self.unused.clear();
+        self.pool.clear();
     }
 }
 

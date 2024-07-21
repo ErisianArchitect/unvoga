@@ -9,64 +9,9 @@ pub struct RegionFile {
     sector_manager: SectorManager,
     /// Used for both reading and writing. The file is kept locked while the region is open.
     io: File,
-    // maybe_file: MaybeOpen,
     write_buffer: Cursor<Vec<u8>>,
     header: RegionHeader,
     path: PathBuf,
-}
-
-enum MaybeOpen {
-    Opened(File, RegionHeader, PathBuf),
-    Create(PathBuf),
-    CreateNew(PathBuf),
-}
-
-impl MaybeOpen {
-    pub fn get_header(&self) -> Option<&RegionHeader> {
-        let MaybeOpen::Opened(_, header, _) = self else {
-            return None;
-        };
-        Some(header)
-    }
-
-    pub fn get_path(&self) -> &Path {
-        match self {
-            MaybeOpen::Opened(_, _, path) => path.as_path(),
-            MaybeOpen::Create(path) => path.as_path(),
-            MaybeOpen::CreateNew(path) => path.as_path(),
-        }
-    }
-
-    pub fn get_mut(&mut self) -> Result<(&mut File, &mut RegionHeader, &Path)> {
-        let (file, header, path) = match self {
-            MaybeOpen::Opened(file, header, path) => return Ok((file, header, path)),
-            MaybeOpen::Create(path) => {
-                let mut file = File::options()
-                    .read(true).write(true)
-                    .create(true)
-                    .open(path.as_path())?;
-                let mut writer = BufWriter::new(&mut file);
-                write_zeros(&mut writer, RegionHeader::HEADER_SIZE)?;
-                drop(writer);
-                (file, RegionHeader::new(), path.clone())
-            },
-            MaybeOpen::CreateNew(path) => {
-                let mut file = File::options()
-                    .read(true).write(true)
-                    .create_new(true)
-                    .open(path.as_path())?;
-                let mut writer = BufWriter::new(&mut file);
-                write_zeros(&mut writer, RegionHeader::HEADER_SIZE)?;
-                drop(writer);
-                (file, RegionHeader::new(), path.clone())
-            },
-        };
-        *self = MaybeOpen::Opened(file, header, path);
-        let MaybeOpen::Opened(file, header, path) = self else {
-            unreachable!()
-        };
-        Ok((file, header, path))
-    }
 }
 
 impl RegionFile {
