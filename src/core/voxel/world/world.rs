@@ -151,13 +151,18 @@ impl VoxelWorld {
         if chunk_min == (chunk_x, chunk_z) {
             return;
         }
-        let mut chunks = self.chunks.lend();
-        let mut regions = self.regions.lend();
-        let mut render_chunks = self.render_chunks.lend();
         // First move regions so that new chunks can be loaded.
         // then move render chunks so that the new chunks can test against the new render bounds
         // then move data chunks
         // 
+        let mut render_chunks = self.render_chunks.lend("render_chunks in move_center");
+        render_chunks.reposition((render_x, render_y, render_z), |old_pos, new_pos, chunk| {
+            // I'm not going to do anything here right now because I'm not doing anything with the render
+            // chunks yet.
+            chunk
+        });
+        self.render_chunks.give(render_chunks);
+        let mut regions = self.regions.lend("regions in move_center");
         regions.reposition((region_x, region_z), |old_pos, (x, z), region| {
             let rg_path = self.get_region_path(x, z);
             if rg_path.is_file() {
@@ -166,12 +171,7 @@ impl VoxelWorld {
             // There's no region file, so just return None. We're not reusing RegionFile instances.
             None
         });
-        render_chunks.reposition((render_x, render_y, render_z), |old_pos, new_pos, chunk| {
-            // I'm not going to do anything here right now because I'm not doing anything with the render
-            // chunks yet.
-            chunk
-        });
-        self.render_chunks.give(render_chunks);
+        let mut chunks = self.chunks.lend("chunks in move_center");
         chunks.reposition((chunk_x, chunk_z), |old_pos, (x, z), chunk| {
             //                   The chunk should never be None. If it is, that's an error.
             let mut chunk = chunk.expect("Chunk was None");
@@ -206,16 +206,16 @@ impl VoxelWorld {
             chunk.block_offset.z = z * 16;
             Some(chunk)
         });
-
         self.chunks.give(chunks);
         self.regions.give(regions);
+
     }
 
     pub fn save_world(&mut self) -> Result<()> {
         self.save_queue.drain().try_for_each(|coord| {
             let (chunk_x, chunk_z) = coord.xz();
-            let mut chunks = self.chunks.lend();
-            let mut regions = self.regions.lend();
+            let mut chunks = self.chunks.lend("chunks in save_world");
+            let mut regions = self.regions.lend("regions in save_world");
             let mut chunk = chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
             // chunk.save_id = PoolId::NULL;
             let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
