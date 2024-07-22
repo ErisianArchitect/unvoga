@@ -1,6 +1,6 @@
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::{core::{collections::objectpool::PoolId, error::*}, prelude::Writeable};
+use crate::{core::{collections::objectpool::PoolId, error::*}, prelude::{SwapVal, Writeable}};
 use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
 use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, io::{read_block_data, read_enabled, read_section_blocks, read_section_light, read_section_occlusions}, occlusion::Occlusion, query::Query, update::UpdateRef, DirtyIdMarker, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_HEIGHT};
@@ -124,8 +124,8 @@ impl Section {
     
     pub fn coord(index: u16) -> Coord {
         let x = index & 0xf;
-        let y = index >> 4 & 0xf;
-        let z = index >> 8 & 0xf;
+        let y = index >> 8 & 0xf;
+        let z = index >> 4 & 0xf;
         Coord::new(x as i32, y as i32, z as i32)
     }
 
@@ -597,7 +597,7 @@ impl Section {
         });
         read_enabled(reader, |index| {
             let block_coord = Section::coord(index) + offset;
-            // world.set_enabled(block_coord, true);
+            // You can't use world.set_enabled here because world.set_enabled needs access to chunks, which is already being borrowed.
             let uref = world.update_queue.push(block_coord);
             update_refs[index as usize] = uref;
         }, &mut self.update_ref_count)?;
@@ -606,7 +606,7 @@ impl Section {
         return Ok(self.section_dirty.mark());
     }
 
-    pub fn disable_all(&mut self, world: &mut VoxelWorld) {
+    fn disable_all(&mut self, world: &mut VoxelWorld) {
         if let Some(refs) = self.update_refs.take() {
             assert!(!world.lock_update_queue, "Update queue was locked.");
             refs.into_iter().for_each(|&uref| {
@@ -617,6 +617,10 @@ impl Section {
     }
 
     pub fn unload(&mut self, world: &mut VoxelWorld) -> bool {
+        let dirty_id = self.dirty_id.swap(PoolId::NULL);
+        if !dirty_id.null() {
+            world.dirty_queue.remove(dirty_id);
+        }
         self.blocks = None;
         self.occlusion = None;
         self.block_light = None;

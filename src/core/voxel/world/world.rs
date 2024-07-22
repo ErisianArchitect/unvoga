@@ -87,7 +87,9 @@ impl VoxelWorld {
     };
     /// Create a new world centered at the specified block coordinate with the (chunk) render distance specified.
     /// The resulting width in chunks will be `render_distance * 2`.
-    pub fn new<P: AsRef<Path>>(render_distance: u8, center: Coord, directory: P) -> Self {
+    pub fn open<P: AsRef<Path>, C: Into<(i32, i32, i32)>>(directory: P, render_distance: u8, center: C) -> Self {
+        let center: (i32, i32, i32) = center.into();
+        let center: Coord = center.into();
         let mut center = center;
         // clamp Y to world Y range
         // center.y = center.y.min(WORLD_TOP).max(WORLD_BOTTOM);
@@ -176,15 +178,13 @@ impl VoxelWorld {
             //                   The chunk should never be None. If it is, that's an error.
             let mut chunk = chunk.expect("Chunk was None");
             self.unload_chunk(&mut chunk);
+            chunk.block_offset = Coord::new(x * 16, WORLD_BOTTOM, z * 16);
             if let Some(region) = regions.get_mut((x >> 5, z >> 5)) {
                 let result = region.read((x & 31, z & 31), |reader| {
                     chunk.read_from(reader, self)
                 });
                 match result {
-                    Err(Error::ChunkNotFound) => {
-                        /* chunk.unload() */
-                        // chunk.unload(self);
-                    },
+                    Err(Error::ChunkNotFound) => (/* Do nothing */),
                     Err(err) => {
                         panic!("Error: {err}");
                     }
@@ -228,6 +228,7 @@ impl VoxelWorld {
                 chunk.write_to(writer)?;
                 Ok(())
             }).expect("Failed to write chunk");
+            chunk.save_id = PoolId::NULL;
             chunks.set((chunk_x, chunk_z), chunk);
             regions.set((region_x, region_z), region);
             self.chunks.give(chunks);
@@ -253,16 +254,6 @@ impl VoxelWorld {
 
     /// This does not save the chunk!
     fn unload_chunk(&mut self, chunk: &mut Chunk) {
-        chunk.sections.iter_mut().for_each(|section| {
-            let dirty_id = section.dirty_id.swap(PoolId::NULL);
-            if !dirty_id.null() {
-                self.dirty_queue.remove(dirty_id);
-            }
-        });
-        let save_id = chunk.save_id.swap(PoolId::NULL);
-        if !save_id.null() {
-            self.save_queue.remove(save_id);
-        }
         chunk.unload(self);
     }
 
@@ -354,7 +345,7 @@ impl VoxelWorld {
     
     fn initial_load(mut self) -> Self {
         self.chunks.bounds().iter().for_each(|(chunk_x, chunk_z)| {
-            self.load_chunk(chunk_x, chunk_z);
+            self.load_chunk(chunk_x, chunk_z).expect("Failed to load chunk");
         });
         self
     }
@@ -960,9 +951,10 @@ impl VoxelWorld {
     pub fn height(&self, x: i32, z: i32) -> i32 {
         let chunk_x = x >> 4;
         let chunk_z = z >> 4;
-        if let Some(chunk) = self.chunks.get((x, z)) {
+        if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
             chunk.height(x, z)
         } else {
+            println!("Chunk not found");
             WORLD_BOTTOM
         }
     }

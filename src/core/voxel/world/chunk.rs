@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::core::{collections::objectpool::PoolId, voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, region::timestamp::Timestamp, rendering::voxelmaterial::VoxelMaterial, tag::Tag}};
+use crate::{core::{collections::objectpool::PoolId, voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, region::timestamp::Timestamp, rendering::voxelmaterial::VoxelMaterial, tag::Tag}}, prelude::SwapVal};
 
 use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_BOTTOM, WORLD_HEIGHT};
 use crate::core::error::*;
@@ -209,7 +209,7 @@ impl Chunk {
 
     
     pub fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
-        let mut length = 0;
+        let mut length = self.heightmap.write_to(writer)?;
         for i in 0..self.sections.len() {
             // the y offset of the bottom-most block
             length += self.sections[i].write_to(writer)?;
@@ -219,6 +219,7 @@ impl Chunk {
 
     
     pub fn read_from<R: Read>(&mut self, reader: &mut R, world: &mut VoxelWorld) -> Result<()> {
+        self.heightmap.read_from(reader)?;
         for i in 0..self.sections.len() {
             let y = i as i32 * 16 + self.block_offset.y;
             let offset = Coord::new(self.block_offset.x, y, self.block_offset.z);
@@ -235,10 +236,9 @@ impl Chunk {
             let y = i as i32 * 16 + self.block_offset.y;
             let offset = Coord::new(self.block_offset.x, y, self.block_offset.z);
             let marked = self.sections[i].unload(world);
-            if world.render_bounds().contains(offset) {
-                world.dirty_sections.push(offset.section_coord());
-            }
         }
+        let save_id = self.save_id.swap(PoolId::NULL);
+        world.save_queue.remove(save_id);
     }
 
 }
