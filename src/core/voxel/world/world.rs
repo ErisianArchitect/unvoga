@@ -12,6 +12,7 @@ use super::update::{BlockUpdateQueue, UpdateRef};
 
 use crate::core::collections::objectpool::{ObjectPool, PoolId};
 use crate::core::math::grid::{calculate_region_min, calculate_region_requirement};
+use crate::core::util::lend::Lend;
 use crate::core::voxel::region::regionfile::RegionFile;
 use crate::core::voxel::region::timestamp::Timestamp;
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::Id, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
@@ -57,15 +58,15 @@ pub struct VoxelWorld {
     pub dirty_sections: Vec<Coord>,
     pub dirty_queue: ObjectPool<Coord, DirtyIdMarker>,
     pub save_queue: ObjectPool<ChunkCoord, SaveIdMarker>,
-    pub chunks: RollGrid2D<Chunk>,
-    pub render_chunks: RollGrid3D<RenderChunk>,
+    pub chunks: Lend<RollGrid2D<Chunk>>,
+    pub render_chunks: Lend<RollGrid3D<RenderChunk>>,
     // I gotta figure out grid positioning for the loaded region files.
     // I can give it a buffer of 1 region so that there's room for the
     // world to move around without overflow.
     // I have an idea that involes rounding up to the next multiple of 32.
     // (n + 30) & -32
     // You'll have to do some hacky stuff to make -32u32.
-    pub regions: RollGrid2D<RegionFile>,
+    pub regions: Lend<RollGrid2D<RegionFile>>,
     pub update_queue: BlockUpdateQueue,
     pub lock_update_queue: bool,
     /// (Coord, new)
@@ -80,7 +81,7 @@ pub struct VoxelWorld {
 
 impl VoxelWorld {
     /// The maximum bounds of the world.
-    const WORLD_BOUNDS: Bounds3D = Bounds3D {
+    pub const WORLD_BOUNDS: Bounds3D = Bounds3D {
         min: (i32::MIN, WORLD_BOTTOM, i32::MIN),
         max: (i32::MAX, WORLD_TOP, i32::MAX)
     };
@@ -115,21 +116,25 @@ impl VoxelWorld {
             render_distance: render_distance as i32,
             world_directory: directory.to_owned(),
             dirty_sections: Vec::new(),
-            chunks: RollGrid2D::new_with_init(pad_size, pad_size, (chunk_x, chunk_z), |(x, z): (i32, i32)| {
+            chunks: Lend::new(RollGrid2D::new_with_init(pad_size, pad_size, (chunk_x, chunk_z), |(x, z): (i32, i32)| {
                 Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
-            }),
-            render_chunks: RollGrid3D::new_with_init(render_size, render_size.min(WORLD_HEIGHT / 16), render_size, (render_x, render_y, render_z), |pos: Coord| {
+            })),
+            render_chunks: Lend::new(RollGrid3D::new_with_init(render_size, render_size.min(WORLD_HEIGHT / 16), render_size, (render_x, render_y, render_z), |pos: Coord| {
                 Some(RenderChunk {
                     mesh: Handle::default(),
                     material: Handle::default(),
                 })
-            }),
-            regions: RollGrid2D::new(region_size as usize, region_size as usize, region_min),
+            })),
+            regions: Lend::new(RollGrid2D::new(region_size as usize, region_size as usize, region_min)),
             update_queue: BlockUpdateQueue::default(),
             lock_update_queue: false,
             update_modification_queue: Vec::new(),
             update_modification_map: HashMap::new(),
         }.initial_load()
+    }
+
+    fn get_region_path(&self, region_x: i32, region_z: i32) -> PathBuf {
+        self.subworld_directory.join(format!("{region_x}.{region_z}.rg"))
     }
 
     pub fn move_center<C: Into<(i32, i32, i32)>>(&mut self, center: C) {
@@ -139,19 +144,82 @@ impl VoxelWorld {
         let padded_size = padded_distance * 2;
         let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
         let (chunk_x, chunk_z) = calculate_center_offset(padded_distance, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
-        let region_min = calculate_region_min((chunk_x, chunk_z));
+        let (region_x, region_z) = calculate_region_min((chunk_x, chunk_z));
         self.save_world().expect("Failed to save the world");
-        todo!()
+        let chunk_min = self.chunks.bounds().min;
+        // World hasn't moved
+        if chunk_min == (chunk_x, chunk_z) {
+            return;
+        }
+        let mut chunks = self.chunks.lend();
+        let mut regions = self.regions.lend();
+        let mut render_chunks = self.render_chunks.lend();
+        // First move regions so that new chunks can be loaded.
+        // then move render chunks so that the new chunks can test against the new render bounds
+        // then move data chunks
+        // 
+        regions.reposition((region_x, region_z), |old_pos, (x, z), region| {
+            let rg_path = self.get_region_path(x, z);
+            if rg_path.is_file() {
+                return Some(RegionFile::open(rg_path).expect("Failed to open region file"));
+            }
+            // There's no region file, so just return None. We're not reusing RegionFile instances.
+            None
+        });
+        render_chunks.reposition((render_x, render_y, render_z), |old_pos, new_pos, chunk| {
+            // I'm not going to do anything here right now because I'm not doing anything with the render
+            // chunks yet.
+            chunk
+        });
+        self.render_chunks.give(render_chunks);
+        chunks.reposition((chunk_x, chunk_z), |old_pos, (x, z), chunk| {
+            //                   The chunk should never be None. If it is, that's an error.
+            let mut chunk = chunk.expect("Chunk was None");
+            self.unload_chunk(&mut chunk);
+            if let Some(region) = regions.get_mut((x >> 5, z >> 5)) {
+                let result = region.read((x & 31, z & 31), |reader| {
+                    chunk.read_from(reader, self)
+                });
+                match result {
+                    Err(Error::ChunkNotFound) => {
+                        /* chunk.unload() */
+                        // chunk.unload(self);
+                    },
+                    Err(err) => {
+                        panic!("Error: {err}");
+                    }
+                    _ => (),
+                }
+                let chunk_y = chunk.section_y();
+                for i in 0..chunk.sections.len() {
+                    let section_y = chunk_y + i as i32;
+                    let section_coord = Coord::new(chunk_x, section_y, chunk_z);
+                    if self.render_chunks.bounds().contains(section_coord) 
+                    && chunk.sections[i].dirty_id.null(){
+                        let id = self.dirty_queue.insert(section_coord);
+                        chunk.sections[i].dirty_id = id;
+                    }
+                }
+                chunk.edit_time = region.get_timestamp((x & 31, z & 31));
+            }
+            chunk.block_offset.x = x * 16;
+            chunk.block_offset.z = z * 16;
+            Some(chunk)
+        });
+
+        self.chunks.give(chunks);
+        self.regions.give(regions);
     }
 
     pub fn save_world(&mut self) -> Result<()> {
         self.save_queue.drain().try_for_each(|coord| {
-            println!("Saving {coord:?}");
             let (chunk_x, chunk_z) = coord.xz();
-            let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
+            let mut chunks = self.chunks.lend();
+            let mut regions = self.regions.lend();
+            let mut chunk = chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
             // chunk.save_id = PoolId::NULL;
             let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
-            let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
+            let mut region = if let Some(region) = regions.take((region_x, region_z)) {
                 region
             } else {
                 RegionFile::open_or_create(self.subworld_directory.join(format!("{region_x}.{region_z}.rg")))?
@@ -159,9 +227,11 @@ impl VoxelWorld {
             let result = region.write_timestamped((chunk_x & 31, chunk_z & 31), chunk.edit_time, |writer| {
                 chunk.write_to(writer)?;
                 Ok(())
-            })?;
-            self.chunks.set((chunk_x, chunk_z), chunk);
-            self.regions.set((region_x, region_z), region);
+            }).expect("Failed to write chunk");
+            chunks.set((chunk_x, chunk_z), chunk);
+            regions.set((region_x, region_z), region);
+            self.chunks.give(chunks);
+            self.regions.give(regions);
             Ok(())
         })
     }
@@ -196,25 +266,32 @@ impl VoxelWorld {
         chunk.unload(self);
     }
 
-    /// This method assumes the chunk has already been unloaded with unload_chunk()
-    fn load_chunk(&mut self, chunk_x: i32, chunk_z: i32) -> Result<()> {
-        let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
-        let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
-        let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
-            region
-        } else {
-            let region_path = self.subworld_directory.join(format!("{region_x}.{region_z}.rg"));
-            if region_path.is_file() {
-                RegionFile::open_or_create(region_path)?
-            } else {
-                chunk.edit_time = Timestamp::new(0);
-                self.chunks.set((chunk_x, chunk_z), chunk);
-                return Ok(());
-            }
-        };
+    // This method assumes the chunk has already been unloaded with unload_chunk()
+    fn load_chunk_internal(&mut self, chunk: &mut Chunk, region: &mut RegionFile, chunk_x: i32, chunk_z: i32) -> Result<()> {
+        // let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
+        // let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
+        //     region
+        // } else {
+        //     let region_path = self.get_region_path(region_x, region_z);
+        //     if region_path.is_file() {
+        //         RegionFile::open_or_create(region_path)?
+        //     } else {
+        //         chunk.edit_time = Timestamp::new(0);
+        //         return Ok(());
+        //     }
+        // };
         let result = region.read((chunk_x & 31, chunk_z & 31), |reader| {
             chunk.read_from(reader, self)
         });
+        match result {
+            Err(Error::ChunkNotFound) => {
+                /* chunk.unload() */
+                // chunk.unload(self);
+            },
+            other => {
+                other?;
+            },
+        }
         let chunk_y = chunk.section_y();
         for i in 0..chunk.sections.len() {
             let section_y = chunk_y + i as i32;
@@ -226,17 +303,50 @@ impl VoxelWorld {
             }
         }
         chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
+        // self.regions.set((region_x, region_z), region);
+        Ok(())
+    }
+
+    /// This method assumes the chunk has already been unloaded with unload_chunk()
+    fn load_chunk(&mut self, chunk_x: i32, chunk_z: i32) -> Result<()> {
+        let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
+        let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
+        let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
+            region
+        } else {
+            let region_path = self.get_region_path(region_x, region_z);
+            if region_path.is_file() {
+                RegionFile::open_or_create(region_path)?
+            } else {
+                chunk.edit_time = Timestamp::new(0);
+                self.chunks.set((chunk_x, chunk_z), chunk);
+                return Ok(());
+            }
+        };
+        let result = region.read((chunk_x & 31, chunk_z & 31), |reader| {
+            chunk.read_from(reader, self)
+        });
         match result {
             Err(Error::ChunkNotFound) => {
                 /* chunk.unload() */
                 // chunk.unload(self);
             },
-            Err(other) => {
-                println!("{other:?}");
-                panic!();
+            other => {
+                other?;
             },
             _ => (),
         }
+        let chunk_y = chunk.section_y();
+        for i in 0..chunk.sections.len() {
+            let section_y = chunk_y + i as i32;
+            let section_coord = Coord::new(chunk_x, section_y, chunk_z);
+            if self.render_chunks.bounds().contains(section_coord) 
+            && chunk.sections[i].dirty_id.null(){
+                let id = self.dirty_queue.insert(section_coord);
+                chunk.sections[i].dirty_id = id;
+            }
+        }
+        chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
         self.chunks.set((chunk_x, chunk_z), chunk);
         self.regions.set((region_x, region_z), region);
         Ok(())

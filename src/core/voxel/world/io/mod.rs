@@ -49,7 +49,9 @@ pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]
     // This operation would fail if state_count is less than 2, but thankfully
     // it's not going to be.
     let bit_width = state_count.next_power_of_two().trailing_zeros();
-    let byte_count = (bit_width as usize * 4096) / 8 + (bit_width % 8 != 0) as usize;
+    // Multiplied by 512 because 4096 / 8 = 512, and we multiply the bit_width by
+    // 4096 then divide by 8, which is the equivalent of multiplying by 512.
+    let byte_count = bit_width as usize * 512;
     let bytes = read_bytes(reader, byte_count)?;
     struct BitReader<'a> {
         blocks: &'a mut Box<[Id]>,
@@ -90,11 +92,6 @@ pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]
                 self.push_bits(bits >> space, count - space);
             }
         }
-
-        // 
-        // fn push_byte2(&mut self, byte: u8) {
-
-        // }
         
         fn push_byte(&mut self, byte: u8) {
             self.push_bits(byte, 8);
@@ -161,7 +158,9 @@ pub fn write_section_blocks<W: Write>(writer: &mut W, blocks: &Option<Box<[Id]>>
     // 0b001101
     // 0b010000
     let bit_width = id_counter.next_power_of_two().trailing_zeros();
-    let byte_count = (bit_width as u32  * 4096) / 8 + (bit_width % 8 != 0) as u32;
+    // Multiplied by 512 because 4096 / 8 = 512, and we multiply the bit_width by
+    // 4096 then divide by 8, which is the equivalent of multiplying by 512.
+    let byte_count = bit_width as u32  * 512;
     let mut bytes = (0..byte_count).map(|_| 0u8).collect::<Box<_>>();
     struct BitWriter<'a> {
         // The bits that have been added (bit width is bit_width)
@@ -231,8 +230,6 @@ pub fn write_section_blocks<W: Write>(writer: &mut W, blocks: &Option<Box<[Id]>>
     if bit_writer.accum_size > 0 {
         bit_writer.bytes[bit_writer.byte_index] = bit_writer.accum;
     }
-    // drop bit_writer to regain access to bytes.
-    drop(bit_writer);
     Ok(length + write_bytes(writer, &bytes)?)
 }
 

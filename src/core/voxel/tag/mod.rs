@@ -29,31 +29,35 @@ macro_rules! tag_table {
             [17 Direction     Byte      unbox   <crate::core::voxel::direction::Direction>  ]
             [18 Cardinal      Byte      unbox   <crate::core::voxel::direction::Cardinal>   ]
             [19 Rotation      Byte      unbox   <crate::core::math::coordmap::Rotation>     ]
-            [20 Axis          Byte      unbox   <crate::core::voxel::axis::Axis>            ]
-            [21 Rgb           NonByte   unbox   <crate::core::voxel::rendering::color::Rgb> ]
-            [22 Rgba          NonByte   unbox   <crate::core::voxel::rendering::color::Rgba>]
-            [23 IVec2         NonByte   unbox   <bevy::math::IVec2>                         ]
-            [24 IVec3         NonByte   unbox   <bevy::math::IVec3>                         ]
-            [25 IVec4         NonByte   box     <bevy::math::IVec4>                         ]
-            [26 Vec2          NonByte   unbox   <bevy::math::Vec2>                          ]
-            [27 Vec3          NonByte   unbox   <bevy::math::Vec3>                          ]
-            [28 Vec4          NonByte   box     <bevy::math::Vec4>                          ]
-            [29 Mat2          NonByte   box     <bevy::math::Mat2>                          ]
-            [30 Mat3          NonByte   box     <bevy::math::Mat3>                          ]
-            [31 Mat4          NonByte   box     <bevy::math::Mat4>                          ]
-            [32 Quat          NonByte   box     <bevy::math::Quat>                          ]
-            [33 Bounds2       NonByte   box     <rollgrid::rollgrid2d::Bounds2D>            ]
-            [34 Bounds3       NonByte   box     <rollgrid::rollgrid3d::Bounds3D>            ]
-            [35 String        NonByte   box     <String>                                    ]
-            [36 Array         NonByte   box     <crate::core::voxel::tag::Array>            ]
-            [37 Map           NonByte   box     <hashbrown::HashMap<String, Tag>>           ]
+            [20 Flip          Byte      unbox   <crate::core::math::coordmap::Flip>         ]
+            [21 Orientation   Byte      unbox   <crate::core::math::coordmap::Orientation>  ]
+            [22 Axis          Byte      unbox   <crate::core::voxel::axis::Axis>            ]
+            [23 Rgb           NonByte   unbox   <crate::core::voxel::rendering::color::Rgb> ]
+            [24 Rgba          NonByte   unbox   <crate::core::voxel::rendering::color::Rgba>]
+            [25 IVec2         NonByte   unbox   <bevy::math::IVec2>                         ]
+            [26 IVec3         NonByte   unbox   <bevy::math::IVec3>                         ]
+            [27 IVec4         NonByte   box     <bevy::math::IVec4>                         ]
+            [28 Vec2          NonByte   unbox   <bevy::math::Vec2>                          ]
+            [29 Vec3          NonByte   unbox   <bevy::math::Vec3>                          ]
+            [30 Vec4          NonByte   box     <bevy::math::Vec4>                          ]
+            [31 Mat2          NonByte   box     <bevy::math::Mat2>                          ]
+            [32 Mat3          NonByte   box     <bevy::math::Mat3>                          ]
+            [33 Mat4          NonByte   box     <bevy::math::Mat4>                          ]
+            [34 Quat          NonByte   box     <bevy::math::Quat>                          ]
+            [35 Bounds2       NonByte   box     <rollgrid::rollgrid2d::Bounds2D>            ]
+            [36 Bounds3       NonByte   box     <rollgrid::rollgrid3d::Bounds3D>            ]
+            [37 String        NonByte   box     <String>                                    ]
+            [38 Array         NonByte   box     <crate::core::voxel::tag::Array>            ]
+            [39 Map           NonByte   box     <hashbrown::HashMap<String, Tag>>           ]
             /* This line should remain commented out. It is a representation of what I wrote manually
-            [38 Tag           NonByte   box     <Tag>                                       ]
+            [63 Tag           NonByte   box     <Tag>                                       ]
             Continue writing new rows at index 39
             */
         }
     };
 }
+
+const TAG_ARRAY_ID: u8 = 63;
 
 macro_rules! table_impls {
     ($([$id:literal $name:ident $impl:ident $box:ident <$type:ty> $($end:tt)*])*) => {
@@ -116,7 +120,7 @@ macro_rules! table_impls {
             $(
                 $name(Vec<$type>) = $id,
             )*
-            Tag(Vec<Tag>) = 38,
+            Tag(Vec<Tag>) = TAG_ARRAY_ID,
         }
 
         impl Array {
@@ -126,7 +130,7 @@ macro_rules! table_impls {
                     $(
                         Array::$name(_) => $id,
                     )*
-                    Array::Tag(_) => 38,
+                    Array::Tag(_) => TAG_ARRAY_ID,
                 }
             }
 
@@ -175,7 +179,7 @@ macro_rules! table_impls {
                     $(
                         $id => Array::$name(Vec::<$type>::read_from(reader)?),
                     )*
-                    38 => Array::Tag(Vec::<Tag>::read_from(reader)?),
+                    TAG_ARRAY_ID => Array::Tag(Vec::<Tag>::read_from(reader)?),
                     _ => return Err(Error::InvalidBinaryFormat),
                 })
             }

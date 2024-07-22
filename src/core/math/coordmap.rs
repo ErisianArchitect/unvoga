@@ -745,7 +745,40 @@ impl Rotation {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Flip(u8);
+pub struct Flip(pub u8);
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Orientation {
+    pub flip: Flip,
+    pub rotation: Rotation,
+}
+
+impl Orientation {
+    pub fn new(flip: Flip, rotation: Rotation) -> Self {
+        Self {
+            flip,
+            rotation
+        }
+    }
+    
+    pub fn pack(self) -> u8 {
+        pack_flip_and_rotation(self.flip, self.rotation)
+    }
+
+    pub fn unpack(packed: u8) -> Self {
+        let (flip, rotation) = unpack_flip_and_rotation(packed);
+        Self {
+            flip,
+            rotation
+        }
+    }
+}
+
+impl std::fmt::Display for Orientation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Orientation({},{})", self.flip, self.rotation)
+    }
+}
 
 pub fn pack_flip_and_rotation(flip: Flip, rotation: Rotation) -> u8 {
     flip.0 | rotation.0 << 3
@@ -832,6 +865,30 @@ impl std::ops::Not for Flip {
     
     fn not(self) -> Self::Output {
         Self(!self.0 & 0b111)
+    }
+}
+
+impl std::fmt::Display for Flip {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Flip(")?;
+        let mut sep = false;
+        if self.x() {
+            write!(f, "X")?;
+            sep = true;
+        }
+        if self.y() {
+            if sep {
+                write!(f, "|")?;
+            }
+            write!(f, "Y")?;
+        }
+        if self.z() {
+            if sep {
+                write!(f, "|")?;
+            }
+            write!(f, "Z")?;
+        }
+        write!(f, ")")
     }
 }
 
@@ -944,24 +1001,6 @@ mod tests {
     }
     #[test]
     fn src_test() -> Result<(), std::io::Error> {
-        // impl Rotation {
-        //     fn face_rotation(self, face: Direction) -> u8 {
-        //         match (self.angle(), self.up(), face) {
-
-        //             _ => unreachable!()
-        //         }
-        //     }
-
-        //     fn face_rotation2(self, face: Direction) -> u8 {
-        //         match self.angle() {
-        //             0 => match self.up() {
-        //                 NegX => match face {
-        //                     NegX => todo!(),
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
         fn face_rotation(rot: Rotation, face: Direction) -> u8 {
             let source_face = rot.source_face(face);
             let up = face_up(face);

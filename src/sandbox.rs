@@ -5,6 +5,7 @@ use bevy::math::IVec2;
 use hashbrown::HashMap;
 use rollgrid::rollgrid3d::Bounds3D;
 
+use crate::core::math::coordmap::{Flip, Orientation};
 use crate::core::voxel::region::regionfile::RegionFile;
 use crate::prelude::*;
 use crate::core::error::*;
@@ -20,14 +21,15 @@ pub fn sandbox() {
     blocks::register_block(DebugBlock);
     let mut world = VoxelWorld::new(16, Coord::new(0, 0, 0), "ignore/test_world");
     let usage = world.dynamic_usage();
-    println!("Memory Usage: {usage}");
-    println!(" World Bounds: {:?}", world.bounds());
-    println!("Render Bounds: {:?}", world.render_bounds());
-    println!("  Block Count: {}", world.bounds().volume());
+    println!("     Memory Usage: {usage}");
+    println!("     World Bounds: {:?}", world.bounds());
+    println!("    Render Bounds: {:?}", world.render_bounds());
+    println!("      Block Count: {}", world.bounds().volume());
+    println!("World Block Count: {}", VoxelWorld::WORLD_BOUNDS.volume());
 
     let air = Id::AIR;
     let debug = blockstate!(debug).register();
-    let debug_data = blockstate!(debug, withdata = true).register();
+    let debug_data = blockstate!(debug, withdata = true, flip=Flip::X | Flip::Y, orientation=Orientation::new(Flip::X | Flip::Y, Rotation::new(Direction::NegZ, 3))).register();
     let enabled = blockstate!(debug, enabled = true).register();
     let dirt = blockstate!(dirt).register();
     let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();
@@ -35,12 +37,13 @@ pub fn sandbox() {
     println!("Update after load.");
     world.update();
     println!("Getting block");
-    let block = world.get_block((0, 0, 0));
-    let occ = world.occlusion((0,0,0));
-    let block_light = world.get_block_light((0,0,0));
-    let sky_light = world.get_sky_light((0,0,0));
-    let enabled = world.enabled((0,0,0));
-    let data = world.get_data((0,0,0));
+    let coord = (2,3,4);
+    let block = world.get_block(coord);
+    let occ = world.occlusion(coord);
+    let block_light = world.get_block_light(coord);
+    let sky_light = world.get_sky_light(coord);
+    let enabled = world.enabled(coord);
+    let data = world.get_data(coord);
     println!("      Block: {block}");
     println!("  Occlusion: {occ}");
     println!("Block Light: {block_light}");
@@ -48,20 +51,19 @@ pub fn sandbox() {
     println!("    Enabled: {enabled}");
     println!("       Data: {data:?}");
     // drop(data);
-    world.set_block((0, 0, 0), debug_data);
-    world.set_block((1, 0, 0), rot1);
-    world.set_block_light((0,0,0), 1);
-    world.set_sky_light((0,0,0), 6);
-    world.set_enabled((0,0,0), true);
-    world.save_world();
-    world.set_block((0, 0, 0), debug_data);
-    world.set_block((1, 0, 0), rot1);
-    world.set_block_light((0,0,0), 1);
-    world.set_sky_light((0,0,0), 6);
-    world.set_enabled((0,0,0), true);
+    world.set_block(coord, debug_data);
+    world.set_block_light(coord, 1);
+    world.set_sky_light(coord, 6);
+    world.set_enabled(coord, true);
     world.save_world();
     let tag = Tag::from(["test", "Hello, world"]);
     println!("{tag:?}");
+    world.move_center((1024*1024, 0, 1024*1024));
+    let coord = (1024*1024 + 3, 3, 1024*1024 + 3);
+    let block = world.get_block(coord);
+    println!("Far Block: {block}");
+    world.set_block(coord, dirt);
+    world.save_world();
     // let coord = Coord::new(13,12,69).chunk_coord();
     // {
     //     let chunk = world.get_chunk((coord.x, coord.z)).unwrap();
@@ -103,6 +105,7 @@ fn bitmask_test() {
     println!("{mask:08b}");
 }
 
+#[test]
 fn write_read_test() -> Result<()> {
     let path: PathBuf = "ignore/test.rg".into();
     use rand::prelude::*;
@@ -118,7 +121,8 @@ fn write_read_test() -> Result<()> {
                 let position = Tag::IVec2(IVec2::new(x as i32, z as i32));
                 let tag = Tag::from(HashMap::from([
                     ("array".to_owned(), array.clone()),
-                    ("position".to_owned(), position.clone())
+                    ("position".to_owned(), position.clone()),
+                    ("flips".to_owned(), Tag::from([Flip::X, Flip::Y, Flip::Z, Flip::X | Flip::Z, Flip::X | Flip::Z, Flip::X | Flip::Z]))
                 ]));
                 region.write_value((x, z), &tag)?;
             }
@@ -131,8 +135,9 @@ fn write_read_test() -> Result<()> {
             for x in 0..32 {
                 let array = Box::new(Array::U8((0u32..4096*511+1234).map(|i| rng.gen()).collect()));
                 let position = IVec2::new(x as i32, z as i32);
+                let flips =  Tag::from([Flip::X, Flip::Y, Flip::Z, Flip::X | Flip::Z, Flip::X | Flip::Z, Flip::X | Flip::Z]);
                 let read_tag: Tag = region.read_value((x, z))?;
-                
+                assert_eq!(&flips, &read_tag["flips"]);
                 if let (
                     Tag::Array(read_array),
                     Tag::IVec2(read_position)
@@ -326,7 +331,7 @@ impl Block for DebugBlock {
             context.replace(blockstate!(debug).register());
         } else if matches!(context.replacement()["withdata"], StateValue::Bool(true)) {
             println!("Adding data...");
-            world.set_data(context.coord(), Tag::from("The quick brown fox jumps over the lazy dog."));
+            context.set_data(Tag::from("The quick brown fox jumps over the lazy dog."));
         }
     }
     fn on_remove(&self, world: &mut VoxelWorld, coord: Coord, old: Id, new: Id) {

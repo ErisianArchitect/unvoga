@@ -5,7 +5,13 @@ use std::io::{
 };
 
 use crate::core::error::{Error, Result};
+use crate::core::math::num::*;
 
+// pub struct BitUnpacker<T> {
+//     bit_width: u32,
+//     accum: T,
+//     accum_size: u32,
+// }
 
 pub fn read_u24<R: Read>(reader: &mut R) -> Result<u32> {
     let mut buf = [0u8; 4];
@@ -84,14 +90,16 @@ pub trait Writeable {
 //     }
 // }
 
-use crate::prelude::{BitSize, SetBit};
+use crate::prelude::{BitSize, GetBit, SetBit};
 use crate::{core::{math::{bit::{BitFlags128, BitFlags16, BitFlags32, BitFlags64, BitFlags8}, coordmap::Rotation}, voxel::{axis::Axis, direction::Direction, rendering::color::{Rgb, Rgba}, tag::{Array, Byte, NonByte, Tag}}}, for_each_int_type};
 use bevy::math::*;
 use bytemuck::NoUninit;
 use hashbrown::HashMap;
+use itertools::Itertools;
 use rollgrid::{rollgrid2d::Bounds2D, rollgrid3d::Bounds3D};
 use voxel::direction::Cardinal;
 
+use super::math::coordmap::{unpack_flip_and_rotation, Flip, Orientation};
 use super::math::num::UnsignedNum;
 use super::*;
 
@@ -316,21 +324,44 @@ impl Writeable for Cardinal {
 
 impl Readable for Rotation {
     fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
-        let mut reader = reader;
         Ok(Rotation(u8::read_from(reader)?))
     }
 }
 
 impl Writeable for Rotation {
     fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
-        let mut writer = writer;
         self.0.write_to(writer)
+    }
+}
+
+impl Readable for Flip {
+    fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(Flip(u8::read_from(reader)?))
+    }
+}
+
+impl Writeable for Flip {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
+        self.0.write_to(writer)
+    }
+}
+
+impl Readable for Orientation {
+    fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
+        let packed = u8::read_from(reader)?;
+        Ok(Orientation::unpack(packed))
+    }
+}
+
+impl Writeable for Orientation {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
+        let packed = self.pack();
+        packed.write_to(writer)
     }
 }
 
 impl Readable for Axis {
     fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
-        let mut reader = reader;
         let axis: u8 = u8::read_from(reader)?;
         const X: u8 = Axis::X as u8;
         const Y: u8 = Axis::Y as u8;
@@ -928,6 +959,139 @@ impl Writeable for Vec<Rotation> {
         writer.write_all(&buf[1..4])?;
         writer.write_all(bytemuck::cast_slice(self.as_slice()))?;
         Ok(self.len() as u64 + 3)
+    }
+}
+
+impl Readable for Vec<Flip> {
+    fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
+        let length = read_u24(reader)?;
+        let bit_width = 3 * length;
+        let byte_count = bit_width / 8 + (bit_width % 8 != 0) as u32;
+        let bytes = read_bytes(reader, byte_count as usize)?;
+        let mut flips = (0..length).map(|_| Flip::NONE).collect_vec();
+        struct BitReader<'a> {
+            flips: &'a mut [Flip],
+            index: usize,
+            accum: u8,
+            accum_size: u32,
+        }
+        impl<'a> BitReader<'a> {
+            const BIT_WIDTH: u32 = 3;
+            fn push_value(&mut self, value: u8) {
+                self.flips[self.index] = Flip(value);
+                self.index += 1;
+            }
+
+            fn push_bits(&mut self, bits: u8, count: u32) {
+                if self.index == self.flips.len() {
+                    return;
+                }
+                let space = Self::BIT_WIDTH - self.accum_size;
+                if space >= count {
+                    let start = self.accum_size;
+                    let end = start + count;
+                    self.accum = self.accum.set_bitmask(start..end, bits);
+                    self.accum_size += count;
+                    if self.accum_size == Self::BIT_WIDTH {
+                        self.push_value(self.accum);
+                        self.accum = 0;
+                        self.accum_size = 0;
+                    }
+                } else {
+                    self.push_bits(bits, space);
+                    self.push_bits(bits >> space, count - space);
+                }
+            }
+        }
+        let mut bitreader = BitReader {
+            flips: &mut flips,
+            index: 0,
+            accum: 0,
+            accum_size: 0
+        };
+        bytes.into_iter().for_each(|byte| bitreader.push_bits(byte, 8));
+        assert_eq!(bitreader.flips.len(), bitreader.index);
+        Ok(flips)
+    }
+}
+
+impl Writeable for Vec<Flip> {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
+        if self.len() > 0xffffff {
+            return Err(Error::ArrayTooLong);
+        }
+        let mut length = write_u24(writer, self.len() as u32)?;
+        let bit_width = 3 * self.len() as u32;
+        let byte_count = bit_width / 8 + (bit_width % 8 != 0) as u32;
+        let mut bytes = (0..byte_count).map(|_| 0u8).collect::<Box<_>>();
+        struct BitWriter<'a> {
+            bytes: &'a mut [u8],
+            index: usize,
+            accum: u8,
+            accum_size: u32,
+        }
+        impl<'a> BitWriter<'a> {
+            const BIT_WIDTH: u32 = 3;
+            fn push_byte(&mut self, byte: u8) {
+                self.bytes[self.index] = byte;
+                self.index += 1;
+            }
+
+            fn push_flip(&mut self, Flip(flip): Flip) {
+                let end_size = 8 - self.accum_size;
+                if end_size < Self::BIT_WIDTH {
+                    let mask = flip.get_bitmask(0..end_size) as u8;
+                    self.push_byte(self.accum | mask << self.accum_size);
+                    self.accum = flip >> end_size;
+                    self.accum_size = Self::BIT_WIDTH - end_size;
+                } else { // end_size >= bit_width
+                    let start = self.accum_size;
+                    let end = start + Self::BIT_WIDTH;
+                    self.accum = self.accum.set_bitmask(start..end, flip);
+                    self.accum_size += Self::BIT_WIDTH;
+                    if self.accum_size == 8 {
+                        self.push_byte(self.accum);
+                        self.accum = 0;
+                        self.accum_size = 0;
+                    }
+                }
+            }
+        }
+        let mut bitwriter = BitWriter {
+            bytes: &mut bytes,
+            index: 0,
+            accum: 0,
+            accum_size: 0
+        };
+        self.iter().cloned().for_each(|flip| {
+            bitwriter.push_flip(flip);
+        });
+        if bitwriter.accum_size > 0 {
+            bitwriter.push_byte(bitwriter.accum);
+        }
+        Ok(length + write_bytes(writer, &bytes)?)
+    }
+}
+
+impl Readable for Vec<Orientation> {
+    fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
+        let length = read_u24(reader)?;
+        let bytes = read_bytes(reader, length as usize)?;
+        Ok(bytes.into_iter().map(|packed| Orientation::unpack(packed)).collect())
+    }
+}
+
+impl Writeable for Vec<Orientation> {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
+        if self.len() > 0xffffff {
+            return Err(Error::ArrayTooLong);
+        }
+        let mut length = write_u24(writer, self.len() as u32)?;
+
+        let bytes = self.iter().cloned().map(|orientation| orientation.pack()).collect_vec();
+        length += write_bytes(writer, &bytes)?;
+
+        Ok(length)
     }
 }
 

@@ -2,7 +2,7 @@ use std::{borrow::Borrow, fmt::Debug, ops::{Index, IndexMut}};
 
 use bevy::math::{IVec2, IVec3};
 use itertools::Itertools;
-use crate::core::error::*;
+use crate::core::{error::*, math::coordmap::Orientation};
 
 use crate::{core::{math::coordmap::{Flip, Rotation}, util::traits::StrToOwned}, prelude::{read_u24, write_u24, Readable, Writeable}};
 
@@ -31,10 +31,11 @@ pub enum StateValue {
     Direction(Direction) = 4,
     Cardinal(Cardinal) = 5,
     Rotation(Rotation) = 6,
-    // Flip(Flip),
-    Axis(Axis) = 7,
-    Coord2(IVec2) = 8,
-    Coord3(IVec3) = 9,
+    Flip(Flip) = 7,
+    Orientation(Orientation) = 8,
+    Axis(Axis) = 9,
+    Coord2(IVec2) = 10,
+    Coord3(IVec3) = 11,
 }
 
 impl StateValue {
@@ -48,10 +49,11 @@ impl StateValue {
             StateValue::Direction(_) => 4,
             StateValue::Cardinal(_) => 5,
             StateValue::Rotation(_) => 6,
-            // StateValue::Flip(_) => 7,
-            StateValue::Axis(_) => 7,
-            StateValue::Coord2(_) => 8,
-            StateValue::Coord3(_) => 9,
+            StateValue::Flip(_) => 7,
+            StateValue::Orientation(_) => 8,
+            StateValue::Axis(_) => 9,
+            StateValue::Coord2(_) => 10,
+            StateValue::Coord3(_) => 11,
         }
     }
 }
@@ -67,9 +69,11 @@ impl Readable for StateValue {
             4 => StateValue::Direction(Direction::read_from(reader)?),
             5 => StateValue::Cardinal(Cardinal::read_from(reader)?),
             6 => StateValue::Rotation(Rotation::read_from(reader)?),
-            7 => StateValue::Axis(Axis::read_from(reader)?),
-            8 => StateValue::Coord2(IVec2::read_from(reader)?),
-            9 => StateValue::Coord3(IVec3::read_from(reader)?),
+            7 => StateValue::Flip(Flip::read_from(reader)?),
+            8 => StateValue::Orientation(Orientation::read_from(reader)?),
+            9 => StateValue::Axis(Axis::read_from(reader)?),
+            10 => StateValue::Coord2(IVec2::read_from(reader)?),
+            11 => StateValue::Coord3(IVec3::read_from(reader)?),
             _ => return Err(crate::prelude::VoxelError::InvalidBinaryFormat),
         })
     }
@@ -86,6 +90,8 @@ impl Writeable for StateValue {
             StateValue::Direction(value) => value.write_to(writer)?,
             StateValue::Cardinal(value) => value.write_to(writer)?,
             StateValue::Rotation(value) => value.write_to(writer)?,
+            StateValue::Flip(value) => value.write_to(writer)?,
+            StateValue::Orientation(value) => value.write_to(writer)?,
             StateValue::Axis(value) => value.write_to(writer)?,
             StateValue::Coord2(value) => value.write_to(writer)?,
             StateValue::Coord3(value) => value.write_to(writer)?,
@@ -255,6 +261,18 @@ impl From<Rotation> for StateValue {
     }
 }
 
+impl From<Flip> for StateValue {
+    fn from(value: Flip) -> Self {
+        StateValue::Flip(value)
+    }
+}
+
+impl From<Orientation> for StateValue {
+    fn from(value: Orientation) -> Self {
+        StateValue::Orientation(value)
+    }
+}
+
 impl From<Coord> for StateValue {
     fn from(value: Coord) -> Self {
         StateValue::Coord3(value.into())
@@ -369,7 +387,13 @@ impl std::fmt::Display for StateValue {
                 Cardinal::South => write!(f, "South"),
             },
             StateValue::Rotation(rotation) => {
-                write!(f, "Rotation(up={:?}, forward={:?}, angle={})", rotation.up(), rotation.forward(), rotation.angle())
+                write!(f, "{rotation}")
+            }
+            StateValue::Flip(flip) => {
+                write!(f, "{flip}")
+            }
+            StateValue::Orientation(orientation) => {
+                write!(f, "{orientation}")
             }
             StateValue::Coord2(coord) => {
                 write!(f, "({}, {})", coord.x, coord.y)
@@ -377,23 +401,6 @@ impl std::fmt::Display for StateValue {
             StateValue::Coord3(coord) => {
                 write!(f, "({}, {}, {})", coord.x, coord.y, coord.z)
             }
-            // &StateValue::Flip(flip) => {
-            //     write!(f, "Flip::")?;
-            //     if flip == Flip::NONE {
-            //         write!(f, "None")?;
-            //     } else {
-            //         if flip.x() {
-            //             write!(f, "X")?;
-            //         }
-            //         if flip.y() {
-            //             write!(f, "Y")?;
-            //         }
-            //         if flip.z() {
-            //             write!(f, "Z")?;
-            //         }
-            //     }
-            //     Ok(())
-            // }
             &StateValue::Axis(axis) => {
                 write!(f, "Axis::{axis:?}")
             }
