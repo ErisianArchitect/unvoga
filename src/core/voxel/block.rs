@@ -1,5 +1,5 @@
 use std::any::Any;
-use crate::core::math::coordmap::Rotation;
+use crate::core::math::coordmap::{Flip, Orientation, Rotation};
 
 use super::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
 
@@ -28,6 +28,9 @@ pub trait Block: Any {
     }
     fn rotation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Rotation {
         Rotation::new(Direction::PosY, 0)
+    }
+    fn orientation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Orientation {
+        Orientation::default()
     }
     fn enable_on_place(&self, world: &VoxelWorld, coord: Coord, state: Id) -> bool { false }
     fn light_args(&self, world: &VoxelWorld, coord: Coord, state: Id) -> LightArgs {
