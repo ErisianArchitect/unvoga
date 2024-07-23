@@ -578,7 +578,7 @@ impl VoxelWorld {
         }
     }
 
-    pub fn occlusion<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Occlusion {
+    pub fn get_occlusion<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Occlusion {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {

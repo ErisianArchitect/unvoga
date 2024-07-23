@@ -40,7 +40,7 @@ pub fn sandbox() {
     let coord = (2,3,4);
     {
         let block = world.get_block(coord);
-        let occ = world.occlusion(coord);
+        let occ = world.get_occlusion(coord);
         let block_light = world.get_block_light(coord);
         let sky_light = world.get_sky_light(coord);
         let enabled = world.enabled(coord);
