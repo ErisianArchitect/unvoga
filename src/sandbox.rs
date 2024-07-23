@@ -43,12 +43,14 @@ pub fn sandbox() {
         let occ = world.get_occlusion(coord);
         let block_light = world.get_block_light(coord);
         let sky_light = world.get_sky_light(coord);
+        let light_level = world.get_light_level(coord);
         let enabled = world.enabled(coord);
         let data = world.get_data(coord);
         println!("      Block: {block}");
         println!("  Occlusion: {occ}");
         println!("Block Light: {block_light}");
         println!("  Sky Light: {sky_light}");
+        println!("Light Level: {light_level}");
         println!("    Enabled: {enabled}");
         println!("       Data: {data:?}");
     }

@@ -761,16 +761,39 @@ impl Orientation {
         }
     }
     
+    /// Packs the flip and rotation into a single byte where the first 3 bits are the flip
+    /// and the remaining 5 bits are the rotation.
     pub fn pack(self) -> u8 {
         pack_flip_and_rotation(self.flip, self.rotation)
     }
 
+    /// Unpacks the flip and rotation from a single byte where the first 3 bits are the flip
+    /// and the remaining 5 bits are the rotation.
     pub fn unpack(packed: u8) -> Self {
         let (flip, rotation) = unpack_flip_and_rotation(packed);
         Self {
             flip,
             rotation
         }
+    }
+
+    /// First rotates and then flips the face.
+    pub fn reface(self, face: Direction) -> Direction {
+        let rotated = self.rotation.reface(face);
+        rotated.flip(self.flip)
+    }
+
+    /// This determines which face was oriented to `face`. I hope that makes sense.
+    pub fn source_face(self, face: Direction) -> Direction {
+        let flipped = face.flip(self.flip);
+        self.rotation.source_face(flipped)
+    }
+
+    /// If you're using this function to transform mesh vertices, make sure that you 
+    /// change your indices if the face will be flipped, for backface culling that is.
+    pub fn transform(self, point: Vec3) -> Vec3 {
+        let rotated = self.rotation.rotate(point);
+        self.flip.flip_vec3(rotated)
     }
 }
 
@@ -810,6 +833,19 @@ impl Flip {
     
     pub fn z(self) -> bool {
         self & Flip::Z == Flip::Z
+    }
+
+    pub fn flip_vec3(self, mut value: Vec3) -> Vec3 {
+        if self.x() {
+            value.x = -value.x;
+        }
+        if self.y() {
+            value.y = -value.y;
+        }
+        if self.z() {
+            value.z = -value.z;
+        }
+        value
     }
 }
 
@@ -906,9 +942,27 @@ pub fn rotate_face_coord(angle: u8, x: usize, y: usize, size: usize) -> (usize, 
 mod tests {
     use bevy::{asset::io::memory::Dir, math::vec3};
 
-    use crate::core::{math::coordmap::Flip, voxel::direction::Direction};
+    use crate::core::voxel::direction::Direction;
 
-    use super::{pack_flip_and_rotation, unpack_flip_and_rotation, Rotation};
+    use super::*;
+
+    #[test]
+    fn orientation_source_face_test() {
+        use Direction::*;
+        let orient = Orientation::new(Flip::X | Flip::Y, Rotation::new(NegX, 1));
+        let neg_x = orient.source_face(NegX);
+        let neg_y = orient.source_face(NegY);
+        let neg_z = orient.source_face(NegZ);
+        let pos_x = orient.source_face(PosX);
+        let pos_y = orient.source_face(PosY);
+        let pos_z = orient.source_face(PosZ);
+        assert_eq!(neg_x, NegY);
+        assert_eq!(neg_y, NegX);
+        assert_eq!(neg_z, PosZ);
+        assert_eq!(pos_x, PosY);
+        assert_eq!(pos_y, PosX);
+        assert_eq!(pos_z, NegZ);
+    }
 
     #[test]
     fn pack_test() {

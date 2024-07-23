@@ -1,10 +1,15 @@
 use bytemuck::NoUninit;
 
+use crate::{core::math::coordmap::Flip, prelude::Rotation};
+
 use super::coord::Coord;
 // 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, NoUninit)]
 #[repr(u8)]
 pub enum Direction {
+    // The order of the ids is a little strange because I wanted PosY to be the first
+    // index so that I could have Rotation(0) be the default rotation and have it point to PosY.
+    // I could have done some remapping for the Rotation, but then it wouldn't have had a 1:1 representation.
     NegX = 4,// 16
     NegY = 3,// 8
     NegZ = 5,// 32
@@ -100,6 +105,25 @@ impl Direction {
             Direction::PosY => Direction::NegY,
             Direction::PosZ => Direction::NegZ,
         }
+    }
+
+    pub fn flip(self, flip: Flip) -> Self {
+        use Direction::*;
+        match self {
+            NegX if flip.x() => PosX,
+            NegY if flip.y() => PosY,
+            NegZ if flip.z() => PosZ,
+            PosX if flip.x() => NegX,
+            PosY if flip.y() => NegY,
+            PosZ if flip.z() => NegZ,
+            _ => self
+        }
+    }
+
+    /// You can also use [Rotation::reface] to achieve the same effect (which is actually what this method does).
+    #[inline(always)]
+    pub fn rotate(self, rotation: Rotation) -> Self {
+        rotation.reface(self)
     }
 
     pub const fn bit(self) -> u8 {

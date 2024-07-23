@@ -62,7 +62,12 @@ impl<'a> Query<'a> for BlockLight {
     
     fn read(section: &'a Section, index: usize) -> Self::Output {
         if let Some(light) = &section.block_light {
-            light[index]
+            // The block light is stored in an array of 2048 bytes, although it's 4096 values.
+            // That's 2 values per byte.
+            // Using some simple math, we can unpack the value.
+            let mask_index = index / 2;
+            let sub_index = (index & 1) * 4;
+            light[mask_index] >> sub_index & 0xF
         } else {
             0
         }
@@ -78,14 +83,16 @@ impl<'a> Query<'a> for SkyLight {
     
     fn read(section: &'a Section, index: usize) -> Self::Output {
         if let Some(light) = &section.sky_light {
-            light[index]
+            let mask_index = index / 2;
+            let sub_index = (index & 1) * 4;
+            light[mask_index] >> sub_index & 0xF
         } else {
-            0
+            15
         }
     }
     
     fn default() -> Self::Output {
-        0
+        15
     }
 }
 

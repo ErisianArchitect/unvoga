@@ -1,4 +1,4 @@
-use crate::core::math::coordmap::Rotation;
+use crate::core::math::coordmap::{Orientation, Rotation};
 
 use super::{direction::Direction, occlusion_shape::OcclusionShape};
 
@@ -78,15 +78,25 @@ impl Occluder {
     }
 
     
-    pub fn occluded_by(&self, rotation: Rotation, face: Direction, other: &Occluder, other_rotation: Rotation) -> bool {
+    // pub fn occluded_by(&self, rotation: Rotation, face: Direction, other: &Occluder, other_rotation: Rotation) -> bool {
+    //     let other_face = face.invert();
+    //     let face_angle = rotation.face_angle(face);
+    //     let other_face_angle = rotation.face_angle(other_face);
+    //     let source_face = rotation.source_face(face);
+    //     let other_source_face = rotation.source_face(other_face);
+    //     let occluder = self.face(source_face);
+    //     let other_occluder = other.face(other_source_face);
+    //     occluder.occluded_by(other_occluder, face_angle, other_face_angle)
+    // }
+
+    pub fn occluded_by(&self, orientation: Orientation, face: Direction, other: &Self, other_orientation: Orientation) -> bool {
         let other_face = face.invert();
-        let face_angle = rotation.face_angle(face);
-        let other_face_angle = rotation.face_angle(other_face);
-        let source_face = rotation.source_face(face);
-        let other_source_face = rotation.source_face(other_face);
-        let occluder = self.face(source_face);
-        let other_occluder = other.face(other_source_face);
-        occluder.occluded_by(other_occluder, face_angle, other_face_angle)
+        // The orientation should rotate first and then flip.
+        // That makes more sense to me because you don't want to guess how the block will transform
+        // when it is flipped. Flipping a block, you would already see the rotation as it is, and you might not
+        // know what the original orientation was, so it should be logical that the flipping happens after rotation.
+        // I don't feel like writing this right now. It's very complicated.
+        todo!()
     }
 }
 

@@ -5,7 +5,7 @@ use bevy::{asset::Handle, render::mesh::Mesh};
 use hashbrown::HashMap;
 use super::chunkcoord::ChunkCoord;
 use super::occlusion::Occlusion;
-use super::query::Query;
+use super::query::{BlockLight, Query, SkyLight};
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 use super::section::{LightChange, Section, StateChange};
 use super::update::{BlockUpdateQueue, UpdateRef};
@@ -466,6 +466,8 @@ impl VoxelWorld {
         chunk.get_update_ref(coord)
     }
 
+    /// This will get the block [Id] at the given coordinate if the coordinate is not out of bounds.
+    /// If the coordinate is out of bounds, it will return [Id::AIR].
     pub fn get_block<C: Into<(i32, i32, i32)>>(&self, coord: C) -> Id {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
@@ -646,6 +648,11 @@ impl VoxelWorld {
             }
         }
         change.change
+    }
+
+    pub fn get_light_level<C: Into<(i32, i32, i32)>>(&self, coord: C) -> u8 {
+        let (block_light, sky_light) = self.query::<C, (BlockLight, SkyLight)>(coord);
+        block_light.max(sky_light)
     }
 
     pub fn get_block_light<C: Into<(i32, i32, i32)>>(&self, coord: C) -> u8 {
