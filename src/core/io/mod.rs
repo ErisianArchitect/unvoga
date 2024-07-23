@@ -1168,11 +1168,6 @@ pub fn write_bytes<W: Write>(writer: &mut W, data: &[u8]) -> Result<u64> {
     Ok(writer.write_all(data).map(|_| data.len() as u64)?)
 }
 
-// pub fn read_bits<R: Read, T: SetBit + UnsignedNum + BitSize>(reader: &mut R, bit_width: u32, length: usize) -> Result<Vec<T>> {
-//     todo!()
-//     T::set_bitmask(self, mask, value)
-// }
-
 #[cfg(test)]
 mod tests {
     use std::{fs::File, io::{BufReader, BufWriter, Cursor, SeekFrom}};
