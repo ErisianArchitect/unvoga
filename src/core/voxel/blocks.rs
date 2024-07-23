@@ -77,9 +77,7 @@ pub fn register_block<B: Block>(block: B) -> BlockId {
 
 #[must_use]
 pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<Id> {
-    if init() {
-        return None;
-    }
+    init();
     unsafe {
         let id_lookup = ID_LOOKUP.get().expect("Failed to get");
         id_lookup.get(state.borrow()).map(|&id| id)
@@ -89,9 +87,7 @@ pub fn find_state<B: Borrow<BlockState>>(state: B) -> Option<Id> {
 
 #[must_use]
 pub fn find_block<S: AsRef<str>>(name: S) -> Option<BlockId> {
-    if init() {
-        return None;
-    }
+    init();
     unsafe {
         let block_lookup = BLOCK_LOOKUP.get().expect("Failed to get block lookup");
         block_lookup.get(name.as_ref()).map(|&id| id)
