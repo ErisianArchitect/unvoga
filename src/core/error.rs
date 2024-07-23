@@ -24,8 +24,6 @@ pub enum Error {
     ChunkNotFound,
     #[error("Parent directory not found")]
     ParentNotFound,
-    #[error("Temporary error")]
-    Temporary,
     #[error("u24 was out of range")]
     U24OutOfRange,
     #[error("Custom Error: {0}")]
