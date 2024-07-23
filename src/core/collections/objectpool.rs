@@ -201,7 +201,6 @@ impl<M: Copy> std::fmt::Display for PoolId<M> {
     }
 }
 
-// TODO: Maybe consider using PhantomData marker to distinguish PoolId subtypes.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PoolId<M: Copy>(u64, PhantomData<M>);
 
