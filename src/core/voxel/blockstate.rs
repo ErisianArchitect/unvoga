@@ -309,12 +309,6 @@ impl From<(i32, i32)> for StateValue {
     }
 }
 
-// impl From<Flip> for StateValue {
-//     fn from(value: Flip) -> Self {
-//         StateValue::Flip(value)
-//     }
-// }
-
 impl From<Axis> for StateValue {
     fn from(value: Axis) -> Self {
         StateValue::Axis(value)
@@ -367,6 +361,7 @@ impl std::fmt::Display for StateValue {
                         '\\' => write!(f, "\\\\"),
                         '"' => write!(f, "\\\""),
                         '\t' => write!(f, "\\t"),
+                        '\0' => write!(f, "\\0"),
                         c => write!(f, "{c}"),
                     }
                 })?;
