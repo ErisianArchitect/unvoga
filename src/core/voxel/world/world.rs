@@ -482,7 +482,7 @@ impl VoxelWorld {
 
     pub fn destroy_block<C: Into<(i32, i32, i32)>>(&mut self, coord: C) -> Id {
         let coord: (i32, i32, i32) = coord.into();
-        self.set_block(coord, air);
+        self.set_block(coord, Id::AIR);
         self.delete_data(coord);
         self.disable(coord);
     }
