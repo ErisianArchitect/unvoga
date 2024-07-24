@@ -480,13 +480,6 @@ impl VoxelWorld {
         chunk.get_block(coord)
     }
 
-    pub fn destroy_block<C: Into<(i32, i32, i32)>>(&mut self, coord: C) -> Id {
-        let coord: (i32, i32, i32) = coord.into();
-        self.set_block(coord, Id::AIR);
-        self.delete_data(coord);
-        self.disable(coord);
-    }
-
     pub fn set_block<C: Into<(i32, i32, i32)>, S: Into<Id>>(&mut self, coord: C, state: S) -> Id {
         let state: Id = state.into();
         let coord: (i32, i32, i32) = coord.into();
