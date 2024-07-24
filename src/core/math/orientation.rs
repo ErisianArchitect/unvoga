@@ -49,9 +49,9 @@ impl Orientation {
 
     /// If you're using this function to transform mesh vertices, make sure that you 
     /// change your indices if the face will be flipped (for backface culling)
-    pub fn transform(self, point: Vec3) -> Vec3 {
+    pub fn transform<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T, T)> + From<(T, T, T)>>(self, point: C) -> C {
         let rotated = self.rotation.rotate(point);
-        self.flip.flip_vec3(rotated)
+        self.flip.flip_coord(rotated)
     }
 
     /// To get the most benefit out of this, it is advised that you center your coords around (0, 0).
@@ -59,8 +59,17 @@ impl Orientation {
     /// x and y of the coord, then pass that offset coord to this function, then add 8 back to the x and y
     /// to get your final coord.
     pub fn map_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
+        // I actually realized that I did this backwards. For what I want, I need to figure out the source coord.
         let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
         let coordmap = maptable::MAP_COORD_TABLE[table_index];
+        todo!("This method doesn't work properly.");
+        coordmap.map(uv)
+    }
+
+    pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
+        let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
+        let coordmap = maptable::SOURCE_FACE_COORD_TABLE[table_index];
+        todo!("This method doesn't work properly.");
         coordmap.map(uv)
     }
 }
@@ -148,6 +157,49 @@ impl CoordMap {
 //         y: y_map
 //     }
 // }
+fn source_face_coord_naive(orientation: Orientation, face: Direction) -> CoordMap {
+    // First I will attempt a naive implementation, then I will use the naive implementation to generate code
+    // for a more optimized implementation.
+    // First get the source face
+    let source_face = orientation.source_face(face);
+    // next, get the up, right, down, and left for the source face and arg face.
+    let src_up = source_face.up();
+    let src_right = source_face.right();
+    let src_down = source_face.down();
+    let src_left = source_face.left();
+    let face_up = face.up();
+    let face_right = face.right();
+    let face_down = face.down();
+    let face_left = face.left();
+    // Next, reface the src_dir faces
+    let rsrc_up = orientation.reface(src_up);
+    let rsrc_right = orientation.reface(src_right);
+    let rsrc_down = orientation.reface(src_down);
+    let rsrc_left = orientation.reface(src_left);
+    // Now match up the faces
+    let x_map = if face_right == rsrc_right {
+        AxisMap::PosX
+    } else if face_right == rsrc_up {
+        AxisMap::PosY
+    } else if face_right == rsrc_left {
+        AxisMap::NegX
+    } else {
+        AxisMap::NegY
+    };
+    let y_map = if face_up == rsrc_up {
+        AxisMap::PosY
+    } else if face_up == rsrc_left {
+        AxisMap::NegX
+    } else if face_up == rsrc_down {
+        AxisMap::NegY
+    } else {
+        AxisMap::PosX
+    };
+    CoordMap {
+        x: x_map,
+        y: y_map
+    }
+}
 
 #[cfg(test)]
 mod testing_sandbox {
@@ -155,15 +207,18 @@ mod testing_sandbox {
 
     #[test]
     fn check_solution() {
-        let orientation = Orientation::new(Rotation::new(Direction::NegY, 1), Flip::XYZ);
-        let face = Direction::NegY;
+        let orientation = Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::X);
+        let face = Direction::PosX;
         // let coordmap = map_face_coord_naive(orientation, face);
         // let table_index = maptable::map_face_coord_table_index(orientation.rotation, orientation.flip, face);
         // let table_map = maptable::MAP_COORD_TABLE[table_index];
         // assert_eq!(coordmap, table_map);
-        let coord = (-3, 4);
-        let coord = orientation.map_face_coord(face, coord);
-        println!("{coord:?}");
+        let coord = (-1, -2, -3);
+        let mapped = orientation.transform(coord);
+        println!("{coord:?} {mapped:?}");
+        // let mapped = orientation.map_face_coord(face, coord);
+        // let unmapped = orientation.source_face_coord(face, mapped);
+        // println!("{coord:?} {mapped:?} {unmapped:?}");
     }
 
     // This is used to generate the table in maptable.rs.
@@ -171,7 +226,7 @@ mod testing_sandbox {
     // I commented it out because I don't need it anymore, but I'd like to keep
     // the code around in case I need it later as a reference.
     // #[test]
-    // fn gencode() {
+    // fn map_coord_gencode() {
     //     const fn map_axismap(a: AxisMap) -> &'static str {
     //         match a {
     //             AxisMap::PosX => "x",
@@ -201,6 +256,38 @@ mod testing_sandbox {
     //     let mut writer = BufWriter::new(File::create("ignore/map_coord_table.rs").expect("Failed to open file"));
     //     writer.write_all(output.as_bytes());
     //     println!("Wrote the output to file at ./ignore/map_coord_table.rs");
+    // }
+    // #[test]
+    // fn source_coord_gencode() {
+    //     const fn map_axismap(a: AxisMap) -> &'static str {
+    //         match a {
+    //             AxisMap::PosX => "x",
+    //             AxisMap::PosY => "y",
+    //             AxisMap::NegX => "-x",
+    //             AxisMap::NegY => "-y",
+    //         }
+    //     }
+    //     let output = {
+    //         use std::fmt::Write;
+    //         let mut output = String::new();
+    //         let mut count = 0usize;
+    //         for flipi in 0..8 { // flip
+    //             for roti in 0..24 { // rotation
+    //                 Direction::iter_index_order().for_each(|face| {
+    //                     count += 1;
+    //                     let map = source_face_coord_naive(Orientation::new(Rotation(roti as u8), Flip(flipi as u8)), face);
+    //                     // println!("({flipi}, {roti}, {face})");
+    //                     writeln!(output, "CoordMap::new(AxisMap::{:?}, AxisMap::{:?}),", map.x, map.y);
+    //                 });
+    //             }
+    //         }
+    //         output
+    //     };
+    //     use std::io::{Write, BufWriter};
+    //     use std::fs::File;
+    //     let mut writer = BufWriter::new(File::create("ignore/source_face_coord_table.rs").expect("Failed to open file"));
+    //     writer.write_all(output.as_bytes());
+    //     println!("Wrote the output to file at ./ignore/source_face_coord_table.rs");
     // }
 
     use crate::core::math::maptable;

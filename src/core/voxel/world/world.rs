@@ -480,6 +480,13 @@ impl VoxelWorld {
         chunk.get_block(coord)
     }
 
+    pub fn destroy_block<C: Into<(i32, i32, i32)>>(&mut self, coord: C) -> Id {
+        let coord: (i32, i32, i32) = coord.into();
+        self.set_block(coord, air);
+        self.delete_data(coord);
+        self.disable(coord);
+    }
+
     pub fn set_block<C: Into<(i32, i32, i32)>, S: Into<Id>>(&mut self, coord: C, state: S) -> Id {
         let state: Id = state.into();
         let coord: (i32, i32, i32) = coord.into();
@@ -495,31 +502,29 @@ impl VoxelWorld {
         if state == old {
             return old;
         }
-        let (state, enable) = if state != Id::AIR {
-            let mut place_context = PlaceContext::new(coord, state, old);
-            state.block().on_place(self, &mut place_context);
-            while place_context.changed {
-                place_context.changed = false;
-                let old_copy = place_context.old;
-                place_context.old = place_context.replacement;
-                place_context.data = None;
-                place_context.replacement.block().on_place(self, &mut place_context);
-            }
-            if old == place_context.replacement {
-                return old;
-            }
-            if old != Id::AIR {
-                let old_block = old.block();
-                self.delete_data_internal(coord, old);
-                old_block.on_remove(self, coord, old, place_context.replacement);
-            }
-            if let Some(data) = place_context.data {
-                self.set_data(coord, data);
-            }
-            (place_context.replacement, place_context.enable)
-        } else {
-            (state, None)
-        };
+        
+        let mut place_context = PlaceContext::new(coord, state, old);
+        state.block().on_place(self, &mut place_context);
+        while place_context.changed {
+            place_context.changed = false;
+            let old_copy = place_context.old;
+            place_context.old = place_context.replacement;
+            place_context.data = None;
+            place_context.replacement.block().on_place(self, &mut place_context);
+        }
+        
+        if old == place_context.replacement {
+            return old;
+        }
+        if old != Id::AIR {
+            let old_block = old.block();
+            self.delete_data_internal(coord, old);
+            old_block.on_remove(self, coord, old, place_context.replacement);
+        }
+        if let Some(data) = place_context.data {
+            self.set_data(coord, data);
+        }
+        let (state, enable) = (place_context.replacement, place_context.enable);
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
         let change = {

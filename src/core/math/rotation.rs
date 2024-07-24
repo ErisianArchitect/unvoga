@@ -299,51 +299,52 @@ impl Rotation {
     }
 
     /// Rotates `coord`.
-    pub fn rotate(self, coord: Vec3) -> Vec3 {
-        match self.up() {
+    pub fn rotate<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T, T)> + From<(T, T, T)>>(self, coord: C) -> C {
+        let (x, y, z): (T, T, T) = coord.into();
+        C::from(match self.up() {
             Direction::NegX => match self.angle() {
-                0 => vec3(-coord.y, -coord.z, coord.x),
-                1 => vec3(-coord.y, -coord.x, -coord.z),
-                2 => vec3(-coord.y, coord.z, -coord.x),
-                3 => vec3(-coord.y, coord.x, coord.z),
+                0 => (-y, -z, x),
+                1 => (-y, -x, -z),
+                2 => (-y, z, -x),
+                3 => (-y, x, z),
                 _ => unreachable!()
             },
             Direction::NegY => match self.angle() {
-                0 => vec3(coord.x, -coord.y, -coord.z),
-                1 => vec3(-coord.z, -coord.y, -coord.x),
-                2 => vec3(-coord.x, -coord.y, coord.z),
-                3 => vec3(coord.z, -coord.y, coord.x),
+                0 => (x, -y, -z),
+                1 => (-z, -y, -x),
+                2 => (-x, -y, z),
+                3 => (z, -y, x),
                 _ => unreachable!()
             },
             Direction::NegZ => match self.angle() {
-                0 => vec3(-coord.x, -coord.z, -coord.y),
-                1 => vec3(coord.z, -coord.x, -coord.y),
-                2 => vec3(coord.x, coord.z, -coord.y),
-                3 => vec3(-coord.z, coord.x, -coord.y),
+                0 => (-x, -z, -y),
+                1 => (z, -x, -y),
+                2 => (x, z, -y),
+                3 => (-z, x, -y),
                 _ => unreachable!()
             },
             Direction::PosX => match self.angle() {
-                0 => vec3(coord.y, -coord.z, -coord.x),
-                1 => vec3(coord.y, -coord.x, coord.z),
-                2 => vec3(coord.y, coord.z, coord.x),
-                3 => vec3(coord.y, coord.x, -coord.z),
+                0 => (y, -z, -x),
+                1 => (y, -x, z),
+                2 => (y, z, x),
+                3 => (y, x, -z),
                 _ => unreachable!()
             },
             Direction::PosY => match self.angle() {
-                0 => coord, // Default rotation, no change.
-                1 => vec3(-coord.z, coord.y, coord.x),
-                2 => vec3(-coord.x, coord.y, -coord.z),
-                3 => vec3(coord.z, coord.y, -coord.x),
+                0 => (x, y, z), // Default rotation, no change.
+                1 => (-z, y, x),
+                2 => (-x, y, -z),
+                3 => (z, y, -x),
                 _ => unreachable!()
             },
             Direction::PosZ => match self.angle() {
-                0 => vec3(coord.x, -coord.z, coord.y),
-                1 => vec3(-coord.z, -coord.x, coord.y),
-                2 => vec3(-coord.x, coord.z, coord.y),
-                3 => vec3(coord.z, coord.x, coord.y),
+                0 => (x, -z, y),
+                1 => (-z, -x, y),
+                2 => (-x, z, y),
+                3 => (z, x, y),
                 _ => unreachable!()
             },
-        }
+        })
     }
 
     /// Rotates direction.

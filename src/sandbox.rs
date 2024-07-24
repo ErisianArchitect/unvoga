@@ -55,6 +55,12 @@ pub fn sandbox() {
     }
     // drop(data);
     world.set_block(coord, debug);
+    world.set_data(coord, Tag::from("This data should be deleted."));
+    println!("Setting air.");
+    world.set_block(coord, air);
+    if let Some(data) = world.get_data(coord) {
+        println!("Data that shouldn't exist: {data:?}");
+    }
     world.set_block_light(coord, 1);
     world.set_sky_light(coord, 6);
     world.set_enabled(coord, true);
@@ -79,6 +85,7 @@ pub fn sandbox() {
     let block = world.get_block(coord);
     println!("Block: {block}");
     world.save_world();
+
     // let coord = Coord::new(13,12,69).chunk_coord();
     // {
     //     let chunk = world.get_chunk((coord.x, coord.z)).unwrap();

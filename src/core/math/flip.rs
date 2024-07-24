@@ -31,17 +31,18 @@ impl Flip {
         self & Flip::Z == Flip::Z
     }
 
-    pub fn flip_vec3(self, mut value: Vec3) -> Vec3 {
+    pub fn flip_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T, T)> + From<(T, T, T)>>(self, mut value: C) -> C {
+        let (mut x, mut y, mut z): (T, T, T) = value.into();
         if self.x() {
-            value.x = -value.x;
+            x = -x;
         }
         if self.y() {
-            value.y = -value.y;
+            y = -y;
         }
         if self.z() {
-            value.z = -value.z;
+            z = -z;
         }
-        value
+        C::from((x, y, z))
     }
 
     /// Determines if a face is on an axis that is flipped.
