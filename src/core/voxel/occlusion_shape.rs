@@ -8,7 +8,8 @@ If you're making an occluder on the Z axis, use X for X and Y for Y.
 If you want to rotate an occluder, good luck.
 */
 
-use crate::core::math::coordmap::{rotate_face_coord, Rotation};
+use crate::core::math::coordmap::{rotate_face_coord};
+use crate::prelude::*;
 
 use super::faces::Faces;
 

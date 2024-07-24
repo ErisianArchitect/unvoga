@@ -4,12 +4,11 @@ use std::{sync::Arc, thread, time::Duration};
 use bevy::math::IVec2;
 use hashbrown::HashMap;
 use rollgrid::rollgrid3d::Bounds3D;
-
-use crate::core::math::coordmap::{Flip, Orientation};
+use crate::prelude::*;
 use crate::core::voxel::region::regionfile::RegionFile;
 use crate::prelude::*;
 use crate::core::error::*;
-use crate::{blockstate, core::{math::coordmap::Rotation, util::counter::AtomicCounter, voxel::{block::Block, blocks::{self, Id}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::{query::Enabled, PlaceContext, VoxelWorld}}}};
+use crate::{blockstate, core::{util::counter::AtomicCounter, voxel::{block::Block, blocks::{self, Id}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::{query::Enabled, PlaceContext, VoxelWorld}}}};
 
 pub fn sandbox() {
 
@@ -21,7 +20,7 @@ pub fn sandbox() {
     blocks::register_block(DebugBlock);
     let air = Id::AIR;
     let debug = blockstate!(debug).register();
-    let debug_data = blockstate!(debug, withdata = true, flip=Flip::X | Flip::Y, orientation=Orientation::new(Flip::X | Flip::Y, Rotation::new(Direction::NegZ, 3))).register();
+    let debug_data = blockstate!(debug, withdata = true, flip=Flip::X | Flip::Y, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::X | Flip::Y)).register();
     let enabled = blockstate!(debug, enabled = true).register();
     let dirt = blockstate!(dirt).register();
     let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();

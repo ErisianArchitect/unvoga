@@ -1,6 +1,6 @@
 use bytemuck::NoUninit;
 
-use crate::{core::math::coordmap::Flip, prelude::Rotation};
+use crate::prelude::*;
 
 use super::coord::Coord;
 // 
@@ -89,6 +89,14 @@ impl Direction {
         Direction::PosY,
         Direction::PosZ
     ];
+    pub const INDEX_ORDER: [Direction; 6] = [
+        Direction::PosY,
+        Direction::PosX,
+        Direction::PosZ,
+        Direction::NegY,
+        Direction::NegX,
+        Direction::NegZ,
+    ];
     pub const LEFT: Direction = Direction::NegX;
     pub const DOWN: Direction = Direction::NegY;
     pub const FORWARD: Direction = Direction::NegZ;
@@ -132,6 +140,66 @@ impl Direction {
 
     pub fn iter() -> impl Iterator<Item = Direction> {
         Self::ALL.into_iter()
+    }
+
+    pub fn iter_index_order() -> impl Iterator<Item = Direction> {
+        Self::INDEX_ORDER.into_iter()
+    }
+
+    /// On a non-oriented cube, each face has an "up" face. That's the face
+    /// whose normal points to the top of the given face's UV plane.
+    pub fn up(self) -> Direction {
+        use Direction::*;
+        match self {
+            NegX => PosY,
+            NegY => PosZ,
+            NegZ => PosY,
+            PosX => PosY,
+            PosY => NegZ,
+            PosZ => PosY,
+        }
+    }
+
+    /// On a non-oriented cube, each face has a "down" face. That's the face
+    /// whose normal points to the bottom of the given face's UV plane.
+    pub fn down(self) -> Direction {
+        use Direction::*;
+        match self {
+            NegX => NegY,
+            NegY => NegZ,
+            NegZ => NegY,
+            PosX => NegY,
+            PosY => PosZ,
+            PosZ => NegY,
+        }
+    }
+
+    /// On a non-oriented cube, each face has a "left" face. That's the face
+    /// whose normal points to the left of the given face's UV plane.
+    pub fn left(self) -> Direction {
+        use Direction::*;
+        match self {
+            NegX => NegZ,
+            NegY => NegX,
+            NegZ => PosX,
+            PosX => PosZ,
+            PosY => NegX,
+            PosZ => NegX,
+        }
+    }
+
+    /// On a non-oriented cube, each face has a "right" face. That's the face
+    /// whose normal points to the right of the given face's UV plane.
+    pub fn right(self) -> Direction {
+        use Direction::*;
+        match self {
+            NegX => PosZ,
+            NegY => PosX,
+            NegZ => NegX,
+            PosX => NegZ,
+            PosY => PosX,
+            PosZ => PosX,
+        }
     }
 }
 

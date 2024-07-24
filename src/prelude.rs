@@ -23,6 +23,10 @@ pub use crate::core::{
         bit::*,
         math::*,
     },
-    math::coordmap::Rotation,
+    math::{
+        rotation::Rotation,
+        flip::Flip,
+        orientation::Orientation,
+    },
     util::extensions::*,
 };

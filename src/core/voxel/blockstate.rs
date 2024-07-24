@@ -2,9 +2,10 @@ use std::{borrow::Borrow, fmt::Debug, ops::{Index, IndexMut}};
 
 use bevy::math::{IVec2, IVec3};
 use itertools::Itertools;
-use crate::core::{error::*, math::coordmap::Orientation};
+use crate::core::error::*;
+use crate::prelude::*;
 
-use crate::{core::{math::coordmap::{Flip, Rotation}, util::traits::StrToOwned}, prelude::{read_u24, write_u24, Readable, Writeable}};
+use crate::core::util::traits::StrToOwned;
 
 use super::{axis::Axis, blocks::{self, Id}, coord::Coord, direction::{Cardinal, Direction}, world::chunkcoord::ChunkCoord};
 

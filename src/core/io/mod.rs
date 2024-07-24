@@ -91,7 +91,7 @@ pub trait Writeable {
 // }
 
 use crate::prelude::{BitSize, GetBit, SetBit};
-use crate::{core::{math::{bit::{BitFlags128, BitFlags16, BitFlags32, BitFlags64, BitFlags8}, coordmap::Rotation}, voxel::{axis::Axis, direction::Direction, rendering::color::{Rgb, Rgba}, tag::{Array, Byte, NonByte, Tag}}}, for_each_int_type};
+use crate::{core::{math::bit::{BitFlags128, BitFlags16, BitFlags32, BitFlags64, BitFlags8}, voxel::{axis::Axis, direction::Direction, rendering::color::{Rgb, Rgba}, tag::{Array, Byte, NonByte, Tag}}}, for_each_int_type};
 use bevy::math::*;
 use bytemuck::NoUninit;
 use hashbrown::HashMap;
@@ -99,7 +99,12 @@ use itertools::Itertools;
 use rollgrid::{rollgrid2d::Bounds2D, rollgrid3d::Bounds3D};
 use voxel::direction::Cardinal;
 
-use super::math::coordmap::{unpack_flip_and_rotation, Flip, Orientation};
+use super::math::{
+    coordmap::{unpack_flip_and_rotation, pack_flip_and_rotation},
+    flip::Flip,
+    rotation::Rotation,
+    orientation::Orientation,
+};
 use super::math::num::UnsignedNum;
 use super::*;
 
