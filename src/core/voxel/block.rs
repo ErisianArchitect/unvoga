@@ -6,7 +6,7 @@ use super::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Directi
 
 use crate::prelude::Rgb;
 
-pub trait Block: Any {
+pub trait Block: Any + Send + Sync {
     fn name(&self) -> &str;
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
