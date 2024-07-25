@@ -82,7 +82,11 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut giz_store: ResMut<GizmoConfigStore>,
 ) {
+    for (_, config, _) in giz_store.iter_mut() {
+        config.depth_bias = -1.0;
+    }
     let side_texture_paths = vec![
         "./assets/debug/textures/cube_sides/pos_y.png",
         "./assets/debug/textures/cube_sides/pos_x.png",
@@ -259,9 +263,10 @@ fn update(
         rotation.y += mouse_motion.y * delta;
         transform.rotation = Quat::from_axis_angle(Vec3::Y, rotation.x) * Quat::from_axis_angle(Vec3::NEG_X, rotation.y);
     }
-    gizmos.arrow(Vec3::Y, Vec3::Y + Vec3::X * GIZLEN, Color::RED);
-    gizmos.arrow(Vec3::Y, Vec3::Y + Vec3::Y * GIZLEN, Color::GREEN);
-    gizmos.arrow(Vec3::Y, Vec3::Y + Vec3::Z * GIZLEN, Color::BLUE);
+    
+    gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::X * GIZLEN, Color::RED);
+    gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Y * GIZLEN, Color::GREEN);
+    gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Z * GIZLEN, Color::BLUE);
 }
 
 #[derive(Resource)]
