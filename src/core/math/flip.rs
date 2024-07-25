@@ -32,6 +32,51 @@ impl Flip {
         self & Flip::Z == Flip::Z
     }
 
+    pub fn set_x(&mut self, value: bool) -> bool {
+        let old = self.x();
+        if value {
+            self.0 = self.0 | Self::X.0;
+        } else {
+            self.0 = self.0 & Self::YZ.0;
+        }
+        old
+    }
+
+    pub fn set_y(&mut self, value: bool) -> bool {
+        let old = self.y();
+        if value {
+            self.0 = self.0 | Self::Y.0;
+        } else {
+            self.0 = self.0 & Self::XZ.0;
+        }
+        old
+    }
+
+    pub fn set_z(&mut self, value: bool) -> bool {
+        let old = self.z();
+        if value {
+            self.0 = self.0 | Self::Z.0;
+        } else {
+            self.0 = self.0 & Self::XY.0;
+        }
+        old
+    }
+
+    pub fn invert_x(&mut self) -> bool {
+        let old = self.x();
+        self.set_x(!old)
+    }
+
+    pub fn invert_y(&mut self) -> bool {
+        let old = self.y();
+        self.set_y(!old)
+    }
+
+    pub fn invert_z(&mut self) -> bool {
+        let old = self.z();
+        self.set_z(!old)
+    }
+
     /// Xors all the bits.
     pub fn xor(self) -> bool {
         self.x() ^ self.y() ^ self.z()

@@ -173,7 +173,7 @@ fn setup(
     commands.spawn((
         TransformBundle::from_transform(
             Transform::from_xyz(0.0, 0.0, 0.0)
-                .with_rotation(rot)
+                // .with_rotation(rot)
         ),
         CameraAnchor,
     )).with_children(|parent| {
@@ -192,6 +192,7 @@ fn setup(
         ));
     });
     commands.insert_resource(CameraRotation { x: 0.0, y: 0.0 });
+    commands.insert_resource(OrientationRes { orientation: Orientation::default() });
 }
 
 fn update(
@@ -204,7 +205,51 @@ fn update(
     mut anchor: Query<&mut Transform,With<CameraAnchor>>,
     mut evr_motion: EventReader<MouseMotion>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut orientation: ResMut<OrientationRes>,
+    mut gizmos: Gizmos,
 ) {
+    const GIZLEN: f32 = 0.2;
+    if keys.just_pressed(KeyCode::KeyE) {
+        let rot = orientation.orientation.rotation;
+        orientation.orientation.rotation = rot.cycle(1);
+        let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
+        MeshBuilder::build_mesh(mesh, |build| {
+            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
+        });
+    }
+    if keys.just_pressed(KeyCode::KeyQ) {
+        let rot = orientation.orientation.rotation;
+        orientation.orientation.rotation = rot.cycle(-1);
+        let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
+        MeshBuilder::build_mesh(mesh, |build| {
+            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
+        });
+    }
+    if keys.just_pressed(KeyCode::KeyX) {
+        let rot = orientation.orientation.rotation;
+        orientation.orientation.flip.invert_x();
+        let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
+        MeshBuilder::build_mesh(mesh, |build| {
+            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
+        });
+    }
+    if keys.just_pressed(KeyCode::KeyY) {
+        let rot = orientation.orientation.rotation;
+        orientation.orientation.flip.invert_y();
+        let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
+        MeshBuilder::build_mesh(mesh, |build| {
+            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
+        });
+    }
+    if keys.just_pressed(KeyCode::KeyZ) {
+        let rot = orientation.orientation.rotation;
+        orientation.orientation.flip.invert_z();
+        let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
+        MeshBuilder::build_mesh(mesh, |build| {
+            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
+        });
+    }
     if mouse_buttons.pressed(MouseButton::Left) {
         let delta = time.delta_seconds();
         let mut transform = anchor.get_single_mut().expect("Failed to get anchor.");
@@ -214,6 +259,14 @@ fn update(
         rotation.y += mouse_motion.y * delta;
         transform.rotation = Quat::from_axis_angle(Vec3::Y, rotation.x) * Quat::from_axis_angle(Vec3::NEG_X, rotation.y);
     }
+    gizmos.arrow(Vec3::Y, Vec3::Y + Vec3::X * GIZLEN, Color::RED);
+    gizmos.arrow(Vec3::Y, Vec3::Y + Vec3::Y * GIZLEN, Color::GREEN);
+    gizmos.arrow(Vec3::Y, Vec3::Y + Vec3::Z * GIZLEN, Color::BLUE);
+}
+
+#[derive(Resource)]
+struct OrientationRes {
+    orientation: Orientation,
 }
 
 #[derive(Resource)]

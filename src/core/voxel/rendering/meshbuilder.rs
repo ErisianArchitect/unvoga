@@ -53,22 +53,12 @@ impl MeshBuilder {
         let start_index = self.vertices.len() as u32;
         self.uvs.extend(mesh_data.uvs.iter().cloned());
         self.texindices.extend(mesh_data.texindices.iter().cloned());
-        if orientation.rotation != Rotation(0) {
-            self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| orientation.transform(vert)));
-            self.normals.extend(mesh_data.normals.iter().cloned().map(|norm| orientation.transform(norm)));
-            if invert_indices {
-                self.indices.extend(mesh_data.indices.iter().rev().map(|&i| start_index + i));
-            } else {
-                self.indices.extend(mesh_data.indices.iter().map(|&i| start_index + i));
-            }
+        self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| orientation.transform(vert)));
+        self.normals.extend(mesh_data.normals.iter().cloned().map(|norm| orientation.transform(norm)));
+        if invert_indices {
+            self.indices.extend(mesh_data.indices.iter().rev().map(|&i| start_index + i));
         } else {
-            self.vertices.extend(mesh_data.vertices.iter().cloned());
-            self.normals.extend(mesh_data.normals.iter().cloned());
-            if invert_indices {
-                self.indices.extend(mesh_data.indices.iter().rev().map(|&i| start_index + i));
-            } else {
-                self.indices.extend(mesh_data.indices.iter().map(|&i| start_index + i));
-            }
+            self.indices.extend(mesh_data.indices.iter().map(|&i| start_index + i));
         }
     }
 
