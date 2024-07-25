@@ -1,3 +1,4 @@
+#![allow(unused)]
 pub struct Rect {
     left: i32,
     top: i32,

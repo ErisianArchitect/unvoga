@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::prelude::*;
 use std::{sync::atomic::{AtomicU64, AtomicUsize, Ordering}, time::Duration};
 

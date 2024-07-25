@@ -1,3 +1,4 @@
+#![allow(unused)]
 use blocks::Id;
 
 use crate::prelude::*;

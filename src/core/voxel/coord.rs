@@ -1,3 +1,4 @@
+#![allow(unused)]
 use rollgrid::rollgrid3d::Bounds3D;
 
 use crate::core::math::grid;

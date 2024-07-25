@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::path::PathBuf;
 use std::{sync::Arc, thread, time::Duration};
 

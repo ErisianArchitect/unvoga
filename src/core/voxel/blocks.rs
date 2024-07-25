@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::{borrow::Borrow, ops::{Deref, Index}, sync::{atomic::{AtomicBool, Ordering}, OnceLock}};
 
 use bevy::utils::hashbrown::HashMap;

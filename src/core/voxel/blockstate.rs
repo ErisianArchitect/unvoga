@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::{borrow::Borrow, fmt::Debug, ops::{Index, IndexMut}};
 
 use bevy::math::{IVec2, IVec3};

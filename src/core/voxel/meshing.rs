@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bevy::{math::Vec2, math::Vec3, render::{mesh::{Indices, Mesh, MeshVertexAttribute}, render_asset::RenderAssetUsages, render_resource::VertexFormat}};
 
 

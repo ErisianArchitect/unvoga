@@ -1,4 +1,5 @@
-use crate::{prelude::Direction, Flip, Rotation};
+#![allow(unused)]
+use crate::prelude::{Direction, Flip, Rotation};
 use super::orientation::{AxisMap, CoordMap};
 
 pub fn map_face_coord_table_index(rotation: Rotation, flip: Flip, face: Direction) -> usize {

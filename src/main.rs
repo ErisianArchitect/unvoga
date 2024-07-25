@@ -1,21 +1,21 @@
 #![allow(unused)]
 
+pub mod prelude;
+pub mod game;
+pub mod core;
+pub mod sandbox;
+
 use crate::core::voxel::direction::Direction;
 use crate::core::voxel::blockstate::StateValue;
 // Unnamed Voxel Game
 
 use crate::prelude::*;
-use core::{voxel::{block::Block, blocks::{self, Id}, coord::Coord, faces::Faces, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}}};
+use core::voxel::{block::Block, blocks::{self, Id}, coord::Coord, faces::Faces, occlusion_shape::OcclusionShape, rendering::voxelmaterial::VoxelMaterial, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}};
 use std::fmt::{Debug, Display};
 
 use bevy::{
     asset::LoadState, math::{vec2, vec3, vec4}, prelude::*, render::{camera::ScalingMode, mesh::{Indices, MeshVertexAttribute, MeshVertexAttributeId}, render_asset::RenderAssetUsages, render_resource::{AsBindGroup, VertexFormat}, texture::ImageSampler}, window::PresentMode
 };
-
-pub mod prelude;
-pub mod game;
-pub mod core;
-pub mod sandbox;
 
 // use bevy::ecs::component::Component;
 use bevy_egui::{EguiContexts, EguiPlugin};
@@ -41,8 +41,8 @@ mod cleanup {
 }
 
 fn main() {
-    sandbox::sandbox();
-    return;
+    // sandbox::sandbox();
+    // return;
     // TODO: Read from configuration file.
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -69,32 +69,10 @@ fn main() {
         .add_systems(OnEnter(GameState::SinglePlayer), on_enter_singleplayer)
         .add_systems(OnExit(GameState::SinglePlayer), cleanup_system::<cleanup::SinglePlayer>)
         .insert_resource(Assets::<VoxelMaterial>::default())
+        .insert_resource(Assets::<Mesh>::default())
         .insert_resource(ClearColor(Color::rgb(0.2,0.2,0.2)))
         .insert_resource(Msaa::Off)
         .run();
-}
-
-#[derive(AsBindGroup, Debug, Clone, Asset, TypePath)]
-struct VoxelMaterial {
-    #[texture(0, dimension = "2d_array")]
-    #[sampler(1)]
-    array_texture: Handle<Image>,
-    #[storage(2, read_only)]
-    lightmap: Vec<f32>,
-}
-
-impl Material for VoxelMaterial {
-    fn vertex_shader() -> bevy::render::render_resource::ShaderRef {
-        "shaders/voxel/voxel.wgsl".into()
-    }
-
-    fn fragment_shader() -> bevy::render::render_resource::ShaderRef {
-        "shaders/voxel/voxel.wgsl".into()
-    }
-
-    fn alpha_mode(&self) -> AlphaMode {
-        AlphaMode::Blend
-    }
 }
 
 #[derive(Resource)]
@@ -159,7 +137,7 @@ fn enter_loading_screen(
 ) {
     load_state.tile_stack_texture = Some(
         // LoadingImage::new(asset_server.load("textures/atlases/mc_tile_stack.png"))
-        LoadingImage::new(asset_server.load("textures/atlases/2048_tall_stack.png"))
+        LoadingImage::new(asset_server.load("textures/atlases/tile_stack.png"))
     );
 
 }
@@ -180,7 +158,7 @@ fn loading_screen(
             let mut image = images.get_mut(&handle).expect("Expected the handle to be valid.");
             // This makes it so that the textures aren't blurry.
             image.sampler = ImageSampler::nearest();
-            image.reinterpret_stacked_2d_as_array(2048);
+            image.reinterpret_stacked_2d_as_array(16);
             commands.remove_resource::<LoadingState>();
             commands.insert_resource(game::voxel_world::VoxelWorldResources::new(handle));
             commands.insert_resource(VoxelData {vox_mat: None  });
@@ -276,44 +254,62 @@ pub struct VoxelData {
     vox_mat: Option<Handle<VoxelMaterial>>,
 }
 
+#[derive(Resource)]
+pub struct MeshHolder {
+    mesh: Handle<Mesh>,
+}
+
+#[derive(Component)]
+pub struct CameraAnchor;
+
 fn on_enter_main_menu(
     asset_server: Res<AssetServer>,
     mut commands: Commands,
     mut materials: ResMut<Assets<VoxelMaterial>>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut images: ResMut<Assets<Image>>,
     voxel_resources: Res<game::voxel_world::VoxelWorldResources>,
-    mut vox_data: ResMut<VoxelData>,
 ) {
-    let mut mesh = bevy::prelude::Mesh::new(bevy::render::mesh::PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
+    let side_texture_paths = vec![
+        "./assets/debug/textures/cube_sides/pos_y.png",
+        "./assets/debug/textures/cube_sides/pos_x.png",
+        "./assets/debug/textures/cube_sides/pos_z.png",
+        "./assets/debug/textures/cube_sides/neg_y.png",
+        "./assets/debug/textures/cube_sides/neg_x.png",
+        "./assets/debug/textures/cube_sides/neg_z.png",
+    ];
+    let cube_sides_texarray = images.add(crate::core::util::texture_array::create_texture_array_from_paths(512, 512, side_texture_paths).expect("Failed to create texture array."));
+    let mut mesh = bevy::prelude::Mesh::new(bevy::render::mesh::PrimitiveTopology::TriangleList, RenderAssetUsages::all());
     let vertices: Vec<_> = [
-        vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0),
-        vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0),
-        vec3(0.0, 0.0, 0.0), vec3(16.0, 0.0, 0.0),
-        vec3(0.0, 0.0, 16.0), vec3(16.0, 0.0, 16.0),
+        vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
+        vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
         
     ].into_iter()
     // .map(|v| v + vec3(-0.5, 0.0, -0.5))
     .collect();
+    let normals: Vec<_> = vec![
+        Vec3::Y,Vec3::Y,
+        Vec3::Y,Vec3::Y,
+    ];
     // let uvs = vec![
     //     vec3(0.0, 0.0, 0.0), vec3(0.0625, 0.0, 0.0),
     //     vec3(0.0, 0.0, 1.0), vec3(0.0625, 0.0, 0.0625),
     // ];
     let uvs = vec![
-        vec2(0.0, 0.0), vec2(2.0, 0.0),
-        vec2(0.0, 2.0), vec2(2.0, 2.0),
-        vec2(0.0, 0.0), vec2(16.0, 0.0),
-        vec2(0.0, 16.0), vec2(16.0, 16.0),
+        vec2(0.0, 0.0), vec2(1.0, 0.0),
+        vec2(0.0, 1.0), vec2(1.0, 1.0),
     ];
-    let tex_indices: Vec<u32> = (0..8).map(|i| if i < 4 { 0 } else { 8 }).collect();
+    let tex_indices: Vec<u32> = (0..4).map(|i| if i < 4 { 0 } else { 0 }).collect();
     let indices = Indices::U32(vec![
         0, 2, 1, 1, 2, 3,// First
-        4, 6, 5, 5, 6, 7,// Second
+        // 4, 6, 5, 5, 6, 7,// Second
     ]);
 
     mesh.insert_attribute(MeshVertexAttribute::new("position", 0, VertexFormat::Float32x3), vertices);
     mesh.insert_attribute(MeshVertexAttribute::new("uv", 1, VertexFormat::Float32x2), uvs);
-    mesh.insert_attribute(MeshVertexAttribute::new("texindex", 2, VertexFormat::Uint32), tex_indices);
+    mesh.insert_attribute(MeshVertexAttribute::new("normal", 2, VertexFormat::Float32x3), normals);
+    mesh.insert_attribute(MeshVertexAttribute::new("texindex", 3, VertexFormat::Uint32), tex_indices);
     mesh.insert_indices(indices);
     let mut trans = Transform::from_xyz(0.0, 0.0, 0.0);
     // trans.rotate_axis(Vec3::Y, 45.0);
@@ -338,13 +334,23 @@ fn on_enter_main_menu(
         shade.rem_euclid(1.0)
     }).collect();
     let vox_mat = materials.add(VoxelMaterial { 
-        array_texture: voxel_resources.texture_array(),
+        array_texture: cube_sides_texarray,
+        light_level: 1.0,
         lightmap,
+        lightmap_pad_pos_x: vec![],
+        lightmap_pad_neg_x: vec![],
+        lightmap_pad_pos_y: vec![],
+        lightmap_pad_neg_y: vec![],
+        lightmap_pad_pos_z: vec![],
+        lightmap_pad_neg_z: vec![],
     });
-    vox_data.as_mut().vox_mat = Some(vox_mat.clone());
+    // vox_data.as_mut().vox_mat = Some(vox_mat.clone());
+    let mesh_holder = MeshHolder {
+        mesh: meshes.add(mesh),
+    };
     commands.spawn((
         MaterialMeshBundle {
-            mesh: meshes.add(mesh),
+            mesh: mesh_holder.mesh.clone(),
             material: vox_mat,
             transform: trans,
             ..default()
@@ -352,6 +358,7 @@ fn on_enter_main_menu(
         cleanup::Menu,
         Mover,
     ));
+    commands.insert_resource(mesh_holder);
     // let mat = std_materials.add(StandardMaterial {
     //     base_color_texture: Some(asset_server.load("textures/atlases/mc_tilestack.png").into()),
     //     ..Default::default()
@@ -365,19 +372,54 @@ fn on_enter_main_menu(
     //     cleanup::Menu
     // ));
     // Camera
+    let cam_rot = Quat::from_axis_angle(Vec3::Y, 45.0f32.to_radians()) * Quat::from_axis_angle(Vec3::NEG_X, 25.0f32.to_radians());
+    //Quat::from_euler(EulerRot::XYZ, -45.0f32.to_radians(), 45.0f32.to_radians(), 0.0)
     commands.spawn((
-        Camera3dBundle {
-            projection: OrthographicProjection {
-                scaling_mode: ScalingMode::FixedVertical(32.0),
-                ..Default::default()
-            }.into(),
-            transform: Transform::from_xyz(8.0, 10.0, 8.0)
-                .looking_at(vec3(8.0, 0.0, 8.0), -Vec3::Z)
-                ,
-            ..default()
-        },
-        cleanup::Menu
-    ));
+        TransformBundle::from_transform(
+            Transform::from_xyz(0.0, 0.0, 0.0)
+                .with_rotation(cam_rot)
+        ),
+        CameraAnchor
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Camera3dBundle {
+                    // projection: OrthographicProjection {
+                    //     scaling_mode: ScalingMode::FixedVertical(32.0),
+                    //     ..Default::default()
+                    // }.into(),
+                    projection: PerspectiveProjection {
+                        fov: 45.0,
+                        aspect_ratio: 1.0,
+                        far: 1000.0,
+                        near: 0.01,
+                    }.into(),
+                    transform: Transform::from_xyz(0.0, 0.0, 5.0)
+                        .looking_at(vec3(0.0, 0.0, 0.0), Vec3::Y),
+                    ..default()
+                },
+                cleanup::Menu
+            ));
+        });
+    // commands.spawn((
+    //     Camera3dBundle {
+    //         // projection: OrthographicProjection {
+    //         //     scaling_mode: ScalingMode::FixedVertical(32.0),
+    //         //     ..Default::default()
+    //         // }.into(),
+    //         projection: PerspectiveProjection {
+    //             fov: 45.0,
+    //             aspect_ratio: 1.0,
+    //             far: 1000.0,
+    //             near: 0.01,
+    //         }.into(),
+    //         transform: Transform::from_xyz(0.0, 5.0, 0.0)
+    //             .looking_at(vec3(0.0, 0.0, 0.0), -Vec3::Z)
+    //             ,
+    //         ..default()
+    //     },
+    //     cleanup::Menu
+    // ));
     // commands.spawn((
     //     Camera3dBundle {
     //         projection: PerspectiveProjection {

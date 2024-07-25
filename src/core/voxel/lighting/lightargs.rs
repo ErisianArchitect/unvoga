@@ -1,3 +1,4 @@
+#![allow(unused)]
 /// Filter and Emit packed together.
 /// First 4 bits are Filter, second 4 bits are Emit.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]

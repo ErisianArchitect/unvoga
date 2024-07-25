@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::io::{Read, Write};
 
 use hashbrown::HashMap;

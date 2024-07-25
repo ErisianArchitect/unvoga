@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::io::{Read, Write};
 
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};

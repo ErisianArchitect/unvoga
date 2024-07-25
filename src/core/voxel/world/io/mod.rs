@@ -1,3 +1,4 @@
+#![allow(unused)]
 
 use hashbrown::HashMap;
 use itertools::Itertools;

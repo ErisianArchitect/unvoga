@@ -1,3 +1,4 @@
+#![allow(unused)]
 #![recursion_limit = "512"]
 use std::io::{
     Read, Write,

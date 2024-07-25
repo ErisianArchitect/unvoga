@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bytemuck::NoUninit;
 
 #[repr(C)]

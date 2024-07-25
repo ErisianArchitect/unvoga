@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::io::{Read, Seek};
 
 use crate::prelude::{Readable, Writeable};

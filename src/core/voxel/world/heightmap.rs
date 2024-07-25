@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::core::voxel::coord::Coord;
 use crate::prelude::{Readable, Writeable};
 

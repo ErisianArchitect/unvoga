@@ -1,3 +1,4 @@
+#![allow(unused)]
 use thiserror::Error as ThisError;
 
 #[derive(Debug, ThisError)]

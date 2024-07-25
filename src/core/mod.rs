@@ -1,3 +1,4 @@
+#![allow(unused)]
 pub mod collections;
 pub mod error;
 pub mod io;

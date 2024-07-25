@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::core::voxel::coord::Coord;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

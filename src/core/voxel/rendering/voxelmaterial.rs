@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bevy::{prelude::*, render::render_resource::AsBindGroup};
 
 #[derive(AsBindGroup, Debug, Clone, Asset, TypePath)]
@@ -44,14 +45,14 @@ impl VoxelMaterial {
 
 impl Material for VoxelMaterial {
     fn vertex_shader() -> bevy::render::render_resource::ShaderRef {
-        "shaders/voxel.wgsl".into()
+        "shaders/voxel/voxel.wgsl".into()
     }
 
     fn fragment_shader() -> bevy::render::render_resource::ShaderRef {
-        "shaders/voxel.wgsl".into()
+        "shaders/voxel/voxel.wgsl".into()
     }
 
-    fn alpha_mode(&self) -> AlphaMode {
-        AlphaMode::Blend
-    }
+    // fn alpha_mode(&self) -> AlphaMode {
+    //     AlphaMode::
+    // }
 }

@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::ops::{Index, IndexMut};
 
 use super::direction::Direction;

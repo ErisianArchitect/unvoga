@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::prelude::*;
 
 use super::{direction::Direction, occlusion_shape::OcclusionShape};

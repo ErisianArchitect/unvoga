@@ -1,3 +1,4 @@
+#![allow(unused)]
 pub mod voxelmaterial;
 pub mod voxelmesh;
 pub mod meshbuilder;

@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
 use crate::{core::{collections::objectpool::PoolId, error::*}, prelude::{SwapVal, Writeable}};

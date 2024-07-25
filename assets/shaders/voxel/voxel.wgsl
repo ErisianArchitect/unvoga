@@ -60,18 +60,19 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
     let color = textureSample(
         array_texture,
         array_texture_sampler,
-        // vec2(fract(input.localpos.y), fract(input.localpos.z)),
-        // vec2(input.uv.x, input.position.x % 1.0),
         uv,
         input.texindex
     );
-    let x = u32(rem_euclid(input.localpos.x, 16.0));
-    let y = u32(rem_euclid(input.localpos.z, 16.0));
-    var index = lightmap_index(x, y);
-    let light = lightmap[index];
-    let min_light = (1.0 - MIN_LIGHT) * light + MIN_LIGHT;
-    let adj_light_level = (1.0 - light_level) * min_light + light_level;
-    let output = vec4f(color.rgb * adj_light_level, color.a);
+    // Light level adjustment. I have to rewrite this for 3D.
+    // let x = u32(rem_euclid(input.localpos.x, 16.0));
+    // let y = u32(rem_euclid(input.localpos.z, 16.0));
+    // var index = lightmap_index(x, y);
+    // let light = lightmap[index];
+    // let min_light = (1.0 - MIN_LIGHT) * light + MIN_LIGHT;
+    // let adj_light_level = (1.0 - light_level) * min_light + light_level;
+    // let adj_rgb = color.rgb * adj_light_level;
+    // let output = vec4f(adj_rgb, color.a);
+    let output = vec4f(color.rgb, color.a);
     return output;
 }
 

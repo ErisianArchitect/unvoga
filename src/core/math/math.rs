@@ -1,3 +1,4 @@
+#![allow(unused)]
 
 pub fn index2<const W: i32>(x: i32, y: i32) -> usize {
     let x = x.rem_euclid(W);

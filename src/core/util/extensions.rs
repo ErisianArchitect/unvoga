@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::ops::Range;
 
 use crate::for_each_int_type;

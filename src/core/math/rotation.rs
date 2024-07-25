@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bevy::math::{vec3, Vec3};
 use bytemuck::NoUninit;
 

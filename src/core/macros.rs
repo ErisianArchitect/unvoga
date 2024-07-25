@@ -1,3 +1,4 @@
+#![allow(unused)]
 
 /// ```no_run
 /// macro_rules! num_impl {

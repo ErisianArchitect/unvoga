@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bevy::math::IVec2;
 
 use crate::core::voxel::{coord::Coord, direction::Cardinal};

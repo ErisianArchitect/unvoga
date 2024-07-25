@@ -1,3 +1,4 @@
+#![allow(unused)]
 use chrono::*;
 
 use crate::prelude::{Readable, Writeable};

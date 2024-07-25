@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::{borrow::Borrow, fs::File, io::{BufReader, BufWriter, Cursor, Read, Seek, SeekFrom, Take, Write}, path::{Path, PathBuf}};
 
 use bevy::asset::io::file;

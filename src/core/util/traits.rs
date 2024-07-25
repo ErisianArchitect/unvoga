@@ -1,3 +1,4 @@
+#![allow(unused)]
 pub trait StrToOwned {
     fn str_to_owned(self) -> String;
 }

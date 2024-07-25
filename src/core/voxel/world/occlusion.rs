@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::core::voxel::direction::Direction;
 
 macro_rules! make_face_constants {

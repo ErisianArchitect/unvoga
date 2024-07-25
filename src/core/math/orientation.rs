@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bevy::math::Vec3;
 
 use crate::prelude::*;
@@ -58,20 +59,19 @@ impl Orientation {
     /// So if you're trying to map a coord within a rect of size (16, 16), you would subtract 8 from the
     /// x and y of the coord, then pass that offset coord to this function, then add 8 back to the x and y
     /// to get your final coord.
-    pub fn map_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
+    pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
         // I actually realized that I did this backwards. For what I want, I need to figure out the source coord.
         let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
         let coordmap = maptable::MAP_COORD_TABLE[table_index];
-        todo!("This method doesn't work properly.");
         coordmap.map(uv)
     }
 
-    pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
-        let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
-        let coordmap = maptable::SOURCE_FACE_COORD_TABLE[table_index];
-        todo!("This method doesn't work properly.");
-        coordmap.map(uv)
-    }
+    // pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
+    //     let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
+    //     let coordmap = maptable::SOURCE_FACE_COORD_TABLE[table_index];
+    //     // todo!("This method doesn't work properly.");
+    //     coordmap.map(uv)
+    // }
 }
 
 #[repr(u8)]
@@ -207,18 +207,18 @@ mod testing_sandbox {
 
     #[test]
     fn check_solution() {
-        let orientation = Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::X);
-        let face = Direction::PosX;
+        let orientation = Orientation::new(Rotation::new(Direction::PosX, 2), Flip::XY);
+        let face = Direction::NegZ;
         // let coordmap = map_face_coord_naive(orientation, face);
         // let table_index = maptable::map_face_coord_table_index(orientation.rotation, orientation.flip, face);
         // let table_map = maptable::MAP_COORD_TABLE[table_index];
         // assert_eq!(coordmap, table_map);
-        let coord = (-1, -2, -3);
-        let mapped = orientation.transform(coord);
+        let coord = (-1, -2);
+        // let mapped = orientation.transform(coord);
+        // println!("{coord:?} {mapped:?}");
+        let mapped = orientation.source_face_coord(face, coord);
+        // let unmapped = orientation.source_face_coord(face, coord);
         println!("{coord:?} {mapped:?}");
-        // let mapped = orientation.map_face_coord(face, coord);
-        // let unmapped = orientation.source_face_coord(face, mapped);
-        // println!("{coord:?} {mapped:?} {unmapped:?}");
     }
 
     // This is used to generate the table in maptable.rs.

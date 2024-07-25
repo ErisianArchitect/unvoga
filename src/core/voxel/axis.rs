@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bytemuck::{NoUninit, Pod, Zeroable};
 
 #[repr(u8)]

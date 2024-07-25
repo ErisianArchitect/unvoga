@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::borrow::BorrowMut;
 
 pub struct Lend<T> {

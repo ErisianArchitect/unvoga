@@ -1,3 +1,5 @@
+#![allow(unused)]
+use bevy::math::Vec3;
 use bytemuck::NoUninit;
 
 use crate::prelude::*;
@@ -148,7 +150,7 @@ impl Direction {
 
     /// On a non-oriented cube, each face has an "up" face. That's the face
     /// whose normal points to the top of the given face's UV plane.
-    pub fn up(self) -> Direction {
+    pub const fn up(self) -> Direction {
         use Direction::*;
         match self {
             NegX => PosY,
@@ -162,7 +164,7 @@ impl Direction {
 
     /// On a non-oriented cube, each face has a "down" face. That's the face
     /// whose normal points to the bottom of the given face's UV plane.
-    pub fn down(self) -> Direction {
+    pub const fn down(self) -> Direction {
         use Direction::*;
         match self {
             NegX => NegY,
@@ -176,7 +178,7 @@ impl Direction {
 
     /// On a non-oriented cube, each face has a "left" face. That's the face
     /// whose normal points to the left of the given face's UV plane.
-    pub fn left(self) -> Direction {
+    pub const fn left(self) -> Direction {
         use Direction::*;
         match self {
             NegX => NegZ,
@@ -190,7 +192,7 @@ impl Direction {
 
     /// On a non-oriented cube, each face has a "right" face. That's the face
     /// whose normal points to the right of the given face's UV plane.
-    pub fn right(self) -> Direction {
+    pub const fn right(self) -> Direction {
         use Direction::*;
         match self {
             NegX => PosZ,
@@ -199,6 +201,18 @@ impl Direction {
             PosX => NegZ,
             PosY => PosX,
             PosZ => PosX,
+        }
+    }
+
+    pub const fn to_vec3(self) -> Vec3 {
+        use Direction::*;
+        match self {
+            NegX => Vec3::new(-1.0,  0.0,  0.0),
+            NegY => Vec3::new( 0.0, -1.0,  0.0),
+            NegZ => Vec3::new( 0.0,  0.0, -1.0),
+            PosX => Vec3::new( 1.0,  0.0,  0.0),
+            PosY => Vec3::new( 0.0,  1.0,  0.0),
+            PosZ => Vec3::new( 0.0,  0.0,  1.0),
         }
     }
 }

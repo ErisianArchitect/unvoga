@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::for_each_int_type;
 
 pub trait Zero {

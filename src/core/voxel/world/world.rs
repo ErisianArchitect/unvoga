@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::path::{Path, PathBuf};
 use std::{collections::VecDeque, iter::Sum};
 

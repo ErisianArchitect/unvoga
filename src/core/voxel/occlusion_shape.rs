@@ -1,3 +1,4 @@
+#![allow(unused)]
 /*
 The OcclusionShape should be used for light and mesh occlusion.
 You should logically map the x and y coordinates to the x/y/z coordinates.

@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bevy::math::Vec3;
 
 use crate::prelude::Direction;
@@ -29,6 +30,11 @@ impl Flip {
     
     pub fn z(self) -> bool {
         self & Flip::Z == Flip::Z
+    }
+
+    /// Xors all the bits.
+    pub fn xor(self) -> bool {
+        self.x() ^ self.y() ^ self.z()
     }
 
     pub fn flip_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T, T)> + From<(T, T, T)>>(self, mut value: C) -> C {

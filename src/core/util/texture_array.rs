@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::path::{PathBuf, Path};
 
 use bevy::render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, ShaderType, TextureDimension, TextureFormat}, texture::Image};

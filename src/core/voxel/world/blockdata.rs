@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::any::Any;
 
 use crate::core::voxel::tag::Tag;
