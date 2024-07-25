@@ -214,45 +214,34 @@ fn update(
     mut gizmos: Gizmos,
 ) {
     const GIZLEN: f32 = 0.2;
+    let old_orient = orientation.orientation;
+    let mut new_orient = old_orient;
     if keys.just_pressed(KeyCode::KeyE) {
-        let rot = orientation.orientation.rotation;
-        orientation.orientation.rotation = rot.cycle(1);
-        let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
-        MeshBuilder::build_mesh(mesh, |build| {
-            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
-        });
+        let rot = new_orient.rotation;
+        new_orient.rotation = rot.cycle(1);
     }
     if keys.just_pressed(KeyCode::KeyQ) {
-        let rot = orientation.orientation.rotation;
-        orientation.orientation.rotation = rot.cycle(-1);
-        let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
-        MeshBuilder::build_mesh(mesh, |build| {
-            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
-        });
+        let rot = new_orient.rotation;
+        new_orient.rotation = rot.cycle(-1);
     }
     if keys.just_pressed(KeyCode::KeyX) {
-        let rot = orientation.orientation.rotation;
-        orientation.orientation.flip.invert_x();
-        let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
-        MeshBuilder::build_mesh(mesh, |build| {
-            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
-        });
+        let rot = new_orient.rotation;
+        new_orient.flip.invert_x();
     }
     if keys.just_pressed(KeyCode::KeyY) {
-        let rot = orientation.orientation.rotation;
-        orientation.orientation.flip.invert_y();
-        let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
-        MeshBuilder::build_mesh(mesh, |build| {
-            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
-        });
+        let rot = new_orient.rotation;
+        new_orient.flip.invert_y();
     }
     if keys.just_pressed(KeyCode::KeyZ) {
-        let rot = orientation.orientation.rotation;
-        orientation.orientation.flip.invert_z();
+        let rot = new_orient.rotation;
+        new_orient.flip.invert_z();
+    }
+    if new_orient != old_orient {
         let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
         MeshBuilder::build_mesh(mesh, |build| {
-            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orientation.orientation);
+            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, new_orient);
         });
+        orientation.orientation = new_orient;
     }
     if mouse_buttons.pressed(MouseButton::Left) {
         let delta = time.delta_seconds();

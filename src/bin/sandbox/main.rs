@@ -1,5 +1,6 @@
 #![allow(unused)]
 use std::path::PathBuf;
+use std::sync::LazyLock;
 use std::{sync::Arc, thread, time::Duration};
 
 use bevy::math::IVec2;
@@ -11,8 +12,29 @@ use unvoga::prelude::*;
 use unvoga::core::error::*;
 use unvoga::{blockstate, core::{util::counter::AtomicCounter, voxel::{block::Block, blocks::{self, Id}, blockstate::StateValue, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusion_shape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::{query::Enabled, PlaceContext, VoxelWorld}}}};
 
+#[derive(Debug, Default)]
+struct BlockRegistry {
+
+}
+
+impl BlockRegistry {
+    pub fn new() -> Self {
+        Self {
+
+        }
+    }
+    
+    pub fn foo(&self) {
+        println!("Hello, world, from BlockRegistry.");
+    }
+}
+
+static BLOCKS: LazyLock<BlockRegistry> = LazyLock::new(BlockRegistry::new);
+
 pub fn main() {
 
+    BLOCKS.foo();
+    return;
     use unvoga::core::voxel::direction::Direction;
 
     println!("World Test");

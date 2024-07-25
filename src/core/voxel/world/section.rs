@@ -610,7 +610,7 @@ impl Section {
     fn disable_all(&mut self, world: &mut VoxelWorld) {
         if let Some(refs) = self.update_refs.take() {
             assert!(!world.lock_update_queue, "Update queue was locked.");
-            refs.into_iter().for_each(|&uref| {
+            IntoIterator::into_iter(refs).for_each(|uref| {
                 world.update_queue.remove(uref);
             });
         }
