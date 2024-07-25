@@ -1,4 +1,4 @@
-use std::{sync::{LazyLock, OnceLock}, time::Instant};
+use std::{borrow::BorrowMut, sync::{LazyLock, Mutex, OnceLock}, time::Instant};
 
 use hashbrown::HashMap;
 use itertools::Itertools;
@@ -29,7 +29,7 @@ impl BlockRegistry {
     }
 }
 
-static mut LAZY_LOCK: LazyLock<BlockRegistry> = LazyLock::new(BlockRegistry::new);
+static mut LAZY_LOCK: LazyLock<Mutex<BlockRegistry>> = LazyLock::new(|| Mutex::new(BlockRegistry::new()));
 static mut ONCE_LOCK: OnceLock<BlockRegistry> = OnceLock::new();
 
 fn method_lazy<S: AsRef<str>>(keys: &[&S]) -> u128 {
