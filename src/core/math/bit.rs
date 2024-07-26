@@ -102,6 +102,13 @@ macro_rules! bitflags_impls {
             }
         }
 
+        impl std::ops::Deref for $type {
+            type Target = $inner_type;
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
         impl BitFlags for $type {
             const BIT_SIZE: u32 = (std::mem::size_of::<Self>() * 8) as u32;
             
