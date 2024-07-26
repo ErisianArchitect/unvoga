@@ -112,117 +112,99 @@ impl CoordMap {
     }
 }
 
-// I used this to generate the table in maptable.rs and I don't need it anymore, but I'm going
-// to keep it around just in case.
-// fn map_face_coord_naive(orientation: Orientation, face: Direction) -> CoordMap {
-//     // First I will attempt a naive implementation, then I will use the naive implementation to generate code
-//     // for a more optimized implementation.
-//     // First get the source face
-//     let source_face = orientation.source_face(face);
-//     // next, get the up, right, down, and left for the source face and arg face.
-//     let src_up = source_face.up();
-//     let src_right = source_face.right();
-//     let src_down = source_face.down();
-//     let src_left = source_face.left();
-//     let face_up = face.up();
-//     let face_right = face.right();
-//     let face_down = face.down();
-//     let face_left = face.left();
-//     // Next, reface the src_dir faces
-//     let rsrc_up = orientation.reface(src_up);
-//     let rsrc_right = orientation.reface(src_right);
-//     let rsrc_down = orientation.reface(src_down);
-//     let rsrc_left = orientation.reface(src_left);
-//     // Now match up the faces
-//     let x_map = if face_right == rsrc_right {
-//         AxisMap::PosX
-//     } else if face_right == rsrc_up {
-//         AxisMap::NegY
-//     } else if face_right == rsrc_left {
-//         AxisMap::NegX
-//     } else {
-//         AxisMap::PosY
-//     };
-//     let y_map = if face_up == rsrc_up {
-//         AxisMap::PosY
-//     } else if face_up == rsrc_left {
-//         AxisMap::PosX
-//     } else if face_up == rsrc_down {
-//         AxisMap::NegY
-//     } else {
-//         AxisMap::NegX
-//     };
-//     CoordMap {
-//         x: x_map,
-//         y: y_map
-//     }
-// }
-fn source_face_coord_naive(orientation: Orientation, face: Direction) -> CoordMap {
-    // First I will attempt a naive implementation, then I will use the naive implementation to generate code
-    // for a more optimized implementation.
-    // First get the source face
-    let source_face = orientation.source_face(face);
-    // next, get the up, right, down, and left for the source face and arg face.
-    let src_up = source_face.up();
-    let src_right = source_face.right();
-    let src_down = source_face.down();
-    let src_left = source_face.left();
-    let face_up = face.up();
-    let face_right = face.right();
-    let face_down = face.down();
-    let face_left = face.left();
-    // Next, reface the src_dir faces
-    let rsrc_up = orientation.reface(src_up);
-    let rsrc_right = orientation.reface(src_right);
-    let rsrc_down = orientation.reface(src_down);
-    let rsrc_left = orientation.reface(src_left);
-    // Now match up the faces
-    
-    let x_map = if rsrc_right == face_right {
-        AxisMap::PosX
-    } else if rsrc_right == face_down {
-        AxisMap::PosY
-    } else if rsrc_right == face_left {
-        AxisMap::NegX
-    } else {
-        AxisMap::NegY
-    };
-    let y_map = if rsrc_up == face_up {
-        AxisMap::PosY
-    } else if rsrc_up == face_right {
-        AxisMap::NegX
-    } else if rsrc_up == face_down {
-        AxisMap::NegY
-    } else {
-        AxisMap::PosX
-    };
-    // let x_map = if face_right == rsrc_right {
-    //     AxisMap::PosX
-    // } else if face_right == rsrc_up {
-    //     AxisMap::PosY
-    // } else if face_right == rsrc_left {
-    //     AxisMap::NegX
-    // } else {
-    //     AxisMap::NegY
-    // };
-    // let y_map = if face_up == rsrc_up {
-    //     AxisMap::PosY
-    // } else if face_up == rsrc_left {
-    //     AxisMap::NegX
-    // } else if face_up == rsrc_down {
-    //     AxisMap::NegY
-    // } else {
-    //     AxisMap::PosX
-    // };
-    CoordMap {
-        x: x_map,
-        y: y_map
-    }
-}
-
 #[cfg(test)]
 mod testing_sandbox {
     use bevy::math::vec2;
+
+    // I used this to generate the table in maptable.rs and I don't need it anymore, but I'm going
+    // to keep it around just in case.
+    // fn map_face_coord_naive(orientation: Orientation, face: Direction) -> CoordMap {
+    //     // First I will attempt a naive implementation, then I will use the naive implementation to generate code
+    //     // for a more optimized implementation.
+    //     // First get the source face
+    //     let source_face = orientation.source_face(face);
+    //     // next, get the up, right, down, and left for the source face and arg face.
+    //     let src_up = source_face.up();
+    //     let src_right = source_face.right();
+    //     let src_down = source_face.down();
+    //     let src_left = source_face.left();
+    //     let face_up = face.up();
+    //     let face_right = face.right();
+    //     let face_down = face.down();
+    //     let face_left = face.left();
+    //     // Next, reface the src_dir faces
+    //     let rsrc_up = orientation.reface(src_up);
+    //     let rsrc_right = orientation.reface(src_right);
+    //     let rsrc_down = orientation.reface(src_down);
+    //     let rsrc_left = orientation.reface(src_left);
+    //     // Now match up the faces
+    //     let x_map = if face_right == rsrc_right {
+    //         AxisMap::PosX
+    //     } else if face_right == rsrc_up {
+    //         AxisMap::NegY
+    //     } else if face_right == rsrc_left {
+    //         AxisMap::NegX
+    //     } else {
+    //         AxisMap::PosY
+    //     };
+    //     let y_map = if face_up == rsrc_up {
+    //         AxisMap::PosY
+    //     } else if face_up == rsrc_left {
+    //         AxisMap::PosX
+    //     } else if face_up == rsrc_down {
+    //         AxisMap::NegY
+    //     } else {
+    //         AxisMap::NegX
+    //     };
+    //     CoordMap {
+    //         x: x_map,
+    //         y: y_map
+    //     }
+    // }
+    fn source_face_coord_naive(orientation: Orientation, face: Direction) -> CoordMap {
+        // First I will attempt a naive implementation, then I will use the naive implementation to generate code
+        // for a more optimized implementation.
+        // First get the source face
+        let source_face = orientation.source_face(face);
+        // next, get the up, right, down, and left for the source face and arg face.
+        let src_up = source_face.up();
+        let src_right = source_face.right();
+        let src_down = source_face.down();
+        let src_left = source_face.left();
+        let face_up = face.up();
+        let face_right = face.right();
+        let face_down = face.down();
+        let face_left = face.left();
+        // Next, reface the src_dir faces
+        let rsrc_up = orientation.reface(src_up);
+        let rsrc_right = orientation.reface(src_right);
+        let rsrc_down = orientation.reface(src_down);
+        let rsrc_left = orientation.reface(src_left);
+        // Now match up the faces
+        
+        let x_map = if rsrc_right == face_right {
+            AxisMap::PosX
+        } else if rsrc_right == face_down {
+            AxisMap::PosY
+        } else if rsrc_right == face_left {
+            AxisMap::NegX
+        } else {
+            AxisMap::NegY
+        };
+        let y_map = if rsrc_up == face_up {
+            AxisMap::PosY
+        } else if rsrc_up == face_right {
+            AxisMap::NegX
+        } else if rsrc_up == face_down {
+            AxisMap::NegY
+        } else {
+            AxisMap::PosX
+        };
+        CoordMap {
+            x: x_map,
+            y: y_map
+        }
+    }
 
     #[test]
     fn check_solution() {
