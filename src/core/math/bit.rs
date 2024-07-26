@@ -52,6 +52,29 @@ macro_rules! bitflags_impls {
                 Self(self.0 & rhs)
             }
         }
+
+        impl std::ops::BitXor<$type> for $type {
+            type Output = Self;
+
+            fn bitxor(self, rhs: $type) -> Self::Output {
+                Self(self.0 ^ rhs.0)
+            }
+        }
+
+        impl std::ops::BitXor<$inner_type> for $type {
+            type Output = Self;
+
+            fn bitxor(self, rhs: $inner_type) -> Self::Output {
+                Self(self.0 ^ rhs)
+            }
+        }
+
+        impl std::ops::Not for $type {
+            type Output = Self;
+            fn not(self) -> Self::Output {
+                Self(!self.0)
+            }
+        }
         
         impl std::ops::Sub<$type> for $type {
             type Output = Self;
@@ -382,6 +405,8 @@ mod tests {
         let new = value.set_bitmask(4..7, 0b101);
         let mask = new.get_bitmask(2..9);
         assert_eq!(mask, 0b1010101);
-
+        let mut flags = !BitFlags8::default();
+        flags.set(0, false);
+        let flags = flags ^ BitFlags8(0b10101);
     }
 }
