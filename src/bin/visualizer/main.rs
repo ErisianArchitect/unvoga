@@ -61,6 +61,7 @@ fn main() {
         .insert_state(GameState::LoadingScreen)
         .add_systems(Startup, setup)
         .add_systems(Update, update)
+        .add_systems(Update, menu.before(update))
         // .add_systems(Update, loading_screen.run_if(in_state(GameState::LoadingScreen)))
         // .add_systems(Update, main_menu.run_if(in_state(GameState::MainMenu)))
         // .add_systems(OnEnter(GameState::LoadingScreen), enter_loading_screen)
@@ -196,7 +197,171 @@ fn setup(
         ));
     });
     commands.insert_resource(CameraRotation { x: 0.0, y: 0.0 });
-    commands.insert_resource(OrientationRes { orientation: Orientation::default() });
+    commands.insert_resource(OrientationRes::new(Orientation::default()));
+    commands.insert_resource(Orientations(vec![Orientation::default()]));
+    commands.insert_resource(MenuInfo::default());
+}
+
+#[derive(Resource)]
+struct MenuInfo {
+    in_menu: bool,
+    draw_gizmos: bool,
+    remap_xyz: (i32, i32, i32),
+    remap_xyz_txt: (String, String, String),
+    remap_xy: (i32, i32),
+    remap_xy_txt: (String, String),
+    remap_face: Direction,
+}
+
+impl Default for MenuInfo {
+    fn default() -> Self {
+        Self {
+            in_menu: false,
+            draw_gizmos: true,
+            remap_xyz: (1, 2, 3),
+            remap_xyz_txt: (String::from("1"), String::from("2"), String::from("3")),
+            remap_xy: (-1, -2),
+            remap_xy_txt: (String::from("-1"), String::from("-2")),
+            remap_face: Direction::PosY,
+        }
+    }
+}
+
+#[derive(Resource)]
+struct Orientations(Vec<Orientation>);
+
+fn menu(
+    mut orientation: ResMut<OrientationRes>,
+    mut contexts: EguiContexts,
+    mut menu_info: ResMut<MenuInfo>,
+    mut orientations: ResMut<Orientations>,
+) {
+    use bevy_egui::egui::{self, *};
+    let resp = egui::panel::SidePanel::left("left_panel").show(contexts.ctx_mut(), |ui| {
+        ui.toggle_value(&mut menu_info.draw_gizmos, "Draw Gizmos");
+        ui.label("Flip:");
+        let mut edit = orientation.current;
+        // let edit = orientation.edit();
+        let (mut x, mut y, mut z) = (edit.flip.x(), edit.flip.y(), edit.flip.z());
+        ui.toggle_value(&mut x, "X");
+        ui.toggle_value(&mut y, "Y");
+        ui.toggle_value(&mut z, "Z");
+        edit.flip.set_x(x);
+        edit.flip.set_y(y);
+        edit.flip.set_z(z);
+        let mut up = edit.rotation.up();
+        ComboBox::new("top_selection", "Rotation Top")
+            .selected_text(format!("{}", up))
+            .show_ui(ui, |ui| {
+                use unvoga::prelude::Direction;
+                Direction::iter().for_each(|dir| {
+                    ui.selectable_value(&mut up, dir, format!("{dir}"));
+                });
+            });
+        let mut angle = edit.rotation.angle();
+        ui.add(Slider::new(&mut angle, 0..=3));
+        edit.rotation = Rotation::new(up, angle);
+        if edit != orientation.current {
+            orientation.set(edit);
+        }
+        ui.label("Remap");
+        ui.horizontal(|ui| {
+            ui.label("(");
+            let (rect, _) = ui.allocate_exact_size(Vec2 { x: 30.0, y: ui.spacing().interact_size.y }, Sense::hover());
+            let txt = TextEdit::singleline(&mut menu_info.remap_xyz_txt.0);
+            ui.put(rect, txt);
+            ui.label(",");
+            let (rect, _) = ui.allocate_exact_size(Vec2 { x: 30.0, y: ui.spacing().interact_size.y }, Sense::hover());
+            let txt = TextEdit::singleline(&mut menu_info.remap_xyz_txt.1);
+            ui.put(rect, txt);
+            ui.label(",");
+            let (rect, _) = ui.allocate_exact_size(Vec2 { x: 30.0, y: ui.spacing().interact_size.y }, Sense::hover());
+            let txt = TextEdit::singleline(&mut menu_info.remap_xyz_txt.2);
+            ui.put(rect, txt);
+            ui.label(")");
+        });
+        let x_n = i32::from_str_radix(&menu_info.remap_xyz_txt.0, 10);
+        let y_n = i32::from_str_radix(&menu_info.remap_xyz_txt.1, 10);
+        let z_n = i32::from_str_radix(&menu_info.remap_xyz_txt.2, 10);
+        match (x_n, y_n, z_n) {
+            (Ok(x), Ok(y), Ok(z)) => {
+                let (x, y, z) = edit.transform((x, y, z));
+                ui.label(format!("({x}, {y}, {z})"));
+            }
+            _ => {
+                ui.label("Error");
+            },
+        }
+        ComboBox::new("remap_face", "Remap Face")
+            .selected_text(format!("{}", menu_info.remap_face))
+            .show_ui(ui, |ui| {
+                use unvoga::prelude::Direction;
+                Direction::iter().for_each(|dir| {
+                    ui.selectable_value(&mut menu_info.remap_face, dir, format!("{dir}"));
+                });
+            });
+        let src_face = edit.source_face(menu_info.remap_face);
+        ui.label(format!("Source Face: {src_face}"));
+        ui.horizontal(|ui| {
+            ui.label("(");
+            let (rect, _) = ui.allocate_exact_size(Vec2 { x: 30.0, y: ui.spacing().interact_size.y }, Sense::hover());
+            let txt = TextEdit::singleline(&mut menu_info.remap_xy_txt.0);
+            ui.put(rect, txt);
+            ui.label(",");
+            let (rect, _) = ui.allocate_exact_size(Vec2 { x: 30.0, y: ui.spacing().interact_size.y }, Sense::hover());
+            let txt = TextEdit::singleline(&mut menu_info.remap_xy_txt.1);
+            ui.put(rect, txt);
+            ui.label(")");
+        });
+        let x_n = i32::from_str_radix(&menu_info.remap_xy_txt.0, 10);
+        let y_n = i32::from_str_radix(&menu_info.remap_xy_txt.1, 10);
+        match (x_n, y_n) {
+            (Ok(x), Ok(y)) => {
+                let (x, y) = edit.source_face_coord(menu_info.remap_face, (x, y));
+                ui.label(format!("({x}, {y})"));
+            }
+            _ => {
+                ui.label("Error");
+            },
+        }
+
+        if ui.button("⊞").clicked() {
+            orientations.0.push(edit);
+        }
+        let mut remove = None;
+        orientations.0.iter().enumerate().for_each(|(index, orient)| {
+            ui.group(|ui| {
+                fn select_color(predicate: bool) -> Color32 {
+                    if predicate {
+                        Color32::GREEN
+                    } else {
+                        Color32::RED
+                    }
+                }
+                let mut layout = egui::text::LayoutJob::default();
+                RichText::new("X").color(select_color(orient.flip.x())).monospace().append_to(&mut layout, ui.style(), FontSelection::FontId(FontId::monospace(16.0)), Align::Center);
+                RichText::new("Y").color(select_color(orient.flip.y())).monospace().append_to(&mut layout, ui.style(), FontSelection::FontId(FontId::monospace(16.0)), Align::Center);
+                RichText::new("Z").color(select_color(orient.flip.z())).monospace().append_to(&mut layout, ui.style(), FontSelection::FontId(FontId::monospace(16.0)), Align::Center);
+                RichText::new(" Up: ").monospace().append_to(&mut layout, ui.style(), FontSelection::FontId(FontId::monospace(16.0)), Align::Center);
+                RichText::new(format!("{}", orient.rotation.up())).color(Color32::WHITE).monospace().append_to(&mut layout, ui.style(), FontSelection::FontId(FontId::monospace(16.0)), Align::Center);
+                RichText::new(" Angle: ").monospace().append_to(&mut layout, ui.style(), FontSelection::FontId(FontId::monospace(16.0)), Align::Center);
+                RichText::new(format!("{}", orient.rotation.angle())).color(Color32::WHITE).monospace().append_to(&mut layout, ui.style(), FontSelection::FontId(FontId::monospace(16.0)), Align::Center);
+                ui.horizontal(|ui| {
+                    if ui.button(layout).clicked() {
+                        orientation.set(*orient);
+                    }
+                    if ui.button("❌").clicked() {
+                        remove.replace(index);
+                    }
+                })
+            });
+        });
+        if let Some(index) = remove {
+            orientations.0.remove(index);
+        }
+    }).response;
+    menu_info.in_menu = resp.has_focus() || resp.contains_pointer();
+
 }
 
 fn update(
@@ -212,55 +377,84 @@ fn update(
     keys: Res<ButtonInput<KeyCode>>,
     mut orientation: ResMut<OrientationRes>,
     mut gizmos: Gizmos,
+    menu_info: Res<MenuInfo>,
 ) {
-    const GIZLEN: f32 = 0.2;
-    let old_orient = orientation.orientation;
-    let mut new_orient = old_orient;
-    if keys.just_pressed(KeyCode::KeyE) {
-        let rot = new_orient.rotation;
-        new_orient.rotation = rot.cycle(1);
+    
+    if !menu_info.in_menu {
+        let new_orient = orientation.edit();
+        if keys.just_pressed(KeyCode::KeyE) {
+            let rot = new_orient.rotation;
+            new_orient.rotation = rot.cycle(1);
+        }
+        if keys.just_pressed(KeyCode::KeyQ) {
+            let rot = new_orient.rotation;
+            new_orient.rotation = rot.cycle(-1);
+        }
+        if keys.just_pressed(KeyCode::KeyX) {
+            let rot = new_orient.rotation;
+            new_orient.flip.invert_x();
+        }
+        if keys.just_pressed(KeyCode::KeyY) {
+            let rot = new_orient.rotation;
+            new_orient.flip.invert_y();
+        }
+        if keys.just_pressed(KeyCode::KeyZ) {
+            let rot = new_orient.rotation;
+            new_orient.flip.invert_z();
+        }
+        if mouse_buttons.pressed(MouseButton::Left) {
+            let delta = time.delta_seconds();
+            let mut transform = anchor.get_single_mut().expect("Failed to get anchor.");
+            let mut mouse_motion: Vec2 = evr_motion.read()
+                .map(|ev| ev.delta).sum();
+            rotation.x -= mouse_motion.x * delta;
+            rotation.y += mouse_motion.y * delta;
+            transform.rotation = Quat::from_axis_angle(Vec3::Y, rotation.x) * Quat::from_axis_angle(Vec3::NEG_X, rotation.y);
+        }
     }
-    if keys.just_pressed(KeyCode::KeyQ) {
-        let rot = new_orient.rotation;
-        new_orient.rotation = rot.cycle(-1);
-    }
-    if keys.just_pressed(KeyCode::KeyX) {
-        let rot = new_orient.rotation;
-        new_orient.flip.invert_x();
-    }
-    if keys.just_pressed(KeyCode::KeyY) {
-        let rot = new_orient.rotation;
-        new_orient.flip.invert_y();
-    }
-    if keys.just_pressed(KeyCode::KeyZ) {
-        let rot = new_orient.rotation;
-        new_orient.flip.invert_z();
-    }
-    if new_orient != old_orient {
+    if let Some(orient) = orientation.update() {
         let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
         MeshBuilder::build_mesh(mesh, |build| {
-            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, new_orient);
+            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orient);
         });
-        orientation.orientation = new_orient;
     }
-    if mouse_buttons.pressed(MouseButton::Left) {
-        let delta = time.delta_seconds();
-        let mut transform = anchor.get_single_mut().expect("Failed to get anchor.");
-        let mut mouse_motion: Vec2 = evr_motion.read()
-            .map(|ev| ev.delta).sum();
-        rotation.x -= mouse_motion.x * delta;
-        rotation.y += mouse_motion.y * delta;
-        transform.rotation = Quat::from_axis_angle(Vec3::Y, rotation.x) * Quat::from_axis_angle(Vec3::NEG_X, rotation.y);
+    const GIZLEN: f32 = 0.2;
+    if menu_info.draw_gizmos {
+        gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::X * GIZLEN, Color::RED);
+        gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Y * GIZLEN, Color::GREEN);
+        gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Z * GIZLEN, Color::BLUE);
     }
-    
-    gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::X * GIZLEN, Color::RED);
-    gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Y * GIZLEN, Color::GREEN);
-    gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Z * GIZLEN, Color::BLUE);
 }
 
 #[derive(Resource)]
 struct OrientationRes {
-    orientation: Orientation,
+    current: Orientation,
+    new_orientation: Orientation,
+}
+
+impl OrientationRes {
+    fn new(orientation: Orientation) -> Self {
+        Self {
+            current: orientation,
+            new_orientation: orientation,
+        }
+    }
+
+    pub fn set(&mut self, orientation: Orientation) {
+        self.new_orientation = orientation;
+    }
+
+    pub fn edit(&mut self) -> &mut Orientation {
+        &mut self.new_orientation
+    }
+
+    pub fn update(&mut self) -> Option<Orientation> {
+        if self.current == self.new_orientation {
+            return None;
+        }
+        self.current = self.new_orientation;
+        Some(self.new_orientation)
+    }
 }
 
 #[derive(Resource)]

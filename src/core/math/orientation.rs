@@ -59,19 +59,19 @@ impl Orientation {
     /// So if you're trying to map a coord within a rect of size (16, 16), you would subtract 8 from the
     /// x and y of the coord, then pass that offset coord to this function, then add 8 back to the x and y
     /// to get your final coord.
-    pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
-        // I actually realized that I did this backwards. For what I want, I need to figure out the source coord.
-        let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
-        let coordmap = maptable::MAP_COORD_TABLE[table_index];
-        coordmap.map(uv)
-    }
-
     // pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
+    //     // I actually realized that I did this backwards. For what I want, I need to figure out the source coord.
     //     let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
-    //     let coordmap = maptable::SOURCE_FACE_COORD_TABLE[table_index];
-    //     // todo!("This method doesn't work properly.");
+    //     let coordmap = maptable::MAP_COORD_TABLE[table_index];
     //     coordmap.map(uv)
     // }
+
+    pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
+        let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
+        let coordmap = maptable::SOURCE_FACE_COORD_TABLE[table_index];
+        // todo!("This method doesn't work properly.");
+        coordmap.map(uv)
+    }
 }
 
 #[repr(u8)]
@@ -177,24 +177,43 @@ fn source_face_coord_naive(orientation: Orientation, face: Direction) -> CoordMa
     let rsrc_down = orientation.reface(src_down);
     let rsrc_left = orientation.reface(src_left);
     // Now match up the faces
-    let x_map = if face_right == rsrc_right {
+    
+    let x_map = if rsrc_right == face_right {
         AxisMap::PosX
-    } else if face_right == rsrc_up {
+    } else if rsrc_right == face_down {
         AxisMap::PosY
-    } else if face_right == rsrc_left {
+    } else if rsrc_right == face_left {
         AxisMap::NegX
     } else {
         AxisMap::NegY
     };
-    let y_map = if face_up == rsrc_up {
+    let y_map = if rsrc_up == face_up {
         AxisMap::PosY
-    } else if face_up == rsrc_left {
+    } else if rsrc_up == face_right {
         AxisMap::NegX
-    } else if face_up == rsrc_down {
+    } else if rsrc_up == face_down {
         AxisMap::NegY
     } else {
         AxisMap::PosX
     };
+    // let x_map = if face_right == rsrc_right {
+    //     AxisMap::PosX
+    // } else if face_right == rsrc_up {
+    //     AxisMap::PosY
+    // } else if face_right == rsrc_left {
+    //     AxisMap::NegX
+    // } else {
+    //     AxisMap::NegY
+    // };
+    // let y_map = if face_up == rsrc_up {
+    //     AxisMap::PosY
+    // } else if face_up == rsrc_left {
+    //     AxisMap::NegX
+    // } else if face_up == rsrc_down {
+    //     AxisMap::NegY
+    // } else {
+    //     AxisMap::PosX
+    // };
     CoordMap {
         x: x_map,
         y: y_map
@@ -207,8 +226,12 @@ mod testing_sandbox {
 
     #[test]
     fn check_solution() {
-        let orientation = Orientation::new(Rotation::new(Direction::PosX, 2), Flip::XY);
-        let face = Direction::NegZ;
+        use Direction::*;
+        let (up, angle, flip, face) = (
+            PosY, 1, Flip::X,
+            PosX
+        );
+        let orientation = Orientation::new(Rotation::new(up, angle), flip);
         // let coordmap = map_face_coord_naive(orientation, face);
         // let table_index = maptable::map_face_coord_table_index(orientation.rotation, orientation.flip, face);
         // let table_map = maptable::MAP_COORD_TABLE[table_index];
@@ -216,9 +239,17 @@ mod testing_sandbox {
         let coord = (-1, -2);
         // let mapped = orientation.transform(coord);
         // println!("{coord:?} {mapped:?}");
+        let naive = source_face_coord_naive(orientation, face).map(coord);
         let mapped = orientation.source_face_coord(face, coord);
+        assert_eq!(naive, mapped);
         // let unmapped = orientation.source_face_coord(face, coord);
-        println!("{coord:?} {mapped:?}");
+        let src = orientation.source_face(face);
+        // println!("Source: {src}");
+        println!("{coord:?} {naive:?}");
+        let pos_z_up = Direction::PosZ.up();
+        println!("PosZ Up: {pos_z_up}");
+        let up_reface = orientation.reface(pos_z_up);
+        println!("Reface: {up_reface}");
     }
 
     // This is used to generate the table in maptable.rs.
@@ -257,38 +288,38 @@ mod testing_sandbox {
     //     writer.write_all(output.as_bytes());
     //     println!("Wrote the output to file at ./ignore/map_coord_table.rs");
     // }
-    // #[test]
-    // fn source_coord_gencode() {
-    //     const fn map_axismap(a: AxisMap) -> &'static str {
-    //         match a {
-    //             AxisMap::PosX => "x",
-    //             AxisMap::PosY => "y",
-    //             AxisMap::NegX => "-x",
-    //             AxisMap::NegY => "-y",
-    //         }
-    //     }
-    //     let output = {
-    //         use std::fmt::Write;
-    //         let mut output = String::new();
-    //         let mut count = 0usize;
-    //         for flipi in 0..8 { // flip
-    //             for roti in 0..24 { // rotation
-    //                 Direction::iter_index_order().for_each(|face| {
-    //                     count += 1;
-    //                     let map = source_face_coord_naive(Orientation::new(Rotation(roti as u8), Flip(flipi as u8)), face);
-    //                     // println!("({flipi}, {roti}, {face})");
-    //                     writeln!(output, "CoordMap::new(AxisMap::{:?}, AxisMap::{:?}),", map.x, map.y);
-    //                 });
-    //             }
-    //         }
-    //         output
-    //     };
-    //     use std::io::{Write, BufWriter};
-    //     use std::fs::File;
-    //     let mut writer = BufWriter::new(File::create("ignore/source_face_coord_table.rs").expect("Failed to open file"));
-    //     writer.write_all(output.as_bytes());
-    //     println!("Wrote the output to file at ./ignore/source_face_coord_table.rs");
-    // }
+    #[test]
+    fn source_coord_gencode() {
+        const fn map_axismap(a: AxisMap) -> &'static str {
+            match a {
+                AxisMap::PosX => "x",
+                AxisMap::PosY => "y",
+                AxisMap::NegX => "-x",
+                AxisMap::NegY => "-y",
+            }
+        }
+        let output = {
+            use std::fmt::Write;
+            let mut output = String::new();
+            let mut count = 0usize;
+            for flipi in 0..8 { // flip
+                for roti in 0..24 { // rotation
+                    Direction::iter_index_order().for_each(|face| {
+                        count += 1;
+                        let map = source_face_coord_naive(Orientation::new(Rotation(roti as u8), Flip(flipi as u8)), face);
+                        // println!("({flipi}, {roti}, {face})");
+                        writeln!(output, "CoordMap::new(AxisMap::{:?}, AxisMap::{:?}),", map.x, map.y);
+                    });
+                }
+            }
+            output
+        };
+        use std::io::{Write, BufWriter};
+        use std::fs::File;
+        let mut writer = BufWriter::new(File::create("ignore/source_face_coord_table.rs").expect("Failed to open file"));
+        writer.write_all(output.as_bytes());
+        println!("Wrote the output to file at ./ignore/source_face_coord_table.rs");
+    }
 
     use crate::core::math::maptable;
 

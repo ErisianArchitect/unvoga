@@ -17,6 +17,9 @@ impl Flip {
     pub const ALL: Flip = Flip::XYZ;
     pub const NONE: Flip = Flip(0b000);
 
+    pub const fn new(x: bool, y: bool, z: bool) -> Self {
+        Self((x as u8) | ((y as u8) << 1) | ((z as u8) << 2))
+    }
     
     pub fn x(self) -> bool {
         self & Flip::X == Flip::X
