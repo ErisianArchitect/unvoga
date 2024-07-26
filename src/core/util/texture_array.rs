@@ -37,7 +37,7 @@ pub fn create_texture_array<I: Into<DynamicImage>, It: Iterator<Item = I>>(width
     })?;
     let stack_2d_rgbaf32: image::Rgba32FImage = stack_2d.convert();
     let mut buffer = Vec::with_capacity(stack_2d.width() as usize * stack_2d.height() as usize * 4 * 4);
-    stack_2d.into_raw()
+    stack_2d_rgbaf32.into_raw()
         .into_iter()
         .for_each(|component| {
             #[cfg(target_endian = "little")]

@@ -1,6 +1,9 @@
 #![allow(unused)]
+use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::mouse::MouseMotion;
+use bevy::render::camera::Exposure;
 use bevy::render::mesh::PrimitiveTopology;
+use bevy::render::view::ColorGrading;
 use unvoga::core::voxel::direction::Direction;
 use unvoga::core::voxel::blockstate::StateValue;
 // Unnamed Voxel Game
@@ -182,8 +185,7 @@ fn setup(
         ),
         CameraAnchor,
     )).with_children(|parent| {
-        parent.spawn((
-            Camera3dBundle {
+        let camera3d_bundle = Camera3dBundle {
                 projection: PerspectiveProjection {
                     fov: 45.0,
                     aspect_ratio: 1.0,
@@ -192,8 +194,12 @@ fn setup(
                 }.into(),
                 transform: Transform::from_xyz(0.0, 0.0, CAMERA_DISTANCE)
                     .looking_at(Vec3::ZERO, Vec3::Y),
+                exposure: Exposure::SUNLIGHT,
+                tonemapping: Tonemapping::BlenderFilmic,
                 ..default()
-            },
+            };
+        parent.spawn((
+            camera3d_bundle,
         ));
     });
     commands.insert_resource(CameraRotation { x: 0.0, y: 0.0 });

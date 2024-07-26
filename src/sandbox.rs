@@ -24,8 +24,8 @@ pub fn sandbox() {
     let debug_data = blockstate!(debug, withdata = true, flip=Flip::X | Flip::Y, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::X | Flip::Y)).register();
     let enabled = blockstate!(debug, enabled = true).register();
     let dirt = blockstate!(dirt).register();
-    let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();
-    let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
+    let rot1 = blockstate!(rotated, orientation=Orientation::new(Rotation::new(Direction::PosY, 0), Flip::NONE)).register();
+    let rot2 = blockstate!(rotated, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::XY)).register();
     let mut world = VoxelWorld::open("ignore/test_world", 16, (0, 0, 0));
     let usage = world.dynamic_usage();
     println!("     Memory Usage: {usage}");
