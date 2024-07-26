@@ -4,7 +4,7 @@ use unvoga::core::voxel::blockstate::StateValue;
 // Unnamed Voxel Game
 
 use unvoga::prelude::*;
-use unvoga::core::voxel::{block::Block, blocks::{self, Id}, coord::Coord, faces::Faces, occlusion_shape::OcclusionShape, rendering::voxelmaterial::VoxelMaterial, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}};
+use unvoga::core::voxel::{block::Block, blocks::{self, Id}, coord::Coord, faces::Faces, occlusionshape::OcclusionShape, rendering::voxelmaterial::VoxelMaterial, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}};
 use std::fmt::{Debug, Display};
 
 use bevy::{

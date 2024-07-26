@@ -1,7 +1,7 @@
 #![allow(unused)]
 use crate::prelude::*;
 
-use super::{direction::Direction, occlusion_shape::OcclusionShape};
+use super::{direction::Direction, occlusionshape::OcclusionShape};
 
 pub struct Occluder {
     pub neg_x: OcclusionShape,
@@ -78,26 +78,530 @@ impl Occluder {
         ].into_iter()
     }
 
-    
-    // pub fn occluded_by(&self, rotation: Rotation, face: Direction, other: &Occluder, other_rotation: Rotation) -> bool {
-    //     let other_face = face.invert();
-    //     let face_angle = rotation.face_angle(face);
-    //     let other_face_angle = rotation.face_angle(other_face);
-    //     let source_face = rotation.source_face(face);
-    //     let other_source_face = rotation.source_face(other_face);
-    //     let occluder = self.face(source_face);
-    //     let other_occluder = other.face(other_source_face);
-    //     occluder.occluded_by(other_occluder, face_angle, other_face_angle)
-    // }
-
     pub fn occluded_by(&self, orientation: Orientation, face: Direction, other: &Self, other_orientation: Orientation) -> bool {
         let other_face = face.invert();
-        // The orientation should rotate first and then flip.
-        // That makes more sense to me because you don't want to guess how the block will transform
-        // when it is flipped. Flipping a block, you would already see the rotation as it is, and you might not
-        // know what the original orientation was, so it should be logical that the flipping happens after rotation.
-        // I don't feel like writing this right now. It's very complicated.
-        todo!()
+        let occl_face = orientation.source_face(face);
+        let l_occl = self.face(occl_face);
+        let occl_face = other_orientation.source_face(other_face);
+        let r_occl = other.face(occl_face);
+        if r_occl.is_empty() {
+            return false;
+        }
+        if r_occl.is_full() {
+            return true;
+        }
+        match l_occl {
+            OcclusionShape::Full => match r_occl {
+                OcclusionShape::S16x16(shape) => shape.0.iter().find(|&&sub| sub != u16::MAX).is_none(),
+                OcclusionShape::S8x8(shape) => shape.0 == u64::MAX,
+                OcclusionShape::S4x4(shape) => shape.0 == u16::MAX,
+                OcclusionShape::S2x2(shape) => shape.0 & 0xF == 0xF,
+                OcclusionShape::Rect(shape) => *shape == OcclusionRect::FULL,
+                OcclusionShape::Full => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
+            },
+            OcclusionShape::Rect(shape) => match r_occl {
+                OcclusionShape::S16x16(other) => {
+                    // OcclusionShape::Rect(shape) => match other {
+                    let shape = shape.transform_face(orientation, face);
+                    for y in shape.top..shape.bottom {
+                        for x in shape.left..shape.right {
+                            let (ox, oy) = (x as i8 - 8, y as i8 - 8);
+                            let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
+                            let (ox, oy) = ((ox + 8) as usize, (oy + 8) as usize);
+                            if !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S8x8(other) => {
+                    // OcclusionShape::Rect(shape) => match other {
+                    let shape = shape.transform_face(orientation, face);
+                    let sample = shape.downsample(8);
+                    for y in shape.top..shape.bottom {
+                        for x in shape.left..shape.right {
+                            let (ox, oy) = (x as i8 - 4, y as i8 - 4);
+                            let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
+                            let (ox, oy) = ((ox + 4) as usize, (oy + 4) as usize);
+                            if !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S4x4(other) => {
+                    // OcclusionShape::Rect(shape) => match other {
+                    let shape = shape.transform_face(orientation, face);
+                    let sample = shape.downsample(4);
+                    for y in shape.top..shape.bottom {
+                        for x in shape.left..shape.right {
+                            let (ox, oy) = (x as i8 - 2, y as i8 - 2);
+                            let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
+                            let (ox, oy) = ((ox + 2) as usize, (oy + 2) as usize);
+                            if !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S2x2(other) => {
+                    // OcclusionShape::Rect(shape) => match other {
+                    let shape = shape.transform_face(orientation, face);
+                    let sample = shape.downsample(2);
+                    for y in shape.top..shape.bottom {
+                        for x in shape.left..shape.right {
+                            let (ox, oy) = (x as i8 - 1, y as i8 - 1);
+                            let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
+                            let (ox, oy) = ((ox + 1) as usize, (oy + 1) as usize);
+                            if !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::Rect(other) => {
+                    let shape = shape.transform_face(orientation, face);
+                    let other = other.transform_face(other_orientation, other_face);
+                    other.contains_rect(shape)
+                },
+                OcclusionShape::Full => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
+            },
+            OcclusionShape::S16x16(shape) => match r_occl {
+                OcclusionShape::S16x16(other) => {
+                    // OcclusionShape::S16x16(shape) => match other {
+                    for y in 0..16 {
+                        for x in 0..16 {
+                            let (sx, sy) = (x as i8 - 8, y as i8 - 8);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 8) as usize, (sy + 8) as usize);
+                            let (ox, oy) = (x as i8 - 8, y as i8 - 8);
+                            let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
+                            let (ox, oy) = ((ox + 8) as usize, (oy + 8) as usize);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S8x8(other) => {
+                    // OcclusionShape::S16x16(shape) => match other {
+                    for y in 0..16 {
+                        let oy = y / 2;
+                        for x in 0..16 {
+                            let ox = x / 2;
+                            let (sx, sy) = (x as i8 - 8, y as i8 - 8);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 8) as usize, (sy + 8) as usize);
+                            let (nox, noy) = (ox as i8 - 4, oy as i8 - 4);
+                            let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                            let (nox, noy) = ((nox + 4) as usize, (noy + 4) as usize);
+                            if shape.get(sx, sy) && !other.get(nox, noy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S4x4(other) => {
+                    // OcclusionShape::S16x16(shape) => match other {
+                    for y in 0..16 {
+                        let oy = y / 4;
+                        for x in 0..16 {
+                            let ox = x / 4;
+                            let (sx, sy) = (x as i8 - 8, y as i8 - 8);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 8) as usize, (sy + 8) as usize);
+                            let (nox, noy) = (ox as i8 - 2, oy as i8 - 2);
+                            let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                            let (nox, noy) = ((nox + 2) as usize, (noy + 2) as usize);
+                            if shape.get(sx, sy) && !other.get(nox, noy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S2x2(other) => {
+                    // OcclusionShape::S16x16(shape) => match other {
+                    for y in 0..16 {
+                        let oy = y / 8;
+                        for x in 0..16 {
+                            let ox = x / 8;
+                            let (sx, sy) = (x as i8 - 8, y as i8 - 8);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 8) as usize, (sy + 8) as usize);
+                            let (nox, noy) = (ox as i8 - 1, oy as i8 - 1);
+                            let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                            let (nox, noy) = ((nox + 1) as usize, (noy + 1) as usize);
+                            if shape.get(sx, sy) && !other.get(nox, noy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::Rect(other) => {
+                    // OcclusionShape::S16x16(shape) => match other {
+                    let other = other.transform_face(other_orientation, other_face);
+                    for y in 0..16 {
+                        for x in 0..16 {
+                            let (sx, sy) = (x as i8 - 8, y as i8 - 8);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 8) as usize, (sy + 8) as usize);
+                            if shape.get(sx, sy) && !other.contains((x as u8, y as u8)) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::Full => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
+            },
+            OcclusionShape::S8x8(shape) => match r_occl {
+                OcclusionShape::S16x16(other) => {
+                    // OcclusionShape::S8x8(shape) => match other {
+                    for y in 0..8 {
+                        let oy = y * 2;
+                        for x in 0..8 {
+                            let (sx, sy) = (x as i8 - 4, y as i8 - 4);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 4) as usize, (sy + 4) as usize);
+                            if shape.get(sx, sy) {
+                                let ox = x * 2;
+                                for oy in oy..oy+2 {
+                                    for ox in ox..ox+2 {
+                                        let (nox, noy) = (ox as i8 - 8, oy as i8 - 8);
+                                        let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                                        let (nox, noy) = ((nox + 8) as usize, (noy + 8) as usize);
+                                        if !other.get(nox, noy) {
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    true
+                },            
+                OcclusionShape::S8x8(other) => {
+                    // OcclusionShape::S8x8(shape) => match other {
+                    for y in 0..8 {
+                        for x in 0..8 {
+                            let (sx, sy) = (x as i8 - 4, y as i8 - 4);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 4) as usize, (sy + 4) as usize);
+                            let (ox, oy) = (x as i8 - 4, y as i8 - 4);
+                            let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
+                            let (ox, oy) = ((ox + 4) as usize, (oy + 4) as usize);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S4x4(other) => {
+                    // OcclusionShape::S8x8(shape) => match other {
+                    for y in 0..8 {
+                        let oy = y / 2;
+                        for x in 0..8 {
+                            let ox = x / 2;
+                            let (sx, sy) = (x as i8 - 4, y as i8 - 4);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 4) as usize, (sy + 4) as usize);
+                            let (nox, noy) = (ox as i8 - 2, oy as i8 - 2);
+                            let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                            let (nox, noy) = ((nox + 2) as usize, (noy + 2) as usize);
+                            if shape.get(sx, sy) && !other.get(nox, noy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S2x2(other) => {
+                    // OcclusionShape::S8x8(shape) => match other {
+                    for y in 0..8 {
+                        let oy = y / 4;
+                        for x in 0..8 {
+                            let ox = x / 4;
+                            let (sx, sy) = (x as i8 - 4, y as i8 - 4);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 4) as usize, (sy + 4) as usize);
+                            let (nox, noy) = (ox as i8 - 1, oy as i8 - 1);
+                            let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                            let (nox, noy) = ((nox + 1) as usize, (noy + 1) as usize);
+                            if shape.get(sx, sy) && !other.get(nox, noy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::Rect(other) => {
+                    // OcclusionShape::S8x8(shape) => match other {
+                    let other = other.transform_face(other_orientation, other_face);
+                    for y in 0..8 {
+                        for x in 0..8 {
+                            let (sx, sy) = (x as i8 - 4, y as i8 - 4);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 4) as usize, (sy + 4) as usize);
+                            if shape.get(sx, sy) {
+                                let inner = OcclusionRect::from_min_max(
+                                    (x as u8 * 2, y as u8 * 2),
+                                    (x as u8 * 2 + 2, y as u8 * 2 + 2)
+                                );
+                                if !other.contains_rect(inner) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::Full => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
+            },
+            OcclusionShape::S4x4(shape) => match r_occl {
+                OcclusionShape::S16x16(other) => {
+                    // OcclusionShape::S4x4(shape) => match other {
+                    for y in 0..4 {
+                        let oy = y * 4;
+                        for x in 0..4 {
+                            let (sx, sy) = (x as i8 - 2, y as i8 - 2);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 2) as usize, (sy + 2) as usize);
+                            if shape.get(sx, sy) {
+                                let ox = x * 4;
+                                for oy in oy..oy+4 {
+                                    for ox in ox..ox+4 {
+                                        let (nox, noy) = (ox as i8 - 8, oy as i8 - 8);
+                                        let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                                        let (nox, noy) = ((nox + 8) as usize, (noy + 8) as usize);
+                                        if !other.get(nox, noy) {
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S8x8(other) => {
+                    // OcclusionShape::S4x4(shape) => match other {
+                    for y in 0..4 {
+                        let oy = y * 2;
+                        for x in 0..4 {
+                            let (sx, sy) = (x as i8 - 2, y as i8 - 2);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 2) as usize, (sy + 2) as usize);
+                            if shape.get(sx, sy) {
+                                let ox = x * 2;
+                                for oy in oy..oy+2 {
+                                    for ox in ox..ox+2 {
+                                        let (nox, noy) = (ox as i8 - 4, oy as i8 - 4);
+                                        let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                                        let (nox, noy) = ((nox + 4) as usize, (noy + 4) as usize);
+                                        if !other.get(nox, noy) {
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S4x4(other) => {
+                    // OcclusionShape::S4x4(shape) => match other {
+                    for y in 0..4 {
+                        for x in 0..4 {
+                            let (sx, sy) = (x as i8 - 2, y as i8 - 2);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 2) as usize, (sy + 2) as usize);
+                            let (ox, oy) = (x as i8 - 2, y as i8 - 2);
+                            let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
+                            let (ox, oy) = ((ox + 2) as usize, (oy + 2) as usize);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S2x2(other) => {
+                    // OcclusionShape::S4x4(shape) => match other {
+                    for y in 0..4 {
+                        let oy = y / 2;
+                        for x in 0..4 {
+                            let ox = x / 2;
+                            let (sx, sy) = (x as i8 - 2, y as i8 - 2);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 2) as usize, (sy + 2) as usize);
+                            let (nox, noy) = (ox as i8 - 1, oy as i8 - 1);
+                            let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                            let (nox, noy) = ((nox + 1) as usize, (noy + 1) as usize);
+                            if shape.get(sx, sy) && !other.get(nox, noy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::Rect(other) => {
+                    // OcclusionShape::S4x4(shape) => match other {
+                    let other = other.transform_face(other_orientation, other_face);
+                    for y in 0..4 {
+                        for x in 0..4 {
+                            let (sx, sy) = (x as i8 - 2, y as i8 - 2);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 2) as usize, (sy + 2) as usize);
+                            if shape.get(sx, sy) {
+                                let inner = OcclusionRect::from_min_max(
+                                    (x as u8 * 4, y as u8 * 4),
+                                    (x as u8 * 4 + 4, y as u8 * 4 + 4)
+                                );
+                                if !other.contains_rect(inner) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::Full => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
+            },
+            OcclusionShape::S2x2(shape) => match r_occl {
+                OcclusionShape::S16x16(other) => {
+                    // OcclusionShape::S2x2(shape) => match other {
+                    for y in 0..2 {
+                        let oy = y * 8;
+                        for x in 0..2 {
+                            let (sx, sy) = (x as i8 - 1, y as i8 - 1);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 1) as usize, (sy + 1) as usize);
+                            if shape.get(sx, sy) {
+                                let ox = x * 8;
+                                for oy in oy..oy+8 {
+                                    for ox in ox..ox+8 {
+                                        let (nox, noy) = (ox as i8 - 8, oy as i8 - 8);
+                                        let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                                        let (nox, noy) = ((nox + 8) as usize, (noy + 8) as usize);
+                                        if !other.get(nox, noy) {
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S8x8(other) => {
+                    // OcclusionShape::S2x2(shape) => match other {
+                    for y in 0..2 {
+                        let oy = y * 4;
+                        for x in 0..2 {
+                            let (sx, sy) = (x as i8 - 1, y as i8 - 1);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 1) as usize, (sy + 1) as usize);
+                            if shape.get(sx, sy) {
+                                let ox = x * 4;
+                                for oy in oy..oy+4 {
+                                    for ox in ox..ox+4 {
+                                        let (nox, noy) = (ox as i8 - 4, oy as i8 - 4);
+                                        let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                                        let (nox, noy) = ((nox + 4) as usize, (noy + 4) as usize);
+                                        if !other.get(nox, noy) {
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S4x4(other) => {
+                    // OcclusionShape::S2x2(shape) => match other {
+                    for y in 0..2 {
+                        let oy = y * 2;
+                        for x in 0..2 {
+                            let (sx, sy) = (x as i8 - 1, y as i8 - 1);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 1) as usize, (sy + 1) as usize);
+                            if shape.get(sx, sy) {
+                                let ox = x * 2;
+                                for oy in oy..oy+2 {
+                                    for ox in ox..ox+2 {
+                                        let (nox, noy) = (ox as i8 - 2, oy as i8 - 2);
+                                        let (nox, noy) = other_orientation.source_face_coord(other_face, (nox, noy));
+                                        let (nox, noy) = ((nox + 2) as usize, (noy + 2) as usize);
+                                        if !other.get(nox, noy) {
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::S2x2(other) => {
+                    // OcclusionShape::S2x2(shape) => match other {
+                    for y in 0..2 {
+                        for x in 0..2 {
+                            let (sx, sy) = (x as i8 - 1, y as i8 - 1);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 1) as usize, (sy + 1) as usize);
+                            let (ox, oy) = (x as i8 - 1, y as i8 - 1);
+                            let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
+                            let (ox, oy) = ((ox + 1) as usize, (oy + 1) as usize);
+                            if shape.get(sx, sy) && !other.get(ox, oy) {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::Rect(other) => {
+                    // OcclusionShape::S2x2(shape) => match other {
+                    let other = other.transform_face(other_orientation, other_face);
+                    for y in 0..2 {
+                        for x in 0..2 {
+                            let (sx, sy) = (x as i8 - 1, y as i8 - 1);
+                            let (sx, sy) = orientation.source_face_coord(face, (sx, sy));
+                            let (sx, sy) = ((sx + 1) as usize, (sy + 1) as usize);
+                            if shape.get(sx, sy) {
+                                let inner = OcclusionRect::from_min_max(
+                                    (x as u8 * 8, y as u8 * 8),
+                                    (x as u8 * 8 + 8, y as u8 * 8 + 8)
+                                );
+                                if !other.contains_rect(inner) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                    true
+                },
+                OcclusionShape::Full => unreachable!(),
+                OcclusionShape::Empty => unreachable!(),
+            },
+            OcclusionShape::Empty => {
+                r_occl.fully_occluded()
+            },
+        }
     }
 }
 

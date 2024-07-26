@@ -12,6 +12,7 @@ pub struct MeshBuilder {
     pub uvs: Vec<Vec2>,
     pub texindices: Vec<u32>,
     pub indices: Vec<u32>,
+    pub offset: Vec3,
 }
 
 impl MeshBuilder {
@@ -35,6 +36,10 @@ impl MeshBuilder {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, render_asset_usages);
         Self::build_mesh(&mut mesh, build);
         mesh
+    }
+
+    pub fn set_offset<C: Into<Vec3>>(&mut self, offset: C) {
+        self.offset = offset.into();
     }
 
     /// This method assumes that your mesh_data is valid.

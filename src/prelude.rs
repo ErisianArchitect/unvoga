@@ -8,7 +8,7 @@ pub use crate::core::{
         faces::Faces,
         lighting::lightargs::LightArgs,
         occluder::Occluder,
-        occlusion_shape::*,
+        occlusionshape::*,
         rendering::color::*,
         world::{
             occlusion::Occlusion,

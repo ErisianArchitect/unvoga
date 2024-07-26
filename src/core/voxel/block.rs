@@ -2,7 +2,7 @@
 use std::any::Any;
 use crate::prelude::*;
 
-use super::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusion_shape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
+use super::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
 
 use crate::prelude::Rgb;
 
@@ -10,16 +10,13 @@ pub trait Block: Any {
     fn name(&self) -> &str;
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// The occluder that occludes
     fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
-        const FULL_FACES: Occluder = Occluder::new(
-            OcclusionShape::Full,
-            OcclusionShape::Full,
-            OcclusionShape::Full,
-            OcclusionShape::Full,
-            OcclusionShape::Full,
-            OcclusionShape::Full,
-        );
-        &FULL_FACES
+        &Occluder::FULL_FACES
+    }
+    /// The occluder that is occluded
+    fn occludee(&self, world: &VoxelWorld, state: Id) -> &Occluder {
+        &Occluder::FULL_FACES
     }
     fn material(&self, world: &VoxelWorld, coord: Coord, state: Id, face: Direction) -> () {
         todo!()

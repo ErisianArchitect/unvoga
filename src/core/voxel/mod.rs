@@ -1,7 +1,7 @@
 #![allow(unused)]
 // pub mod meshing;
 pub mod block;
-pub mod occlusion_shape;
+pub mod occlusionshape;
 pub mod faces;
 pub mod lighting;
 pub mod coord;

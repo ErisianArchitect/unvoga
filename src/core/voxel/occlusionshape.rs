@@ -15,7 +15,7 @@ use crate::prelude::*;
 use super::faces::Faces;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OcclusionShape16x16([u16; 16]);
+pub struct OcclusionShape16x16(pub(super) [u16; 16]);
 
 impl OcclusionShape16x16 {
     
@@ -305,7 +305,7 @@ impl OcclusionShape16x16 {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OcclusionShape8x8(u64);
+pub struct OcclusionShape8x8(pub(super) u64);
 
 impl OcclusionShape8x8 {
     
@@ -400,7 +400,7 @@ impl OcclusionShape8x8 {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OcclusionShape4x4(u16);
+pub struct OcclusionShape4x4(pub(super) u16);
 
 impl OcclusionShape4x4 {
     
@@ -447,7 +447,7 @@ impl OcclusionShape4x4 {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OcclusionShape2x2(u8);
+pub struct OcclusionShape2x2(pub(super) u8);
 
 impl OcclusionShape2x2 {
     
@@ -484,14 +484,14 @@ impl OcclusionShape2x2 {
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct OcclusionRect {
-    left: u8,
-    top: u8,
-    right: u8,
-    bottom: u8
+    pub left: u8,
+    pub top: u8,
+    pub right: u8,
+    pub bottom: u8
 }
 
 impl OcclusionRect {
-    const FULL: OcclusionRect = OcclusionRect {
+    pub(super) const FULL: OcclusionRect = OcclusionRect {
         left: 0,
         top: 0,
         right: 16,
@@ -566,6 +566,34 @@ impl OcclusionRect {
             top: ymin as u8,
             right: xmax as u8,
             bottom: ymax as u8
+        }
+    }
+
+    /// Imagine if a rectangle (16x16 max size) is on a face.
+    /// You want to find out the bounds of that rectangle in the source face.
+    /// Kinda hard to explain, but I worked really hard to make this work.
+    pub fn transform_face(self, orientation: Orientation, face: Direction) -> Self {
+        let (left, top) = (self.left, self.top);
+        let (right, bottom) = (self.right, self.bottom);
+        let left = left as i8 - 8;
+        let top = top as i8 - 8;
+        let right = right as i8 - 8;
+        let bottom = bottom as i8 - 8;
+        let (left, top) = orientation.source_face_coord(face, (left, top));
+        let (right, bottom) = orientation.source_face_coord(face, (right, bottom));
+        let (left, right) = (
+            left.min(right),
+            right.max(left)
+        );
+        let (top, bottom) = (
+            top.min(bottom),
+            bottom.max(top)
+        );
+        Self {
+            left: (left + 8) as u8,
+            top: (top + 8) as u8,
+            right: (right + 8) as u8, 
+            bottom: (bottom + 8) as u8,
         }
     }
 }

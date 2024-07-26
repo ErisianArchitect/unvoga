@@ -10,7 +10,7 @@ use crate::core::voxel::blockstate::StateValue;
 // Unnamed Voxel Game
 
 use crate::prelude::*;
-use core::voxel::{block::Block, blocks::{self, Id}, coord::Coord, faces::Faces, occlusion_shape::OcclusionShape, rendering::voxelmaterial::VoxelMaterial, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}};
+use core::voxel::{block::Block, blocks::{self, Id}, coord::Coord, faces::Faces, occlusionshape::OcclusionShape, rendering::voxelmaterial::VoxelMaterial, tag::Tag, world::{occlusion::Occlusion, VoxelWorld}};
 use std::fmt::{Debug, Display};
 
 use bevy::{
