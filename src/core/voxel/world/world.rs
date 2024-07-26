@@ -496,7 +496,6 @@ impl VoxelWorld {
         if state == old {
             return old;
         }
-        
         let mut place_context = PlaceContext::new(coord, state, old);
         state.block().on_place(self, &mut place_context);
         while place_context.changed {
@@ -506,7 +505,6 @@ impl VoxelWorld {
             place_context.data = None;
             place_context.replacement.block().on_place(self, &mut place_context);
         }
-        
         if old == place_context.replacement {
             return old;
         }
@@ -538,32 +536,31 @@ impl VoxelWorld {
                     self.update_queue.remove(cur_ref);
                 }
                 let block = state.block();
-                let my_rotation = block.rotation(self, coord, state);
+                let my_orient = block.orientation(self, coord, state);
                 let my_occluder = block.occluder(self, state);
+                let my_occl = block.occluder(self, state);
+                let my_occlee = block.occludee(self, state);
                 let neighbors = self.neighbors(coord);
                 Direction::iter().for_each(|dir| {
-                    let neighbor_dir = dir.invert();
-                    let neighbor = neighbors[dir];
-                    let neighbor_block = neighbor.block();
-                    let neighbor_coord = coord + dir;
-                    if neighbor != Id::AIR {
-                        neighbor_block.neighbor_updated(self, neighbor_dir, neighbor_coord, coord, neighbor, state);
+                    let adj_dir = dir.invert();
+                    let adj_state = neighbors[dir];
+                    let adj_block = adj_state.block();
+                    let adj_coord = coord + dir;
+                    if adj_state != Id::AIR {
+                        adj_block.neighbor_updated(self, adj_dir, adj_coord, coord, adj_state, state);
                     }
-                    let neighbor_rotation = neighbor_block.rotation(self, neighbor_coord, neighbors[dir]);
-                    let face_occluder = my_occluder.face(my_rotation.source_face(dir));
-                    let neighbor_occluder = neighbor_block.occluder(self, neighbor).face(neighbor_rotation.source_face(neighbor_dir));
-                    let neighbor_coord = coord + dir;
-                    let my_angle = my_rotation.face_angle(dir);
-                    let neighbor_angle = neighbor_rotation.face_angle(neighbor_dir);
-                    if neighbor_occluder.occluded_by(face_occluder, neighbor_angle, my_angle) {
-                        self.hide_face(neighbor_coord, neighbor_dir);
-                    } else {
-                        self.show_face(neighbor_coord, neighbor_dir);
-                    }
-                    if face_occluder.occluded_by(neighbor_occluder, my_angle, neighbor_angle) {
+                    let adj_orient = adj_block.orientation(self, adj_coord, adj_state);
+                    let adj_occl = adj_block.occluder(self, adj_state);
+                    let adj_occlee = adj_block.occludee(self, adj_state);
+                    if my_occlee.occluded_by(my_orient, dir, &adj_occl, adj_orient) {
                         self.hide_face(coord, dir);
                     } else {
                         self.show_face(coord, dir);
+                    }
+                    if adj_occlee.occluded_by(adj_orient, adj_dir, my_occl, my_orient) {
+                        self.hide_face(adj_coord, adj_dir);
+                    } else {
+                        self.show_face(adj_coord, adj_dir);
                     }
                 });
                 self.mark_modified(coord.chunk_coord());

@@ -24,9 +24,9 @@ pub trait Block: Any {
     fn color(&self, world: &VoxelWorld, coord: Coord, state: Id, face: Direction) -> Rgb {
         Rgb::new(255, 0, 255)
     }
-    fn rotation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Rotation {
-        Rotation::new(Direction::PosY, 0)
-    }
+    // fn rotation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Rotation {
+    //     Rotation::new(Direction::PosY, 0)
+    // }
     fn orientation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Orientation {
         Orientation::default()
     }

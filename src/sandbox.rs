@@ -284,13 +284,14 @@ impl Block for RotatedBlock {
         blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0))
     }
 
-    fn rotation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Rotation {
-        if let Some(&StateValue::Rotation(rotation)) = state.get_property("rotation") {
-            rotation
+    fn orientation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Orientation {
+        if let StateValue::Orientation(orientation) = state["orientation"] {
+            orientation
         } else {
-            Rotation::default()
+            Orientation::default()
         }
     }
+
     fn neighbor_updated(&self, world: &mut VoxelWorld, direction: Direction, coord: Coord, neighbor_coord: Coord, state: Id, neighbor_state: Id) {
         println!("Neighbor Updated(coord = {coord:?}, neighbor_coord = {neighbor_coord:?}, neighbor_state = {neighbor_state})");
     }
