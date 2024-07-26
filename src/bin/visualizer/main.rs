@@ -5,7 +5,7 @@ use bevy::render::camera::Exposure;
 use bevy::render::mesh::PrimitiveTopology;
 use bevy::render::view::ColorGrading;
 use unvoga::core::voxel::direction::Direction;
-use unvoga::core::voxel::blockstate::StateValue;
+use unvoga::core::voxel::statevalue::StateValue;
 // Unnamed Voxel Game
 
 use unvoga::core::voxel::rendering::meshbuilder::MeshBuilder;

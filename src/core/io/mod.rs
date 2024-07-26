@@ -99,6 +99,7 @@ use hashbrown::HashMap;
 use itertools::Itertools;
 use rollgrid::{rollgrid2d::Bounds2D, rollgrid3d::Bounds3D};
 use voxel::direction::Cardinal;
+use voxel::faceflags::FaceFlags;
 
 use super::math::{
     coordmap::{unpack_flip_and_rotation, pack_flip_and_rotation},
@@ -1157,6 +1158,18 @@ impl Writeable for hashbrown::HashMap<String, Tag> {
         255u8.write_to(writer)?;
         // writer.write_value(&255u8)?;
         Ok(size + 1)
+    }
+}
+
+impl Readable for FaceFlags {
+    fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
+        Ok(Self::from_bits(u8::read_from(reader)?))
+    }
+}
+
+impl Writeable for FaceFlags {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
+        self.bits().write_to(writer)
     }
 }
 

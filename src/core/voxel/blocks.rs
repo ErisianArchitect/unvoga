@@ -5,7 +5,7 @@ use bevy::utils::hashbrown::HashMap;
 
 use crate::{blockstate, core::voxel::blockstate};
 
-use super::{block::Block, blockstate::{BlockState, StateValue}, coord::Coord, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, world::VoxelWorld};
+use super::{block::Block, statevalue::StateValue, blockstate::{BlockState}, coord::Coord, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, world::VoxelWorld};
 
 struct RegistryEntry {
     state: BlockState,

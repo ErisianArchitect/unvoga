@@ -17,7 +17,7 @@ pub mod axis;
 pub mod occluder;
 pub mod region;
 pub mod faceflags;
-
+pub mod statevalue;
 #[cfg(test)]
 mod tests {
     use std::any::Any;

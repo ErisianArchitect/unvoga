@@ -6,6 +6,7 @@ pub use crate::core::{
         coord::Coord,
         direction::*,
         faces::Faces,
+        statevalue::StateValue,
         lighting::lightargs::LightArgs,
         occluder::Occluder,
         occlusionshape::*,

@@ -6,7 +6,7 @@ pub mod core;
 pub mod sandbox;
 
 use crate::core::voxel::direction::Direction;
-use crate::core::voxel::blockstate::StateValue;
+use crate::core::voxel::statevalue::StateValue;
 // Unnamed Voxel Game
 
 use crate::prelude::*;
