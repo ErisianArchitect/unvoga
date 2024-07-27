@@ -89,7 +89,7 @@ pub struct VoxelWorld {
     pub update_modification_map: HashMap<Coord, u32>,
     pub world_directory: PathBuf,
     pub subworld_directory: PathBuf,
-    pub move_render_chunk_queue: ObjectPool<Coord, MoveRenderChunkMarker>,
+    pub move_render_chunk_queue: Lend<ObjectPool<Coord, MoveRenderChunkMarker>>,
     render_distance: i32,
 }
 
@@ -172,7 +172,7 @@ impl VoxelWorld {
             lock_update_queue: false,
             update_modification_queue: Vec::new(),
             update_modification_map: HashMap::new(),
-            move_render_chunk_queue: ObjectPool::new(),
+            move_render_chunk_queue: Lend::new(ObjectPool::new()),
         }.initial_load()
     }
 
@@ -189,27 +189,34 @@ impl VoxelWorld {
         let mut dirty = self.dirty_queue.lend("draining the dirty_queue in talk_to_bevy");
         dirty.drain().for_each(|coord| {
             let (sect_x, sect_y, sect_z) = coord.into();
-            // let sect = self.get_section_mut(coord).expect("Failed to get section");
-            let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
             // Let's build the mesh
-            let mesh = meshes.get_mut(render_chunk.mesh.id()).expect("Failed to get the mesh");
-            MeshBuilder::build_mesh(mesh, |build| {
-                for y in 0..16 {
-                    for z in 0..16 {
-                        for x in 0..16 {
-                            let block_coord = (sect_x * 16 + x, sect_y * 16 + y, sect_z * 16 + z);
-                            let offset = vec3(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
-                            let state = self.get_block(block_coord);
-                            let orientation = state.block().orientation(self, block_coord.into(), state);
-                            let occlusion = self.get_occlusion(block_coord);
-                            build.set_offset(offset);
-                            build.set_orientation(orientation);
-                            state.block().push_mesh(build, self, block_coord.into(), state, occlusion, orientation);
+            let (blocks_dirty, light_map_dirty) = {
+                let sect = self.get_section(coord).expect("Failed to get section");
+                (sect.blocks_dirty.dirty(), sect.light_dirty.dirty())
+            };
+            let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
+            if blocks_dirty {
+                let mesh = meshes.get_mut(render_chunk.mesh.id()).expect("Failed to get the mesh");
+                MeshBuilder::build_mesh(mesh, |build| {
+                    for y in 0..16 {
+                        for z in 0..16 {
+                            for x in 0..16 {
+                                let block_coord = (sect_x * 16 + x, sect_y * 16 + y, sect_z * 16 + z);
+                                let offset = vec3(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
+                                let state = self.get_block(block_coord);
+                                let orientation = state.block().orientation(self, block_coord.into(), state);
+                                let occlusion = self.get_occlusion(block_coord);
+                                build.set_offset(offset);
+                                build.set_orientation(orientation);
+                                state.block().push_mesh(build, self, block_coord.into(), state, occlusion, orientation);
+                            }
                         }
                     }
-                }
-            });
-            // TODO: Rebuild lightmap
+                });
+            }
+            if light_map_dirty {
+                // TODO: Rebuild lightmap
+            }
             let sect = self.get_section_mut(coord).expect("Failed to get section");
             sect.blocks_dirty.mark_clean();
             sect.light_dirty.mark_clean();
@@ -217,6 +224,15 @@ impl VoxelWorld {
             sect.dirty_id = PoolId::NULL;
         });
         self.dirty_queue.give(dirty);
+        let mut move_render_chunk_queue = self.move_render_chunk_queue.lend("Moving chunk entities");
+        move_render_chunk_queue.drain().for_each(|coord| {
+            let rend_chunk = self.render_chunks.get_mut(coord).expect("Render chunk was not found");
+            let ent = rend_chunk.entity.clone();
+            let mut trans = render_chunks.get_mut(ent).expect("Failed to get transform");
+            let offset = vec3((coord.x * 16) as f32, (coord.y * 16) as f32, (coord.z * 16) as f32);
+            trans.translation = offset;
+        });
+        self.move_render_chunk_queue.give(move_render_chunk_queue);
     }
 
     pub fn move_center<C: Into<(i32, i32, i32)>>(&mut self, center: C) {
@@ -414,6 +430,7 @@ impl VoxelWorld {
             _ => (),
         }
         let chunk_y = chunk.section_y();
+        // TODO: There's a better way to do this, lol
         for i in 0..chunk.sections.len() {
             let section_y = chunk_y + i as i32;
             let section_coord = Coord::new(chunk_x, section_y, chunk_z);
@@ -421,6 +438,9 @@ impl VoxelWorld {
             && chunk.sections[i].dirty_id.null(){
                 let id = self.dirty_queue.insert(section_coord);
                 chunk.sections[i].dirty_id = id;
+                chunk.sections[i].light_dirty.mark();
+                chunk.sections[i].blocks_dirty.mark();
+                chunk.sections[i].section_dirty.mark();
             }
         }
         chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
