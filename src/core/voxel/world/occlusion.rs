@@ -58,32 +58,32 @@ impl Occlusion {
         self.0 & bit == bit
     }
 
-    
+    /// Returns true if visible.
     pub fn neg_x(self) -> bool {
         self.visible(Direction::NegX)
     }
 
-    
+    /// Returns true if visible.
     pub fn neg_y(self) -> bool {
         self.visible(Direction::NegY)
     }
 
-    
+    /// Returns true if visible.
     pub fn neg_z(self) -> bool {
         self.visible(Direction::NegZ)
     }
 
-    
+    /// Returns true if visible.
     pub fn pos_x(self) -> bool {
         self.visible(Direction::PosX)
     }
 
-    
+    /// Returns true if visible.
     pub fn pos_y(self) -> bool {
         self.visible(Direction::PosY)
     }
 
-    
+    /// Returns true if visible.
     pub fn pos_z(self) -> bool {
         self.visible(Direction::PosZ)
     }

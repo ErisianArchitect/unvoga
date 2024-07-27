@@ -3,10 +3,16 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 use std::{sync::Arc, thread, time::Duration};
 
+use bevy::prelude::*;
 use bevy::app::DynEq;
-use bevy::math::IVec2;
+use bevy::math::{vec2, vec3, IVec2};
+use bevy::window::PresentMode;
+use bevy_egui::EguiPlugin;
 use hashbrown::HashMap;
 use rollgrid::rollgrid3d::Bounds3D;
+use unvoga::core::voxel::rendering::voxelmaterial::VoxelMaterial;
+use unvoga::core::voxel::rendering::voxelmesh::MeshData;
+use unvoga::core::voxel::world::RenderChunkMarker;
 use unvoga::prelude::*;
 use unvoga::core::voxel::region::regionfile::RegionFile;
 use unvoga::prelude::*;
@@ -33,96 +39,125 @@ impl BlockRegistry {
 static BLOCKS: LazyLock<BlockRegistry> = LazyLock::new(BlockRegistry::new);
 
 pub fn main() {
-
+    App::new()
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(bevy::window::Window {
+                title: "Unvoga".into(),
+                resolution: (1280.0, 720.0).into(),
+                present_mode: PresentMode::AutoVsync,
+                prevent_default_event_handling: false,
+                ..default()
+            }),
+            ..default()
+        }))
+        .add_plugins(EguiPlugin)
+        .add_plugins(MaterialPlugin::<VoxelMaterial>::default())
+        .add_systems(Startup, setup)
+        .add_systems(Update, update)
+        // .add_systems(Update, menu.before(update))
+        // .add_systems(Update, loading_screen.run_if(in_state(GameState::LoadingScreen)))
+        // .add_systems(Update, main_menu.run_if(in_state(GameState::MainMenu)))
+        // .add_systems(OnEnter(GameState::LoadingScreen), enter_loading_screen)
+        // .add_systems(OnExit(GameState::LoadingScreen), cleanup_system::<cleanup::LoadingScreen>)
+        // .add_systems(OnEnter(GameState::MainMenu), on_enter_main_menu)
+        // .add_systems(OnExit(GameState::MainMenu), cleanup_system::<cleanup::Menu>)
+        // .add_systems(OnEnter(GameState::SinglePlayer), on_enter_singleplayer)
+        // .add_systems(OnExit(GameState::SinglePlayer), cleanup_system::<cleanup::SinglePlayer>)
+        .insert_resource(Assets::<VoxelMaterial>::default())
+        // .insert_resource(Assets::<Mesh>::default())
+        // .insert_resource(Assets::<Image>::default())
+        .insert_resource(ClearColor(Color::rgb(0.2,0.2,0.2)))
+        // .insert_resource(Msaa::Off)
+        .run();
     // BLOCKS.foo();
     // return;
-    use unvoga::core::voxel::direction::Direction;
+    // use unvoga::core::voxel::direction::Direction;
 
-    println!("World Test");
-    blocks::register_block(DirtBlock);
-    blocks::register_block(RotatedBlock);
-    blocks::register_block(DebugBlock);
-    let air = Id::AIR;
-    let debug = blockstate!(debug).register();
-    let debug_data = blockstate!(debug, withdata = true, flip=Flip::X | Flip::Y, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::X | Flip::Y)).register();
-    let enabled = blockstate!(debug, enabled = true).register();
-    let dirt = blockstate!(dirt).register();
-    let rot1 = blockstate!(rotated).register();
-    let rot2 = blockstate!(rotated, orientation=Orientation::new(Rotation::new(Direction::NegZ, 1), Flip::XYZ)).register();
-    let mut world = VoxelWorld::open("ignore/test_world", 16, (0, 0, 0));
+    // println!("World Test");
+    // blocks::register_block(DirtBlock);
+    // blocks::register_block(RotatedBlock);
+    // blocks::register_block(DebugBlock);
+    // let air = Id::AIR;
+    // let debug = blockstate!(debug).register();
+    // let debug_data = blockstate!(debug, withdata = true, flip=Flip::X | Flip::Y, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::X | Flip::Y)).register();
+    // let enabled = blockstate!(debug, enabled = true).register();
+    // let dirt = blockstate!(dirt).register();
+    // let rot1 = blockstate!(rotated).register();
+    // let rot2 = blockstate!(rotated, orientation=Orientation::new(Rotation::new(Direction::NegZ, 1), Flip::XYZ)).register();
+    // // let mut world = VoxelWorld::open("ignore/test_world", 16, (0, 0, 0));
 
-    let coord1 = (1, 1, 1);
-    let coord2 = (1, 0, 1);
-    world.set_block(coord1, dirt);
-    world.set_block(coord2, dirt);
-    // world.set_block(coord1, rot2);
-    // world.set_block(coord2, rot1);
-    let occl1 = world.get_occlusion(coord1);
-    let occl2 = world.get_occlusion(coord2);
-    println!("{occl1}");
-    println!("{occl2}");
-    return;
+    // let coord1 = (1, 1, 1);
+    // let coord2 = (1, 0, 1);
+    // world.set_block(coord1, dirt);
+    // world.set_block(coord2, dirt);
+    // // world.set_block(coord1, rot2);
+    // // world.set_block(coord2, rot1);
+    // let occl1 = world.get_occlusion(coord1);
+    // let occl2 = world.get_occlusion(coord2);
+    // println!("{occl1}");
+    // println!("{occl2}");
+    // return;
 
-    let usage = world.dynamic_usage();
-    println!("     Memory Usage: {usage}");
-    println!("     World Bounds: {:?}", world.bounds());
-    println!("    Render Bounds: {:?}", world.render_bounds());
-    println!("      Block Count: {}", world.bounds().volume());
-    println!("World Block Count: {}", VoxelWorld::WORLD_BOUNDS.volume());
+    // let usage = world.dynamic_usage();
+    // println!("     Memory Usage: {usage}");
+    // println!("     World Bounds: {:?}", world.bounds());
+    // println!("    Render Bounds: {:?}", world.render_bounds());
+    // println!("      Block Count: {}", world.bounds().volume());
+    // println!("World Block Count: {}", VoxelWorld::WORLD_BOUNDS.volume());
 
-    println!("Update after load.");
-    world.update();
-    println!("Getting block");
-    let coord = (2,3,4);
-    {
-        let block = world.get_block(coord);
-        let occ = world.get_occlusion(coord);
-        let block_light = world.get_block_light(coord);
-        let sky_light = world.get_sky_light(coord);
-        let light_level = world.get_light_level(coord);
-        let enabled = world.enabled(coord);
-        let data = world.get_data(coord);
-        println!("      Block: {block}");
-        println!("  Occlusion: {occ}");
-        println!("Block Light: {block_light}");
-        println!("  Sky Light: {sky_light}");
-        println!("Light Level: {light_level}");
-        println!("    Enabled: {enabled}");
-        println!("       Data: {data:?}");
-    }
-    // drop(data);
-    world.set_block(coord, debug);
-    world.set_data(coord, Tag::from("This data should be deleted."));
-    println!("Setting air.");
-    // world.set_block(coord, air);
-    if let Some(data) = world.get_data(coord) {
-        println!("Data that shouldn't exist: {data:?}");
-    }
-    world.set_block_light(coord, 1);
-    world.set_sky_light(coord, 6);
-    world.set_enabled(coord, true);
-    world.update();
-    let height = world.height(2, 4);
-    println!("Height: {height}");
-    world.save_world();
-    return;
-    let tag = Tag::from(["test", "Hello, world"]);
-    println!("{tag:?}");
-    world.move_center((1024*1024, 0, 1024*1024));
-    println!("Update after move");
-    world.update();
-    println!("Update Queue Length: {}", world.update_queue.update_queue.len());
-    let coord = (1024*1024 + 3, 3, 1024*1024 + 3);
-    let block = world.get_block(coord);
-    println!("Far Block: {block}");
-    let height = world.height(coord.0, coord.2);
-    println!("Height: {height}");
-    let block = world.get_block(coord);
-    println!("Block: {block}");
-    world.set_block(coord, enabled);
-    let block = world.get_block(coord);
-    println!("Block: {block}");
-    world.save_world();
+    // println!("Update after load.");
+    // world.update();
+    // println!("Getting block");
+    // let coord = (2,3,4);
+    // {
+    //     let block = world.get_block(coord);
+    //     let occ = world.get_occlusion(coord);
+    //     let block_light = world.get_block_light(coord);
+    //     let sky_light = world.get_sky_light(coord);
+    //     let light_level = world.get_light_level(coord);
+    //     let enabled = world.enabled(coord);
+    //     let data = world.get_data(coord);
+    //     println!("      Block: {block}");
+    //     println!("  Occlusion: {occ}");
+    //     println!("Block Light: {block_light}");
+    //     println!("  Sky Light: {sky_light}");
+    //     println!("Light Level: {light_level}");
+    //     println!("    Enabled: {enabled}");
+    //     println!("       Data: {data:?}");
+    // }
+    // // drop(data);
+    // world.set_block(coord, debug);
+    // world.set_data(coord, Tag::from("This data should be deleted."));
+    // println!("Setting air.");
+    // // world.set_block(coord, air);
+    // if let Some(data) = world.get_data(coord) {
+    //     println!("Data that shouldn't exist: {data:?}");
+    // }
+    // world.set_block_light(coord, 1);
+    // world.set_sky_light(coord, 6);
+    // world.set_enabled(coord, true);
+    // world.update();
+    // let height = world.height(2, 4);
+    // println!("Height: {height}");
+    // world.save_world();
+    // return;
+    // let tag = Tag::from(["test", "Hello, world"]);
+    // println!("{tag:?}");
+    // world.move_center((1024*1024, 0, 1024*1024));
+    // println!("Update after move");
+    // world.update();
+    // println!("Update Queue Length: {}", world.update_queue.update_queue.len());
+    // let coord = (1024*1024 + 3, 3, 1024*1024 + 3);
+    // let block = world.get_block(coord);
+    // println!("Far Block: {block}");
+    // let height = world.height(coord.0, coord.2);
+    // println!("Height: {height}");
+    // let block = world.get_block(coord);
+    // println!("Block: {block}");
+    // world.set_block(coord, enabled);
+    // let block = world.get_block(coord);
+    // println!("Block: {block}");
+    // world.save_world();
 
     // let coord = Coord::new(13,12,69).chunk_coord();
     // {
@@ -157,6 +192,96 @@ pub fn main() {
     
     // let usage = world.dynamic_usage();
     // println!("Memory: {usage}");
+}
+
+#[derive(Resource)]
+struct VoxelWorldRes {
+    world: VoxelWorld,
+}
+
+fn setup(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<VoxelMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let side_texture_paths = vec![
+        "./assets/debug/textures/cube_sides/pos_y.png",
+        "./assets/debug/textures/cube_sides/pos_x.png",
+        "./assets/debug/textures/cube_sides/pos_z.png",
+        "./assets/debug/textures/cube_sides/neg_y.png",
+        "./assets/debug/textures/cube_sides/neg_x.png",
+        "./assets/debug/textures/cube_sides/neg_z.png",
+    ];
+    let cube_sides_texarray = images.add(unvoga::core::util::texture_array::create_texture_array_from_paths(512, 512, side_texture_paths).expect("Failed to create texture array."));
+    let pos_y_mesh = MeshData {
+        vertices: vec![
+            vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
+            vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
+        ],
+        normals: vec![
+            Vec3::Y, Vec3::Y,
+            Vec3::Y, Vec3::Y,
+        ],
+        uvs: vec![
+            vec2(0.0, 0.0), vec2(1.0, 0.0),
+            vec2(0.0, 1.0), vec2(1.0, 1.0),
+        ],
+        texindices: vec![
+            0, 0,
+            0, 0,
+        ],
+        indices: vec![
+            0, 2, 1,
+            1, 2, 3,
+        ],
+    };
+    blocks::register_block(DirtBlock);
+    blocks::register_block(RotatedBlock);
+    blocks::register_block(DebugBlock);
+    let mut world = VoxelWorld::open(
+        "ignore/test_world",
+        16,
+        (0, 0, 0),
+        cube_sides_texarray.clone(),
+        &mut commands,
+        &mut meshes,
+        &mut materials
+    );
+    let dirt = blockstate!(dirt);
+    // world.set_block((1, 1, 1), dirt);
+    commands.spawn((
+        TransformBundle::from_transform(
+            Transform::from_xyz(0.0, 0.0, 0.0)
+                // .with_rotation(rot)
+        ),
+        // CameraAnchor,
+    )).with_children(|parent| {
+        let camera3d_bundle = Camera3dBundle {
+            projection: PerspectiveProjection {
+                fov: 45.0,
+                aspect_ratio: 1.0,
+                far: 1000.0,
+                near: 0.01,
+            }.into(),
+            transform: Transform::from_xyz(0.0, 0.0, 5.0)
+                .looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        };
+        parent.spawn((
+            camera3d_bundle,
+        ));
+    });
+    commands.insert_resource(VoxelWorldRes { world });
+}
+
+fn update(
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<VoxelMaterial>>,
+    mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
+    mut world: ResMut<VoxelWorldRes>,
+) {
+    world.world.talk_to_bevy(meshes, materials, render_chunks);
 }
 
 #[test]
@@ -275,6 +400,76 @@ impl Block for DirtBlock {
 
     fn default_state(&self) -> unvoga::core::voxel::blockstate::BlockState {
         blockstate!(dirt)
+    }
+
+    fn occludee(&self, world: &VoxelWorld, state: Id) -> &Occluder {
+        &Occluder::FULL_FACES
+    }
+
+    fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
+        &Occluder::FULL_FACES
+    }
+
+    fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
+        static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
+            let pos_y_mesh = MeshData {
+                vertices: vec![
+                    vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
+                    vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
+                ],
+                normals: vec![
+                    Vec3::Y, Vec3::Y,
+                    Vec3::Y, Vec3::Y,
+                ],
+                uvs: vec![
+                    vec2(0.0, 0.0), vec2(1.0, 0.0),
+                    vec2(0.0, 1.0), vec2(1.0, 1.0),
+                ],
+                texindices: vec![
+                    0, 0,
+                    0, 0,
+                ],
+                indices: vec![
+                    0, 2, 1,
+                    1, 2, 3,
+                ],
+            };
+            let pos_x_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::PosX, 0), Flip::NONE))
+                .map_texindices(1);
+            let pos_z_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::PosZ, 0), Flip::NONE))
+                .map_texindices(2);
+            let neg_y_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::NegY, 0), Flip::NONE))
+                .map_texindices(3);
+            let neg_x_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::NegX, 0), Flip::NONE))
+                .map_texindices(4);
+            let neg_z_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::NegZ, 0), Flip::NONE))
+                .map_texindices(5);
+            Faces::new(
+                neg_x_mesh,
+                neg_y_mesh,
+                neg_z_mesh,
+                pos_x_mesh,
+                pos_y_mesh,
+                pos_z_mesh
+            )
+        });
+        if occlusion.neg_x() {
+            let src_neg_x = orientation.source_face(Direction::NegX);
+            mesh_builder.push_mesh_data(&MESH_DATA.face(src_neg_x));
+        }
+        Direction::iter().for_each(|dir| {
+            if occlusion.visible(dir) {
+                // get the source face because the mesh_builder will orient that face
+                // to dir
+                let src_face = orientation.source_face(dir);
+                mesh_builder.push_mesh_data(MESH_DATA.face(dir));
+            }
+        });
     }
 }
 

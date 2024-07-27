@@ -191,8 +191,11 @@ impl VoxelWorld {
             let (sect_x, sect_y, sect_z) = coord.into();
             // Let's build the mesh
             let (blocks_dirty, light_map_dirty) = {
-                let sect = self.get_section(coord).expect("Failed to get section");
-                (sect.blocks_dirty.dirty(), sect.light_dirty.dirty())
+                if let Some(sect) = self.get_section(coord) {
+                    (sect.blocks_dirty.dirty(), sect.light_dirty.dirty())
+                } else {
+                    (false, false)
+                }
             };
             let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
             if blocks_dirty {
@@ -204,6 +207,9 @@ impl VoxelWorld {
                                 let block_coord = (sect_x * 16 + x, sect_y * 16 + y, sect_z * 16 + z);
                                 let offset = vec3(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
                                 let state = self.get_block(block_coord);
+                                if state == Id::AIR {
+                                    continue;
+                                }
                                 let orientation = state.block().orientation(self, block_coord.into(), state);
                                 let occlusion = self.get_occlusion(block_coord);
                                 build.set_offset(offset);
@@ -217,11 +223,14 @@ impl VoxelWorld {
             if light_map_dirty {
                 // TODO: Rebuild lightmap
             }
-            let sect = self.get_section_mut(coord).expect("Failed to get section");
-            sect.blocks_dirty.mark_clean();
-            sect.light_dirty.mark_clean();
-            sect.section_dirty.mark_clean();
-            sect.dirty_id = PoolId::NULL;
+            if let Some(sect) = self.get_section_mut(coord) {
+                sect.blocks_dirty.mark_clean();
+                sect.light_dirty.mark_clean();
+                sect.section_dirty.mark_clean();
+                sect.dirty_id = PoolId::NULL;
+            } else {
+                println!("Sect not found: {coord}");
+            }
         });
         self.dirty_queue.give(dirty);
         let mut move_render_chunk_queue = self.move_render_chunk_queue.lend("Moving chunk entities");
@@ -495,11 +504,8 @@ impl VoxelWorld {
 
     
     fn get_section(&self, section_coord: Coord) -> Option<&Section> {
-        if section_coord.y < 0 {
-            return None;
-        }
         let chunk = self.chunks.get((section_coord.x, section_coord.z))?;
-        let y = section_coord.y - chunk.block_offset.y / 16;
+        let y = section_coord.y - chunk.block_offset.y >> 4;
         if y < 0 || y as usize >= chunk.sections.len() {
             return None;
         }
@@ -508,11 +514,8 @@ impl VoxelWorld {
 
     
     fn get_section_mut(&mut self, section_coord: Coord) -> Option<&mut Section> {
-        if section_coord.y < 0 {
-            return None;
-        }
         let chunk = self.chunks.get_mut((section_coord.x, section_coord.z))?;
-        let y = section_coord.y - chunk.block_offset.y / 16;
+        let y = section_coord.y - chunk.block_offset.y >> 4;
         if y < 0 || y as usize >= chunk.sections.len() {
             return None;
         }

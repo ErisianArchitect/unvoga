@@ -14,79 +14,79 @@ use crate::{blockstate, core::{util::counter::AtomicCounter, voxel::{block::Bloc
 
 pub fn sandbox() {
 
-    use crate::core::voxel::direction::Direction;
+    // use crate::core::voxel::direction::Direction;
 
-    println!("World Test");
-    blocks::register_block(DirtBlock);
-    blocks::register_block(RotatedBlock);
-    blocks::register_block(DebugBlock);
-    let air = Id::AIR;
-    let debug = blockstate!(debug).register();
-    let debug_data = blockstate!(debug, withdata = true, flip=Flip::X | Flip::Y, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::X | Flip::Y)).register();
-    let enabled = blockstate!(debug, enabled = true).register();
-    let dirt = blockstate!(dirt).register();
-    let rot1 = blockstate!(rotated, orientation=Orientation::new(Rotation::new(Direction::PosY, 0), Flip::NONE)).register();
-    let rot2 = blockstate!(rotated, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::XY)).register();
-    let mut world = VoxelWorld::open("ignore/test_world", 16, (0, 0, 0));
-    let usage = world.dynamic_usage();
-    println!("     Memory Usage: {usage}");
-    println!("     World Bounds: {:?}", world.bounds());
-    println!("    Render Bounds: {:?}", world.render_bounds());
-    println!("      Block Count: {}", world.bounds().volume());
-    println!("World Block Count: {}", VoxelWorld::WORLD_BOUNDS.volume());
+    // println!("World Test");
+    // blocks::register_block(DirtBlock);
+    // blocks::register_block(RotatedBlock);
+    // blocks::register_block(DebugBlock);
+    // let air = Id::AIR;
+    // let debug = blockstate!(debug).register();
+    // let debug_data = blockstate!(debug, withdata = true, flip=Flip::X | Flip::Y, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::X | Flip::Y)).register();
+    // let enabled = blockstate!(debug, enabled = true).register();
+    // let dirt = blockstate!(dirt).register();
+    // let rot1 = blockstate!(rotated, orientation=Orientation::new(Rotation::new(Direction::PosY, 0), Flip::NONE)).register();
+    // let rot2 = blockstate!(rotated, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::XY)).register();
+    // let mut world = VoxelWorld::open("ignore/test_world", 16, (0, 0, 0));
+    // let usage = world.dynamic_usage();
+    // println!("     Memory Usage: {usage}");
+    // println!("     World Bounds: {:?}", world.bounds());
+    // println!("    Render Bounds: {:?}", world.render_bounds());
+    // println!("      Block Count: {}", world.bounds().volume());
+    // println!("World Block Count: {}", VoxelWorld::WORLD_BOUNDS.volume());
 
-    println!("Update after load.");
-    world.update();
-    println!("Getting block");
-    let coord = (2,3,4);
-    {
-        let block = world.get_block(coord);
-        let occ = world.get_occlusion(coord);
-        let block_light = world.get_block_light(coord);
-        let sky_light = world.get_sky_light(coord);
-        let light_level = world.get_light_level(coord);
-        let enabled = world.enabled(coord);
-        let data = world.get_data(coord);
-        println!("      Block: {block}");
-        println!("  Occlusion: {occ}");
-        println!("Block Light: {block_light}");
-        println!("  Sky Light: {sky_light}");
-        println!("Light Level: {light_level}");
-        println!("    Enabled: {enabled}");
-        println!("       Data: {data:?}");
-    }
-    // drop(data);
-    world.set_block(coord, debug);
-    world.set_data(coord, Tag::from("This data should be deleted."));
-    println!("Setting air.");
-    world.set_block(coord, air);
-    if let Some(data) = world.get_data(coord) {
-        println!("Data that shouldn't exist: {data:?}");
-    }
-    world.set_block_light(coord, 1);
-    world.set_sky_light(coord, 6);
-    world.set_enabled(coord, true);
-    world.update();
-    let height = world.height(2, 4);
-    println!("Height: {height}");
-    world.save_world();
-    let tag = Tag::from(["test", "Hello, world"]);
-    println!("{tag:?}");
-    world.move_center((1024*1024, 0, 1024*1024));
-    println!("Update after move");
-    world.update();
-    println!("Update Queue Length: {}", world.update_queue.update_queue.len());
-    let coord = (1024*1024 + 3, 3, 1024*1024 + 3);
-    let block = world.get_block(coord);
-    println!("Far Block: {block}");
-    let height = world.height(coord.0, coord.2);
-    println!("Height: {height}");
-    let block = world.get_block(coord);
-    println!("Block: {block}");
-    world.set_block(coord, enabled);
-    let block = world.get_block(coord);
-    println!("Block: {block}");
-    world.save_world();
+    // println!("Update after load.");
+    // world.update();
+    // println!("Getting block");
+    // let coord = (2,3,4);
+    // {
+    //     let block = world.get_block(coord);
+    //     let occ = world.get_occlusion(coord);
+    //     let block_light = world.get_block_light(coord);
+    //     let sky_light = world.get_sky_light(coord);
+    //     let light_level = world.get_light_level(coord);
+    //     let enabled = world.enabled(coord);
+    //     let data = world.get_data(coord);
+    //     println!("      Block: {block}");
+    //     println!("  Occlusion: {occ}");
+    //     println!("Block Light: {block_light}");
+    //     println!("  Sky Light: {sky_light}");
+    //     println!("Light Level: {light_level}");
+    //     println!("    Enabled: {enabled}");
+    //     println!("       Data: {data:?}");
+    // }
+    // // drop(data);
+    // world.set_block(coord, debug);
+    // world.set_data(coord, Tag::from("This data should be deleted."));
+    // println!("Setting air.");
+    // world.set_block(coord, air);
+    // if let Some(data) = world.get_data(coord) {
+    //     println!("Data that shouldn't exist: {data:?}");
+    // }
+    // world.set_block_light(coord, 1);
+    // world.set_sky_light(coord, 6);
+    // world.set_enabled(coord, true);
+    // world.update();
+    // let height = world.height(2, 4);
+    // println!("Height: {height}");
+    // world.save_world();
+    // let tag = Tag::from(["test", "Hello, world"]);
+    // println!("{tag:?}");
+    // world.move_center((1024*1024, 0, 1024*1024));
+    // println!("Update after move");
+    // world.update();
+    // println!("Update Queue Length: {}", world.update_queue.update_queue.len());
+    // let coord = (1024*1024 + 3, 3, 1024*1024 + 3);
+    // let block = world.get_block(coord);
+    // println!("Far Block: {block}");
+    // let height = world.height(coord.0, coord.2);
+    // println!("Height: {height}");
+    // let block = world.get_block(coord);
+    // println!("Block: {block}");
+    // world.set_block(coord, enabled);
+    // let block = world.get_block(coord);
+    // println!("Block: {block}");
+    // world.save_world();
 
     // let coord = Coord::new(13,12,69).chunk_coord();
     // {
