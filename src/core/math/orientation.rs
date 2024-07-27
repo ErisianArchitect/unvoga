@@ -55,22 +55,40 @@ impl Orientation {
         self.flip.flip_coord(rotated)
     }
 
+    /// This method can tell you where on the target face a source UV is.
     /// To get the most benefit out of this, it is advised that you center your coords around (0, 0).
     /// So if you're trying to map a coord within a rect of size (16, 16), you would subtract 8 from the
     /// x and y of the coord, then pass that offset coord to this function, then add 8 back to the x and y
     /// to get your final coord.
-    // pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
-    //     // I actually realized that I did this backwards. For what I want, I need to figure out the source coord.
-    //     let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
-    //     let coordmap = maptable::MAP_COORD_TABLE[table_index];
-    //     coordmap.map(uv)
-    // }
+    pub fn map_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
+        // I actually realized that I did this backwards. For what I want, I need to figure out the source coord.
+        let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
+        let coordmap = maptable::MAP_COORD_TABLE[table_index];
+        coordmap.map(uv)
+    }
 
+    /// This method can tell you where on the source face a target UV is.
+    /// To get the most benefit out of this, it is advised that you center your coords around (0, 0).
+    /// So if you're trying to map a coord within a rect of size (16, 16), you would subtract 8 from the
+    /// x and y of the coord, then pass that offset coord to this function, then add 8 back to the x and y
+    /// to get your final coord.
     pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
         let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
         let coordmap = maptable::SOURCE_FACE_COORD_TABLE[table_index];
         // todo!("This method doesn't work properly.");
         coordmap.map(uv)
+    }
+}
+
+impl From<Rotation> for Orientation {
+    fn from(value: Rotation) -> Self {
+        Orientation::new(value, Flip::NONE)
+    }
+}
+
+impl From<Flip> for Orientation {
+    fn from(value: Flip) -> Self {
+        Orientation::new(Rotation::default(), value)
     }
 }
 
@@ -118,49 +136,50 @@ mod testing_sandbox {
 
     // I used this to generate the table in maptable.rs and I don't need it anymore, but I'm going
     // to keep it around just in case.
-    // fn map_face_coord_naive(orientation: Orientation, face: Direction) -> CoordMap {
-    //     // First I will attempt a naive implementation, then I will use the naive implementation to generate code
-    //     // for a more optimized implementation.
-    //     // First get the source face
-    //     let source_face = orientation.source_face(face);
-    //     // next, get the up, right, down, and left for the source face and arg face.
-    //     let src_up = source_face.up();
-    //     let src_right = source_face.right();
-    //     let src_down = source_face.down();
-    //     let src_left = source_face.left();
-    //     let face_up = face.up();
-    //     let face_right = face.right();
-    //     let face_down = face.down();
-    //     let face_left = face.left();
-    //     // Next, reface the src_dir faces
-    //     let rsrc_up = orientation.reface(src_up);
-    //     let rsrc_right = orientation.reface(src_right);
-    //     let rsrc_down = orientation.reface(src_down);
-    //     let rsrc_left = orientation.reface(src_left);
-    //     // Now match up the faces
-    //     let x_map = if face_right == rsrc_right {
-    //         AxisMap::PosX
-    //     } else if face_right == rsrc_up {
-    //         AxisMap::NegY
-    //     } else if face_right == rsrc_left {
-    //         AxisMap::NegX
-    //     } else {
-    //         AxisMap::PosY
-    //     };
-    //     let y_map = if face_up == rsrc_up {
-    //         AxisMap::PosY
-    //     } else if face_up == rsrc_left {
-    //         AxisMap::PosX
-    //     } else if face_up == rsrc_down {
-    //         AxisMap::NegY
-    //     } else {
-    //         AxisMap::NegX
-    //     };
-    //     CoordMap {
-    //         x: x_map,
-    //         y: y_map
-    //     }
-    // }
+    fn map_face_coord_naive(orientation: Orientation, face: Direction) -> CoordMap {
+        // First I will attempt a naive implementation, then I will use the naive implementation to generate code
+        // for a more optimized implementation.
+        // First get the source face
+        let source_face = orientation.source_face(face);
+        // next, get the up, right, down, and left for the source face and arg face.
+        let src_up = source_face.up();
+        let src_right = source_face.right();
+        let src_down = source_face.down();
+        let src_left = source_face.left();
+        let face_up = face.up();
+        let face_right = face.right();
+        let face_down = face.down();
+        let face_left = face.left();
+        // Next, reface the src_dir faces
+        let rsrc_up = orientation.reface(src_up);
+        let rsrc_right = orientation.reface(src_right);
+        let rsrc_down = orientation.reface(src_down);
+        let rsrc_left = orientation.reface(src_left);
+        // Now match up the faces
+        let x_map = if face_right == rsrc_right {
+            AxisMap::PosX
+        } else if face_right == rsrc_up {
+            AxisMap::NegY
+        } else if face_right == rsrc_left {
+            AxisMap::NegX
+        } else {
+            AxisMap::PosY
+        };
+        let y_map = if face_up == rsrc_up {
+            AxisMap::PosY
+        } else if face_up == rsrc_left {
+            AxisMap::PosX
+        } else if face_up == rsrc_down {
+            AxisMap::NegY
+        } else {
+            AxisMap::NegX
+        };
+        CoordMap {
+            x: x_map,
+            y: y_map
+        }
+    }
+
     fn source_face_coord_naive(orientation: Orientation, face: Direction) -> CoordMap {
         // First I will attempt a naive implementation, then I will use the naive implementation to generate code
         // for a more optimized implementation.
@@ -210,8 +229,8 @@ mod testing_sandbox {
     fn check_solution() {
         use Direction::*;
         let (up, angle, flip, face) = (
-            PosY, 1, Flip::X,
-            PosX
+            PosX, 3, Flip::XY,
+            NegZ
         );
         let orientation = Orientation::new(Rotation::new(up, angle), flip);
         // let coordmap = map_face_coord_naive(orientation, face);
@@ -221,17 +240,41 @@ mod testing_sandbox {
         let coord = (-1, -2);
         // let mapped = orientation.transform(coord);
         // println!("{coord:?} {mapped:?}");
+        let mapc = map_face_coord_naive(orientation, face).map(coord);
+        let mapcsrc = source_face_coord_naive(orientation, face).map(mapc);
         let naive = source_face_coord_naive(orientation, face).map(coord);
         let mapped = orientation.source_face_coord(face, coord);
         assert_eq!(naive, mapped);
         // let unmapped = orientation.source_face_coord(face, coord);
         let src = orientation.source_face(face);
         // println!("Source: {src}");
-        println!("{coord:?} {naive:?}");
+        println!("    Original: {coord:?}");
+        println!("  Map Source: {mapcsrc:?}");
+        println!("Naive Source: {naive:?}");
+        println!("         Map: {mapc:?}");
         let pos_z_up = Direction::PosZ.up();
         println!("PosZ Up: {pos_z_up}");
         let up_reface = orientation.reface(pos_z_up);
         println!("Reface: {up_reface}");
+        let mut count = 0usize;
+        Direction::iter().for_each(|up| {
+            (0..4).for_each(|angle| {
+                (0..8).map(|i| Orientation::new(Rotation::new(up, angle), Flip(i))).for_each(|orient| {
+                    Direction::iter().for_each(|face| {
+                        for y in -8..8 { for x in -8..8 { 
+                            count += 1;
+                            let coord = (x, y);
+                            let source = orientation.source_face_coord(face, coord);
+                            let map = orientation.map_face_coord(face, coord);
+                            let map_src = orientation.source_face_coord(face, map);
+                            assert_eq!(map_src, coord);
+                        }}
+                        // assert_eq!(map, source);
+                    });
+                })
+            })
+        });
+        println!("Count: {count}");
     }
 
     // This is used to generate the table in maptable.rs.

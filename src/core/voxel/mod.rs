@@ -18,6 +18,8 @@ pub mod occluder;
 pub mod region;
 pub mod faceflags;
 pub mod statevalue;
+pub mod blocklayer;
+
 #[cfg(test)]
 mod tests {
     use std::any::Any;
@@ -31,13 +33,6 @@ mod tests {
         struct DirtBlock;
         struct StoneBlock;
         impl Block for DirtBlock {
-            fn as_any(&self) -> &dyn Any {
-                self
-            }
-
-            fn as_any_mut(&mut self) -> &mut dyn Any {
-                self
-            }
 
             fn name(&self) -> &str {
                 "dirt"
@@ -49,13 +44,6 @@ mod tests {
         }
 
         impl Block for StoneBlock {
-            fn as_any(&self) -> &dyn Any {
-                self
-            }
-
-            fn as_any_mut(&mut self) -> &mut dyn Any {
-                self
-            }
 
             fn name(&self) -> &str {
                 "stone"

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::LazyLock;
 use std::{sync::Arc, thread, time::Duration};
 
+use bevy::app::DynEq;
 use bevy::math::IVec2;
 use hashbrown::HashMap;
 use rollgrid::rollgrid3d::Bounds3D;
@@ -46,9 +47,22 @@ pub fn main() {
     let debug_data = blockstate!(debug, withdata = true, flip=Flip::X | Flip::Y, orientation=Orientation::new(Rotation::new(Direction::NegZ, 3), Flip::X | Flip::Y)).register();
     let enabled = blockstate!(debug, enabled = true).register();
     let dirt = blockstate!(dirt).register();
-    let rot1 = blockstate!(rotated, rotation=Rotation::new(Direction::PosY, 0)).register();
-    let rot2 = blockstate!(rotated, rotation=Rotation::new(Direction::PosZ, 3)).register();
+    let rot1 = blockstate!(rotated).register();
+    let rot2 = blockstate!(rotated, orientation=Orientation::new(Rotation::new(Direction::NegZ, 1), Flip::XYZ)).register();
     let mut world = VoxelWorld::open("ignore/test_world", 16, (0, 0, 0));
+
+    let coord1 = (1, 1, 1);
+    let coord2 = (1, 0, 1);
+    world.set_block(coord1, dirt);
+    world.set_block(coord2, dirt);
+    // world.set_block(coord1, rot2);
+    // world.set_block(coord2, rot1);
+    let occl1 = world.get_occlusion(coord1);
+    let occl2 = world.get_occlusion(coord2);
+    println!("{occl1}");
+    println!("{occl2}");
+    return;
+
     let usage = world.dynamic_usage();
     println!("     Memory Usage: {usage}");
     println!("     World Bounds: {:?}", world.bounds());
@@ -245,13 +259,6 @@ mod testing_sandbox {
 
 struct DirtBlock;
 impl Block for DirtBlock {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
 
     fn name(&self) -> &str {
         "dirt"
@@ -272,39 +279,36 @@ impl Block for DirtBlock {
 }
 
 struct RotatedBlock;
-impl Block for RotatedBlock {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
 
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
+impl RotatedBlock {
+    const OCCLUDER: Occluder = Occluder {
+        neg_x: OcclusionShape::Full,
+        neg_y: OcclusionShape::Full,
+        neg_z: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
+            [0, 1],
+            [1, 1],
+        ])),
+        pos_x: OcclusionShape::Full,
+        pos_y: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
+            [1, 0],
+            [1, 1],
+        ])),
+        pos_z: OcclusionShape::Full,
+    };
+}
+
+impl Block for RotatedBlock {
 
     fn name(&self) -> &str {
         "rotated"
     }
 
     fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
-        const OCCLUDER: Occluder = Occluder {
-            neg_x: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
-                [1, 0],
-                [1, 1],
-            ])),
-            neg_y: OcclusionShape::Full,
-            neg_z: OcclusionShape::Full,
-            pos_x: OcclusionShape::Full,
-            pos_y: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
-                [1, 0],
-                [1, 1],
-            ])),
-            pos_z: OcclusionShape::Full,
-        };
-        &OCCLUDER
+        &Self::OCCLUDER
     }
 
     fn occludee(&self, world: &VoxelWorld, state: Id) -> &Occluder {
-        &Occluder::FULL_FACES
+        &Self::OCCLUDER
     }
 
     fn default_state(&self) -> unvoga::core::voxel::blockstate::BlockState {
@@ -345,12 +349,6 @@ impl Block for RotatedBlock {
 }
 struct DebugBlock;
 impl Block for DebugBlock {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
     fn name(&self) -> &str {
         "debug"
     }

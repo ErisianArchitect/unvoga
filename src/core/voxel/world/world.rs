@@ -536,6 +536,7 @@ impl VoxelWorld {
                     self.update_queue.remove(cur_ref);
                 }
                 let block = state.block();
+                let my_layer = block.layer(self, coord, state);
                 let my_orient = block.orientation(self, coord, state);
                 let my_occluder = block.occluder(self, state);
                 let my_occl = block.occluder(self, state);
@@ -546,13 +547,18 @@ impl VoxelWorld {
                     let adj_state = neighbors[dir];
                     let adj_block = adj_state.block();
                     let adj_coord = coord + dir;
+                    let adj_layer = adj_block.layer(self, adj_coord, adj_state);
                     if adj_state != Id::AIR {
                         adj_block.neighbor_updated(self, adj_dir, adj_coord, coord, adj_state, state);
+                    }
+                    // No occlusion happens if they are on different layers.
+                    if adj_layer != my_layer {
+                        return;
                     }
                     let adj_orient = adj_block.orientation(self, adj_coord, adj_state);
                     let adj_occl = adj_block.occluder(self, adj_state);
                     let adj_occlee = adj_block.occludee(self, adj_state);
-                    if my_occlee.occluded_by(my_orient, dir, &adj_occl, adj_orient) {
+                    if my_occlee.occluded_by(my_orient, adj_dir, adj_occl, adj_orient) {
                         self.hide_face(coord, dir);
                     } else {
                         self.show_face(coord, dir);

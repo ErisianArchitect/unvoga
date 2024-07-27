@@ -288,15 +288,6 @@ impl Block for AirBlock {
     fn name(&self) -> &str {
         "air"
     }
-
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-
     
     fn light_args(&self, world: &VoxelWorld, coord: Coord, state: Id) -> LightArgs {
         LightArgs::new(1, 0)

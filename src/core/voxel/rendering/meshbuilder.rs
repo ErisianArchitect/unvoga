@@ -1,5 +1,5 @@
 #![allow(unused)]
-use bevy::{math::{Vec2, Vec3}, prelude::Mesh, render::{mesh::{MeshVertexAttribute, PrimitiveTopology}, render_asset::RenderAssetUsages, render_resource::VertexFormat}};
+use bevy::{math::{Vec2, Vec3}, prelude::Mesh, render::{mesh::{Indices, MeshVertexAttribute, PrimitiveTopology}, render_asset::RenderAssetUsages, render_resource::VertexFormat}};
 
 use crate::prelude::{Orientation, Rotation};
 
@@ -12,7 +12,8 @@ pub struct MeshBuilder {
     pub uvs: Vec<Vec2>,
     pub texindices: Vec<u32>,
     pub indices: Vec<u32>,
-    pub offset: Vec3,
+    pub offset: Option<Vec3>,
+    pub orientation: Option<Orientation>,
 }
 
 impl MeshBuilder {
@@ -39,12 +40,23 @@ impl MeshBuilder {
     }
 
     pub fn set_offset<C: Into<Vec3>>(&mut self, offset: C) {
-        self.offset = offset.into();
+        self.offset = Some(offset.into());
     }
 
-    /// This method assumes that your mesh_data is valid.
-    /// That means that it has the same number of vertices, normals, uvs, and texindices.
-    pub fn push_mesh_data(&mut self, mesh_data: &MeshData) {
+    pub fn clear_offset(&mut self) {
+        self.offset.take();
+    }
+
+    pub fn set_orientation<O: Into<Orientation>>(&mut self, orientation: O) {
+        self.orientation = Some(orientation.into());
+    }
+
+    pub fn clear_orientation(&mut self) {
+        self.orientation.take();
+    }
+
+    /// Push exact mesh data without transformations
+    pub fn push_exact_mesh_data(&mut self, mesh_data: &MeshData) {
         let start_index = self.vertices.len() as u32;
         self.vertices.extend(mesh_data.vertices.iter().cloned());
         self.normals.extend(mesh_data.normals.iter().cloned());
@@ -53,13 +65,16 @@ impl MeshBuilder {
         self.indices.extend(mesh_data.indices.iter().map(|&i| start_index + i));
     }
 
-    pub fn push_oriented_mesh_data(&mut self, mesh_data: &MeshData, orientation: Orientation) {
-        let invert_indices = orientation.flip.x() ^ orientation.flip.y() ^ orientation.flip.z();
+    /// Push transformed mesh data.
+    pub fn push_mesh_data(&mut self, mesh_data: &MeshData) {
+        let offset = self.offset.unwrap_or_default();
+        let orientation = self.orientation.unwrap_or_default();
         let start_index = self.vertices.len() as u32;
         self.uvs.extend(mesh_data.uvs.iter().cloned());
         self.texindices.extend(mesh_data.texindices.iter().cloned());
-        self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| orientation.transform(vert)));
+        self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| orientation.transform(vert) + offset));
         self.normals.extend(mesh_data.normals.iter().cloned().map(|norm| orientation.transform(norm)));
+        let invert_indices = orientation.flip.x() ^ orientation.flip.y() ^ orientation.flip.z();
         if invert_indices {
             self.indices.extend(mesh_data.indices.iter().rev().map(|&i| start_index + i));
         } else {
@@ -68,20 +83,15 @@ impl MeshBuilder {
     }
 
     pub fn push_to_mesh(self, mesh: &mut Mesh) {
-        mesh.insert_attribute(MeshVertexAttribute::new("position", 0, VertexFormat::Float32x3), self.vertices);
-        mesh.insert_attribute(MeshVertexAttribute::new("uv", 1, VertexFormat::Float32x2), self.uvs);
-        mesh.insert_attribute(MeshVertexAttribute::new("normal", 2, VertexFormat::Float32x3), self.normals);
-        mesh.insert_attribute(MeshVertexAttribute::new("texindex", 3, VertexFormat::Uint32), self.texindices);
-        mesh.insert_indices(bevy::render::mesh::Indices::U32(self.indices));
+        use super::voxelmesh::*;
+        mesh.insert_attribute(POSITION_ATTRIB.clone(), self.vertices);
+        mesh.insert_attribute(NORMAL_ATTRIB.clone(), self.normals);
+        mesh.insert_attribute(UV_ATTRIB.clone(), self.uvs);
+        mesh.insert_attribute(TEXINDEX_ATTRIB, self.texindices);
+        mesh.insert_indices(Indices::U32(self.indices));
     }
 
-    pub fn mesh_data(self) -> MeshData {
-        self.into()
-    }
-}
-
-impl Into<MeshData> for MeshBuilder {
-    fn into(self) -> MeshData {
+    pub fn to_mesh_data(self) -> MeshData {
         MeshData {
             vertices: self.vertices,
             normals: self.normals,
@@ -90,12 +100,25 @@ impl Into<MeshData> for MeshBuilder {
             indices: self.indices,
         }
     }
+
+    pub fn to_mesh(self, render_asset_usages: RenderAssetUsages) -> Mesh {
+        use super::voxelmesh::*;
+        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, render_asset_usages);
+        self.push_to_mesh(&mut mesh);
+        mesh
+    }
+}
+
+impl Into<MeshData> for MeshBuilder {
+    fn into(self) -> MeshData {
+        self.to_mesh_data()
+    }
 }
 
 impl Into<Mesh> for MeshBuilder {
+    /// This method creates a [Mesh] with [RenderAssetUsages::all()]. If you don't like that, use
+    /// [MeshBuilder::to_mesh] instead.
     fn into(self) -> Mesh {
-        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all());
-        self.push_to_mesh(&mut mesh);
-        mesh
+        self.to_mesh(RenderAssetUsages::all())
     }
 }

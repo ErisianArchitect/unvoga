@@ -2,14 +2,20 @@
 use std::any::Any;
 use crate::prelude::*;
 
-use super::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
+use super::{blocklayer::BlockLayer, blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
 
 use crate::prelude::Rgb;
 
+mod sealed {
+    use super::Block;
+
+    pub trait Sealed {}
+
+    impl<B: Block> Sealed for B {}
+}
+
 pub trait Block: Any {
     fn name(&self) -> &str;
-    fn as_any(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
     /// The occluder that occludes
     fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
         &Occluder::FULL_FACES
@@ -24,9 +30,9 @@ pub trait Block: Any {
     fn color(&self, world: &VoxelWorld, coord: Coord, state: Id, face: Direction) -> Rgb {
         Rgb::new(255, 0, 255)
     }
-    // fn rotation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Rotation {
-    //     Rotation::new(Direction::PosY, 0)
-    // }
+    fn layer(&self, world: &VoxelWorld, coord: Coord, state: Id) -> BlockLayer {
+        BlockLayer::Base
+    }
     fn orientation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Orientation {
         Orientation::default()
     }

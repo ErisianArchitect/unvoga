@@ -223,13 +223,6 @@ mod testing_sandbox {
 
 struct DirtBlock;
 impl Block for DirtBlock {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
 
     fn name(&self) -> &str {
         "dirt"
@@ -251,13 +244,6 @@ impl Block for DirtBlock {
 
 struct RotatedBlock;
 impl Block for RotatedBlock {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
 
     fn name(&self) -> &str {
         "rotated"
@@ -299,12 +285,6 @@ impl Block for RotatedBlock {
 }
 struct DebugBlock;
 impl Block for DebugBlock {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
     fn name(&self) -> &str {
         "debug"
     }

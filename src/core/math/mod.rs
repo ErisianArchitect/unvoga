@@ -9,3 +9,4 @@ pub mod orientation;
 pub mod rotation;
 pub mod flip;
 pub mod maptable;
+pub mod vector;

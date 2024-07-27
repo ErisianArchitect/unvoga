@@ -154,12 +154,12 @@ fn setup(
     
     // mesh_builder.push_oriented_mesh_data(&top_face, Orientation::new(Rotation::new(Direction::PosY, 0), Flip::NONE));
     let builder = MeshBuilder::build(|builder| {
-        builder.push_mesh_data(&pos_y_mesh);
-        builder.push_mesh_data(&pos_x_mesh);
-        builder.push_mesh_data(&pos_z_mesh);
-        builder.push_mesh_data(&neg_y_mesh);
-        builder.push_mesh_data(&neg_x_mesh);
-        builder.push_mesh_data(&neg_z_mesh);
+        builder.push_exact_mesh_data(&pos_y_mesh);
+        builder.push_exact_mesh_data(&pos_x_mesh);
+        builder.push_exact_mesh_data(&pos_z_mesh);
+        builder.push_exact_mesh_data(&neg_y_mesh);
+        builder.push_exact_mesh_data(&neg_x_mesh);
+        builder.push_exact_mesh_data(&neg_z_mesh);
     });
     let cube_mesh: MeshData = builder.clone().into();
     commands.insert_resource(CubeMeshData { cube_mesh });
@@ -421,7 +421,8 @@ fn update(
     if let Some(orient) = orientation.update() {
         let mesh = meshes.get_mut(mesh_holder.mesh.id()).expect("Failed to get the mesh");
         MeshBuilder::build_mesh(mesh, |build| {
-            build.push_oriented_mesh_data(&cube_mesh.cube_mesh, orient);
+            build.set_orientation(orient);
+            build.push_mesh_data(&cube_mesh.cube_mesh);
         });
     }
     const GIZLEN: f32 = 0.2;
