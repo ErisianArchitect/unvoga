@@ -178,7 +178,7 @@ impl SectorManager {
         let mut freed_sector = ManagedSector::from(free);
         
         fn apply_some_cond(opt: &mut Option<usize>, condition: bool, index: usize) -> bool {
-            if opt.is_none() && condition {
+            if condition && opt.is_none() {
                 *opt = Some(index);
                 true
             } else {
