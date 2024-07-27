@@ -144,14 +144,16 @@ impl VoxelWorld {
                 Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
             })),
             render_chunks: Lend::new(RollGrid3D::new_with_init(render_size, render_size.min(WORLD_HEIGHT / 16), render_size, (render_x, render_y, render_z), |pos: Coord| {
-                let mesh = meshes.add(Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all()));
+                let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all());
+                MeshBuilder::build_mesh(&mut mesh, |build| ());
+                let mesh = meshes.add(mesh);
                 let material = materials.add(VoxelMaterial::new(array_texture.clone()));
                 let (x, y, z) = (
                     (pos.x * 16) as f32,
                     (pos.y * 16) as f32,
                     (pos.z * 16) as f32
                 );
-                commands.spawn((
+                let entity = commands.spawn((
                     MaterialMeshBundle {
                         mesh: mesh.clone(),
                         transform: Transform::from_xyz(x, y, z),
@@ -159,12 +161,12 @@ impl VoxelWorld {
                         ..Default::default()
                     },
                     RenderChunkMarker
-                ));
+                )).id();
                 Some(RenderChunk {
                     mesh: mesh,
                     material: material,
                     move_id: PoolId::NULL,
-                    entity: Entity::PLACEHOLDER,
+                    entity,
                 })
             })),
             regions: Lend::new(RollGrid2D::new(region_size as usize, region_size as usize, region_min)),
@@ -444,7 +446,8 @@ impl VoxelWorld {
             let section_y = chunk_y + i as i32;
             let section_coord = Coord::new(chunk_x, section_y, chunk_z);
             if self.render_chunks.bounds().contains(section_coord) 
-            && chunk.sections[i].dirty_id.null(){
+            && chunk.sections[i].dirty_id.null()
+            && chunk.sections[i].blocks.is_some() {
                 let id = self.dirty_queue.insert(section_coord);
                 chunk.sections[i].dirty_id = id;
                 chunk.sections[i].light_dirty.mark();

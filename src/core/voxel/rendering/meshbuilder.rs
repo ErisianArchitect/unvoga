@@ -87,7 +87,7 @@ impl MeshBuilder {
         mesh.insert_attribute(POSITION_ATTRIB.clone(), self.vertices);
         mesh.insert_attribute(NORMAL_ATTRIB.clone(), self.normals);
         mesh.insert_attribute(UV_ATTRIB.clone(), self.uvs);
-        mesh.insert_attribute(TEXINDEX_ATTRIB, self.texindices);
+        mesh.insert_attribute(TEXINDEX_ATTRIB.clone(), self.texindices);
         mesh.insert_indices(Indices::U32(self.indices));
     }
 

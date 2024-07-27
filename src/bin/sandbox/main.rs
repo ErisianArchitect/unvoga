@@ -1,6 +1,7 @@
 #![allow(unused)]
 use std::path::PathBuf;
 use std::sync::LazyLock;
+use std::time::Instant;
 use std::{sync::Arc, thread, time::Duration};
 
 use bevy::prelude::*;
@@ -64,7 +65,7 @@ pub fn main() {
         // .add_systems(OnEnter(GameState::SinglePlayer), on_enter_singleplayer)
         // .add_systems(OnExit(GameState::SinglePlayer), cleanup_system::<cleanup::SinglePlayer>)
         .insert_resource(Assets::<VoxelMaterial>::default())
-        // .insert_resource(Assets::<Mesh>::default())
+        .insert_resource(Assets::<Mesh>::default())
         // .insert_resource(Assets::<Image>::default())
         .insert_resource(ClearColor(Color::rgb(0.2,0.2,0.2)))
         // .insert_resource(Msaa::Off)
@@ -248,8 +249,18 @@ fn setup(
         &mut meshes,
         &mut materials
     );
-    let dirt = blockstate!(dirt);
+    let dirt = blockstate!(dirt).register();
     // world.set_block((1, 1, 1), dirt);
+    // world.set_block((1, 0, 1), dirt);
+    // world.set_block((1, 1, 0), dirt);
+    // world.set_block((0, 0, -10), dirt);
+    // for y in -8..8 {
+    //     for z in -8..8 {
+    //         for x in -8..8 {
+    //             world.set_block((x, y, z), dirt);
+    //         }
+    //     }
+    // }
     commands.spawn((
         TransformBundle::from_transform(
             Transform::from_xyz(0.0, 0.0, 0.0)
@@ -280,8 +291,37 @@ fn update(
     mut materials: ResMut<Assets<VoxelMaterial>>,
     mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
     mut world: ResMut<VoxelWorldRes>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
+    // I for Ingage (lol, yes I know it's spelled wrong)
+    let now = Instant::now();
+    if keys.just_pressed(KeyCode::KeyI) {
+        let dirt = blockstate!(dirt).register();
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    let (nx, ny, nz) = (x - 8, y - 8, z - 30);
+                    world.world.set_block((nx, ny, nz), dirt);
+                }
+            }
+        }
+    }
+    // U for Ungage
+    if keys.just_pressed(KeyCode::KeyU) {
+        for y in 0..16 {
+            for z in 0..16 {
+                for x in 0..16 {
+                    let (nx, ny, nz) = (x - 8, y - 8, z - 30);
+                    world.world.set_block((nx, ny, nz), Id::AIR);
+                }
+            }
+        }
+    }
+    // let state = world.world.get_block((0,0,0));
+    // world.world.set_block((0, 0, 0), if state.is_air() { blockstate!(dirt).register() } else { Id::AIR });
     world.world.talk_to_bevy(meshes, materials, render_chunks);
+    let elapsed = now.elapsed();
+    println!("Frame time: {}", elapsed.as_secs_f64());
 }
 
 #[test]
@@ -395,7 +435,7 @@ impl Block for DirtBlock {
             context: &mut PlaceContext,
         ) {
             // world.set_block(coord, Id::AIR);
-            println!("dirt placed: {}", context.replacement());
+            // println!("dirt placed: {}", context.replacement());
     }
 
     fn default_state(&self) -> unvoga::core::voxel::blockstate::BlockState {
