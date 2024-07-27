@@ -1,12 +1,18 @@
 #![allow(unused)]
+use bevy::math::vec3;
+use bevy::prelude::*;
+use bevy::render::mesh::PrimitiveTopology;
+use bevy::render::render_asset::RenderAssetUsages;
+use itertools::Itertools;
 use std::path::{Path, PathBuf};
 use std::{collections::VecDeque, iter::Sum};
 
 use bevy::{asset::Handle, render::mesh::Mesh};
 use hashbrown::HashMap;
 use super::chunkcoord::ChunkCoord;
+use super::externevent::ExternEvent;
 use super::occlusion::Occlusion;
-use super::query::{BlockLight, Query, SkyLight};
+use super::query::{BlockLight, VoxelQuery, SkyLight};
 use rollgrid::{rollgrid2d::*, rollgrid3d::*};
 use super::section::{LightChange, Section, StateChange};
 use super::update::{BlockUpdateQueue, UpdateRef};
@@ -16,6 +22,7 @@ use crate::core::math::grid::{calculate_region_min, calculate_region_requirement
 use crate::core::util::lend::Lend;
 use crate::core::voxel::region::regionfile::RegionFile;
 use crate::core::voxel::region::timestamp::Timestamp;
+use crate::core::voxel::rendering::meshbuilder::MeshBuilder;
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::Id, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
 use crate::prelude::SwapVal;
 
@@ -52,12 +59,17 @@ World Edit
 pub struct DirtyIdMarker;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SaveIdMarker;
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MoveRenderChunkMarker;
+
+#[derive(Debug, Component)]
+pub struct RenderChunkMarker;
 
 pub struct VoxelWorld {
     /// Determines if the render world has been initialized.
     pub initialized: bool,
-    pub dirty_sections: Vec<Coord>,
-    pub dirty_queue: ObjectPool<Coord, DirtyIdMarker>,
+    // pub dirty_sections: Vec<Coord>,
+    pub dirty_queue: Lend<ObjectPool<Coord, DirtyIdMarker>>,
     pub save_queue: ObjectPool<ChunkCoord, SaveIdMarker>,
     pub chunks: Lend<RollGrid2D<Chunk>>,
     pub render_chunks: Lend<RollGrid3D<RenderChunk>>,
@@ -77,6 +89,7 @@ pub struct VoxelWorld {
     pub update_modification_map: HashMap<Coord, u32>,
     pub world_directory: PathBuf,
     pub subworld_directory: PathBuf,
+    pub move_render_chunk_queue: ObjectPool<Coord, MoveRenderChunkMarker>,
     render_distance: i32,
 }
 
@@ -88,7 +101,15 @@ impl VoxelWorld {
     };
     /// Create a new world centered at the specified block coordinate with the (chunk) render distance specified.
     /// The resulting width in chunks will be `render_distance * 2`.
-    pub fn open<P: AsRef<Path>, C: Into<(i32, i32, i32)>>(directory: P, render_distance: u8, center: C) -> Self {
+    pub fn open<P: AsRef<Path>, C: Into<(i32, i32, i32)>>(
+            directory: P,
+            render_distance: u8,
+            center: C,
+            array_texture: Handle<Image>,
+            commands: &mut Commands,
+            meshes: &mut ResMut<Assets<Mesh>>,
+            materials: &mut ResMut<Assets<VoxelMaterial>>,
+        ) -> Self {
         let center: (i32, i32, i32) = center.into();
         let center: Coord = center.into();
         let mut center = center;
@@ -114,18 +135,36 @@ impl VoxelWorld {
         Self {
             initialized: false,
             subworld_directory: main_world,
-            dirty_queue: ObjectPool::new(),
+            dirty_queue: Lend::new(ObjectPool::new()),
             save_queue: ObjectPool::new(),
             render_distance: render_distance as i32,
             world_directory: directory.to_owned(),
-            dirty_sections: Vec::new(),
+            // dirty_sections: Vec::new(),
             chunks: Lend::new(RollGrid2D::new_with_init(pad_size, pad_size, (chunk_x, chunk_z), |(x, z): (i32, i32)| {
                 Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
             })),
             render_chunks: Lend::new(RollGrid3D::new_with_init(render_size, render_size.min(WORLD_HEIGHT / 16), render_size, (render_x, render_y, render_z), |pos: Coord| {
+                let mesh = meshes.add(Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all()));
+                let material = materials.add(VoxelMaterial::new(array_texture.clone()));
+                let (x, y, z) = (
+                    (pos.x * 16) as f32,
+                    (pos.y * 16) as f32,
+                    (pos.z * 16) as f32
+                );
+                commands.spawn((
+                    MaterialMeshBundle {
+                        mesh: mesh.clone(),
+                        transform: Transform::from_xyz(x, y, z),
+                        material: material.clone(),
+                        ..Default::default()
+                    },
+                    RenderChunkMarker
+                ));
                 Some(RenderChunk {
-                    mesh: Handle::default(),
-                    material: Handle::default(),
+                    mesh: mesh,
+                    material: material,
+                    move_id: PoolId::NULL,
+                    entity: Entity::PLACEHOLDER,
                 })
             })),
             regions: Lend::new(RollGrid2D::new(region_size as usize, region_size as usize, region_min)),
@@ -133,11 +172,51 @@ impl VoxelWorld {
             lock_update_queue: false,
             update_modification_queue: Vec::new(),
             update_modification_map: HashMap::new(),
+            move_render_chunk_queue: ObjectPool::new(),
         }.initial_load()
     }
 
     fn get_region_path(&self, region_x: i32, region_z: i32) -> PathBuf {
         self.subworld_directory.join(format!("{region_x}.{region_z}.rg"))
+    }
+
+    pub fn talk_to_bevy(
+        &mut self,
+        mut meshes: ResMut<Assets<Mesh>>,
+        mut materials: ResMut<Assets<VoxelMaterial>>,
+        mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
+    ) {
+        let mut dirty = self.dirty_queue.lend("draining the dirty_queue in talk_to_bevy");
+        dirty.drain().for_each(|coord| {
+            let (sect_x, sect_y, sect_z) = coord.into();
+            // let sect = self.get_section_mut(coord).expect("Failed to get section");
+            let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
+            // Let's build the mesh
+            let mesh = meshes.get_mut(render_chunk.mesh.id()).expect("Failed to get the mesh");
+            MeshBuilder::build_mesh(mesh, |build| {
+                for y in 0..16 {
+                    for z in 0..16 {
+                        for x in 0..16 {
+                            let block_coord = (sect_x * 16 + x, sect_y * 16 + y, sect_z * 16 + z);
+                            let offset = vec3(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
+                            let state = self.get_block(block_coord);
+                            let orientation = state.block().orientation(self, block_coord.into(), state);
+                            let occlusion = self.get_occlusion(block_coord);
+                            build.set_offset(offset);
+                            build.set_orientation(orientation);
+                            state.block().push_mesh(build, self, block_coord.into(), state, occlusion, orientation);
+                        }
+                    }
+                }
+            });
+            // TODO: Rebuild lightmap
+            let sect = self.get_section_mut(coord).expect("Failed to get section");
+            sect.blocks_dirty.mark_clean();
+            sect.light_dirty.mark_clean();
+            sect.section_dirty.mark_clean();
+            sect.dirty_id = PoolId::NULL;
+        });
+        self.dirty_queue.give(dirty);
     }
 
     pub fn move_center<C: Into<(i32, i32, i32)>>(&mut self, center: C) {
@@ -159,9 +238,15 @@ impl VoxelWorld {
         // then move data chunks
         // 
         let mut render_chunks = self.render_chunks.lend("render_chunks in move_center");
-        render_chunks.reposition((render_x, render_y, render_z), |old_pos, new_pos, chunk| {
-            // I'm not going to do anything here right now because I'm not doing anything with the render
-            // chunks yet.
+        render_chunks.reposition((render_x, render_y, render_z), |old_pos, new_pos, mut chunk| {
+            let Some(rendchunk) = &mut chunk  else {
+                panic!("Render chunk was None");
+            };
+            let old_id = rendchunk.move_id;
+            if !old_id.null() {
+                self.move_render_chunk_queue.remove(old_id);
+            }
+            rendchunk.move_id = self.move_render_chunk_queue.insert(Coord::from(new_pos));
             chunk
         });
         self.render_chunks.give(render_chunks);
@@ -435,7 +520,7 @@ impl VoxelWorld {
         state.block().call(self, coord, state, function.as_ref(), arg.into())
     }
 
-    pub fn query<'a, C: Into<(i32, i32, i32)>, T: Query<'a>>(&'a self, coord: C) -> T::Output {
+    pub fn query<'a, C: Into<(i32, i32, i32)>, T: VoxelQuery<'a>>(&'a self, coord: C) -> T::Output {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
         if !self.render_bounds().contains(coord) {
@@ -933,7 +1018,6 @@ impl VoxelWorld {
         self.set_enabled(coord, true);
     }
 
-
     /// Disable a block, removing it from the update queue if it's in the update queue.
     pub fn disable<C: Into<(i32, i32, i32)>>(&mut self, coord: C) {
         self.set_enabled(coord, false);
@@ -1082,8 +1166,10 @@ impl MemoryUsage {
 }
 
 pub struct RenderChunk {
+    pub entity: Entity,
     pub mesh: Handle<Mesh>,
     pub material: Handle<VoxelMaterial>,
+    pub move_id: PoolId<MoveRenderChunkMarker>,
 }
 
 pub struct PlaceContext {

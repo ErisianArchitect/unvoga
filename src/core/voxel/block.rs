@@ -2,7 +2,7 @@
 use std::any::Any;
 use crate::prelude::*;
 
-use super::{blocklayer::BlockLayer, blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
+use super::{blocklayer::BlockLayer, blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, rendering::meshbuilder::MeshBuilder, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
 
 use crate::prelude::Rgb;
 
@@ -36,6 +36,12 @@ pub trait Block: Any {
     fn orientation(&self, world: &VoxelWorld, coord: Coord, state: Id) -> Orientation {
         Orientation::default()
     }
+    /// This handles returning a new state when a state is oriented.
+    /// (Use [Orientation::reorient] in most cases where you want to reorient a block)
+    /// Return the given state if you want the state to remain unchanged.
+    fn reorient(&self, world: &VoxelWorld, coord: Coord, state: Id, orientation: Orientation) -> Id {
+        state
+    }
     fn enable_on_place(&self, world: &VoxelWorld, coord: Coord, state: Id) -> bool { false }
     fn light_args(&self, world: &VoxelWorld, coord: Coord, state: Id) -> LightArgs {
         LightArgs::new(15, 0)
@@ -51,7 +57,7 @@ pub trait Block: Any {
     fn on_data_set(&self, world: &mut VoxelWorld, coord: Coord, state: Id, data: &mut Tag) {}
     fn on_data_delete(&self, world: &mut VoxelWorld, coord: Coord, state: Id, data: Tag) {}
     fn on_enabled_changed(&self, world: &mut VoxelWorld, coord: Coord, state: Id, enabled: bool) {}
-    fn push_mesh(&self, mesh_builder: &mut (), coord: Coord, state: Id, occlusion: Occlusion, rotation: Rotation) {}
+    fn push_mesh(&self, mesh_builder: &mut MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {}
     fn rotate(&self, coord: Coord, state: Id, rotation: Rotation) -> Id { state }
     fn default_state(&self) -> BlockState;
 

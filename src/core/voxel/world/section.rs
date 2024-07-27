@@ -4,7 +4,7 @@ use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, 
 use crate::{core::{collections::objectpool::PoolId, error::*}, prelude::{SwapVal, Writeable}};
 use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
-use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, io::{read_block_data, read_enabled, read_section_blocks, read_section_light, read_section_occlusions}, occlusion::Occlusion, query::Query, update::UpdateRef, DirtyIdMarker, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_HEIGHT};
+use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, io::{read_block_data, read_enabled, read_section_blocks, read_section_light, read_section_occlusions}, occlusion::Occlusion, query::VoxelQuery, update::UpdateRef, DirtyIdMarker, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_HEIGHT};
 use crate::core::io::*;
 
 // 4096*4+4096+2048+2048+4096*2
@@ -131,7 +131,7 @@ impl Section {
     }
 
     
-    pub fn query<'a, T: Query<'a>>(&'a self, coord: Coord) -> T::Output {
+    pub fn query<'a, T: VoxelQuery<'a>>(&'a self, coord: Coord) -> T::Output {
         let index = Section::index(coord);
         T::read(self, index)
     }

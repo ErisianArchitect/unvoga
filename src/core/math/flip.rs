@@ -35,6 +35,10 @@ impl Flip {
         self & Flip::Z == Flip::Z
     }
 
+    pub fn flip(self, flip: Flip) -> Self {
+        Self::new(self.x() ^ flip.x(), self.y() ^ flip.y(), self.z() ^ flip.z())
+    }
+
     pub fn set_x(&mut self, value: bool) -> bool {
         let old = self.x();
         if value {

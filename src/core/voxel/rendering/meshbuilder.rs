@@ -55,7 +55,7 @@ impl MeshBuilder {
         self.orientation.take();
     }
 
-    /// Push exact mesh data without transformations
+    /// Push exact mesh data without transformations.
     pub fn push_exact_mesh_data(&mut self, mesh_data: &MeshData) {
         let start_index = self.vertices.len() as u32;
         self.vertices.extend(mesh_data.vertices.iter().cloned());
@@ -106,6 +106,22 @@ impl MeshBuilder {
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, render_asset_usages);
         self.push_to_mesh(&mut mesh);
         mesh
+    }
+
+    pub fn recalculate_normals(&mut self) {
+        (0..self.indices.len()).step_by(3)
+            .map(|i| [self.indices[i] as usize, self.indices[i + 1] as usize, self.indices[i + 2] as usize])
+            .for_each(|tri| {
+                let verts = [
+                    self.vertices[tri[0]],
+                    self.vertices[tri[1]],
+                    self.vertices[tri[2]]
+                ];
+                let norm = crate::core::math::vector::calculate_tri_normal(&verts);
+                self.normals[tri[0]] = norm;
+                self.normals[tri[1]] = norm;
+                self.normals[tri[2]] = norm;
+            });
     }
 }
 

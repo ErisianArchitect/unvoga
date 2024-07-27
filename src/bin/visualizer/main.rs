@@ -356,6 +356,10 @@ fn menu(
                     if ui.button(layout).clicked() {
                         orientation.set(*orient);
                     }
+                    if ui.button("⊞").clicked() {
+                        let current = orientation.new_orientation;
+                        orientation.set(current.reorient(*orient));
+                    }
                     if ui.button("❌").clicked() {
                         remove.replace(index);
                     }

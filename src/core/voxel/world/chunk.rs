@@ -5,7 +5,7 @@ use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, 
 
 use crate::{core::{collections::objectpool::PoolId, voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, region::timestamp::Timestamp, rendering::voxelmaterial::VoxelMaterial, tag::Tag}}, prelude::SwapVal};
 
-use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::Query, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_BOTTOM, WORLD_HEIGHT};
+use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::VoxelQuery, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_BOTTOM, WORLD_HEIGHT};
 use crate::core::error::*;
 
 pub struct Chunk {
@@ -70,7 +70,7 @@ impl Chunk {
     }
 
     
-    pub fn query<'a, T: Query<'a>>(&'a self, coord: Coord) -> T::Output {
+    pub fn query<'a, T: VoxelQuery<'a>>(&'a self, coord: Coord) -> T::Output {
         let section_index = (coord.y - self.block_offset.y) as usize / 16;
         self.sections[section_index].query::<T>(coord)
     }

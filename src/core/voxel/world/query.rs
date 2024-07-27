@@ -5,7 +5,7 @@ use crate::prelude::*;
 
 use super::section::Section;
 
-pub trait Query<'a> {
+pub trait VoxelQuery<'a> {
     type Output;
     fn read(section: &'a Section, index: usize) -> Self::Output;
     fn default() -> Self::Output;
@@ -26,7 +26,7 @@ pub struct SkyLight(pub u8);
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Enabled(pub bool);
 
-impl<'a> Query<'a> for Id {
+impl<'a> VoxelQuery<'a> for Id {
     type Output = Id;
     
     fn read(section: &'a Section, index: usize) -> Self::Output {
@@ -42,7 +42,7 @@ impl<'a> Query<'a> for Id {
     }
 }
 
-impl<'a> Query<'a> for Occlusion {
+impl<'a> VoxelQuery<'a> for Occlusion {
     type Output = Occlusion;
     
     fn read(section: &'a Section, index: usize) -> Self::Output {
@@ -58,7 +58,7 @@ impl<'a> Query<'a> for Occlusion {
     }
 }
 
-impl<'a> Query<'a> for BlockLight {
+impl<'a> VoxelQuery<'a> for BlockLight {
     type Output = u8;
     
     fn read(section: &'a Section, index: usize) -> Self::Output {
@@ -79,7 +79,7 @@ impl<'a> Query<'a> for BlockLight {
     }
 }
 
-impl<'a> Query<'a> for SkyLight {
+impl<'a> VoxelQuery<'a> for SkyLight {
     type Output = u8;
     
     fn read(section: &'a Section, index: usize) -> Self::Output {
@@ -97,7 +97,7 @@ impl<'a> Query<'a> for SkyLight {
     }
 }
 
-impl<'a> Query<'a> for Tag {
+impl<'a> VoxelQuery<'a> for Tag {
     type Output = Option<&'a Tag>;
     
     fn read(section: &'a Section, index: usize) -> Self::Output {
@@ -114,7 +114,7 @@ impl<'a> Query<'a> for Tag {
     }
 }
 
-impl<'a> Query<'a> for Enabled {
+impl<'a> VoxelQuery<'a> for Enabled {
     type Output = bool;
     
     fn read(section: &'a Section, index: usize) -> Self::Output {
@@ -133,7 +133,7 @@ impl<'a> Query<'a> for Enabled {
 // T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15
 macro_rules! tuple_query {
     ($($terms:ident),+) => {
-        impl<'a, $($terms: Query<'a>,)+> Query<'a> for ($($terms,)+) {
+        impl<'a, $($terms: VoxelQuery<'a>,)+> VoxelQuery<'a> for ($($terms,)+) {
             type Output = ($($terms::Output,)+);
             
             fn read(section: &'a Section, index: usize) -> Self::Output {

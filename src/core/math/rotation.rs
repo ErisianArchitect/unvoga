@@ -106,6 +106,14 @@ impl Rotation {
         }
     }
 
+    pub fn mul(self, rotation: Self) -> Self {
+        let up = self.up();
+        let fwd = self.forward();
+        let rot_up = rotation.reface(up);
+        let rot_fwd = rotation.reface(fwd);
+        Self::from_up_and_forward(rot_up, rot_fwd).unwrap()
+    }
+
     pub const fn forward(self) -> Direction {
         use Direction::*;
         match self.up() {

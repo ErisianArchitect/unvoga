@@ -35,6 +35,30 @@ impl Orientation {
         }
     }
 
+    pub fn up(self) -> Direction {
+        self.reface(Direction::PosY)
+    }
+
+    pub fn down(self) -> Direction {
+        self.reface(Direction::NegY)
+    }
+
+    pub fn forward(self) -> Direction {
+        self.reface(Direction::NegZ)
+    }
+
+    pub fn backward(self) -> Direction {
+        self.reface(Direction::PosZ)
+    }
+
+    pub fn left(self) -> Direction {
+        self.reface(Direction::NegX)
+    }
+
+    pub fn right(self) -> Direction {
+        self.reface(Direction::PosX)
+    }
+
     /// `reface` can be used to determine where a face will end up after orientation.
     /// First rotates and then flips the face.
     pub fn reface(self, face: Direction) -> Direction {
@@ -77,6 +101,20 @@ impl Orientation {
         let coordmap = maptable::SOURCE_FACE_COORD_TABLE[table_index];
         // todo!("This method doesn't work properly.");
         coordmap.map(uv)
+    }
+
+    pub fn reorient<O: Into<Orientation>>(self, orientation: O) -> Self {
+        // TODO: I think that this might be borked for flipped orientations.
+        //       I'm not sure. But right now it works for non-flipped orientations.
+        let orient: Orientation = orientation.into();
+        let up = self.up();
+        let fwd = self.forward();
+        let reup = orient.reface(up);
+        let refwd = orient.reface(fwd);
+        let flipup = reup.flip(self.flip.flip(orient.flip));
+        let flipfwd = refwd.flip(self.flip.flip(orient.flip));
+        let rot = Rotation::from_up_and_forward(flipup, flipfwd).expect("Failed to create rotation");
+        Orientation::new(rot, self.flip.flip(orient.flip))
     }
 }
 

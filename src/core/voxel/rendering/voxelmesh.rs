@@ -36,6 +36,21 @@ impl MeshData {
         }
     }
 
+    pub fn map_offset(mut self, offset: Vec3) -> Self {
+        self.vertices.iter_mut().for_each(|vert| *vert += offset);
+        self
+    }
+
+    pub fn map_offset_and_orientation(mut self, offset: Vec3, orientation: Orientation) -> Self {
+        self.vertices.iter_mut().for_each(|vert| *vert = orientation.transform(*vert) + offset);
+        self.normals.iter_mut().for_each(|norm| *norm = orientation.transform(*norm));
+        let invert_indices = orientation.flip.xor();
+        if invert_indices {
+            self.indices.reverse();
+        }
+        self
+    }
+
     pub fn map_orientation(mut self, orientation: Orientation) -> Self {
         self.vertices.iter_mut().for_each(|vert| *vert = orientation.transform(*vert));
         self.normals.iter_mut().for_each(|norm| *norm = orientation.transform(*norm));
