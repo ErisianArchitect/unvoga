@@ -542,12 +542,12 @@ impl VoxelWorld {
         let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
         let (chunk_x, chunk_z) = calculate_center_offset(padded_distance, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
         let (region_x, region_z) = calculate_region_min((chunk_x, chunk_z));
-        self.save_world().expect("Failed to save the world");
         let chunk_min = self.chunks.bounds().min;
         // World hasn't moved
         if chunk_min == (chunk_x, chunk_z) {
             return;
         }
+        self.save_world().expect("Failed to save the world");
         // First move regions so that new chunks can be loaded.
         // then move render chunks so that the new chunks can test against the new render bounds
         // then move data chunks
@@ -578,17 +578,17 @@ impl VoxelWorld {
                     }
                     _ => (),
                 }
-                let chunk_y = chunk.section_y();
-                for i in 0..chunk.sections.len() {
-                    let section_y = chunk_y + i as i32;
-                    let section_coord = Coord::new(chunk_x, section_y, chunk_z);
-                    if self.render_chunks.bounds().contains(section_coord) 
-                    && chunk.sections[i].dirty_id.null(){
-                        // let id = self.dirty_queue.insert(section_coord);
-                        // chunk.sections[i].dirty_id = id;
-                        self.mark_section_dirty(section_coord);
-                    }
-                }
+                // let chunk_y = chunk.section_y();
+                // for i in 0..chunk.sections.len() {
+                //     let section_y = chunk_y + i as i32;
+                //     let section_coord = Coord::new(chunk_x, section_y, chunk_z);
+                //     if self.render_chunks.bounds().contains(section_coord) 
+                //     && chunk.sections[i].dirty_id.null(){
+                //         // let id = self.dirty_queue.insert(section_coord);
+                //         // chunk.sections[i].dirty_id = id;
+                //         self.mark_section_dirty(section_coord);
+                //     }
+                // }
                 chunk.edit_time = region.get_timestamp((x & 31, z & 31));
             }
             chunk.block_offset.x = x * 16;
@@ -607,11 +607,18 @@ impl VoxelWorld {
                 self.move_render_chunk_queue.remove(old_id);
             }
             rendchunk.move_id = self.move_render_chunk_queue.insert(Coord::from(new_pos));
-            // let sect = self.get_section_mut(new_pos.into()).expect("failed to get section in render_chunks.reposition");
-            // sect.light_dirty.mark();
-            // sect.blocks_dirty.mark();
-            // sect.section_dirty.mark();
-            // self.mark_section_dirty(new_pos.into());
+            let section_coord: Coord = new_pos.into();
+            let sect = self.get_section_mut(new_pos.into()).expect("failed to get section in render_chunks.reposition");
+            sect.light_dirty.mark();
+            sect.blocks_dirty.mark();
+            sect.section_dirty.mark();
+            let Some(mut block_chunk) = self.chunks.get_mut(section_coord.xz()) else {
+                panic!("Chunk was None");
+            };
+            let section_index = (section_coord.y - block_chunk.section_y()) as usize;
+            if block_chunk.sections[section_index].dirty_id.null() {
+                block_chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
+            }
             chunk
         });
         self.render_chunks.give(render_chunks);

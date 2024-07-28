@@ -60,6 +60,9 @@ impl<T,M: Copy> ObjectPool<T,M> {
         if id.pool_id() != self.id {
             panic!("Id does not belong to this pool.");
         }
+        if self.indices.len() == 0 {
+            return;
+        }
         let pool_index = self.indices[id.index()];
         if self.pool[pool_index].0.0 != id.0 {
             panic!("Dead pool ID");
