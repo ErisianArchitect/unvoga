@@ -18,6 +18,7 @@ use super::section::{LightChange, Section, StateChange};
 use super::update::{BlockUpdateQueue, UpdateRef};
 
 use crate::core::collections::objectpool::{ObjectPool, PoolId};
+use crate::core::math::aabb::AABB;
 use crate::core::math::grid::{calculate_region_min, calculate_region_requirement};
 use crate::core::util::lend::Lend;
 use crate::core::voxel::region::regionfile::RegionFile;
@@ -176,6 +177,28 @@ impl VoxelWorld {
             update_modification_map: HashMap::new(),
             move_render_chunk_queue: Lend::new(ObjectPool::new()),
         }.initial_load()
+    }
+
+    pub fn render_bounds_aabb(&self) -> AABB {
+        let render_bounds = self.render_bounds();
+        let (minx, miny, minz) = render_bounds.min;
+        let (minx, miny, minz) = (minx as f32, miny as f32, minz as f32);
+        let (maxx, maxy, maxz) = render_bounds.max;
+        let (maxx, maxy, maxz) = (maxx as f32, maxy as f32, maxz as f32);
+        AABB::new(vec3(minx, miny, minz), vec3(maxx, maxy, maxz))
+    }
+
+    pub fn raycast(&self, ray: Ray3d, max_distance: f32) -> Option<IVec3> {
+        let render_bounds = self.render_bounds_aabb();
+        
+        let mut current = Id::AIR;
+        loop {
+
+            if current != Id::AIR {
+                break;
+            }
+        }
+        todo!()
     }
 
     fn get_region_path(&self, region_x: i32, region_z: i32) -> PathBuf {
