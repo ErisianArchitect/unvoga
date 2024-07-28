@@ -94,6 +94,23 @@ pub struct VoxelWorld {
     render_distance: i32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RaycastResult {
+    pub coord: Coord,
+    pub direction: Option<Direction>,
+    pub id: Id,
+}
+
+impl RaycastResult {
+    pub const fn new(coord: Coord, direction: Option<Direction>, id: Id) -> Self {
+        Self {
+            coord,
+            direction,
+            id
+        }
+    }
+}
+
 impl VoxelWorld {
     /// The maximum bounds of the world.
     pub const WORLD_BOUNDS: Bounds3D = Bounds3D {
@@ -155,6 +172,8 @@ impl VoxelWorld {
                     (pos.y * 16) as f32,
                     (pos.z * 16) as f32
                 );
+                use bevy::render::primitives::Aabb;
+                let aabb = Aabb::from_min_max(vec3(0.0, 0.0, 0.0), vec3(16.0, 16.0, 16.0));
                 let entity = commands.spawn((
                     MaterialMeshBundle {
                         mesh: mesh.clone(),
@@ -162,6 +181,7 @@ impl VoxelWorld {
                         material: material.clone(),
                         ..Default::default()
                     },
+                    aabb,
                     RenderChunkMarker
                 )).id();
                 Some(RenderChunk {
@@ -189,124 +209,259 @@ impl VoxelWorld {
         AABB::new(vec3(minx, miny, minz), vec3(maxx, maxy, maxz))
     }
 
-    pub fn raycast_filter<F: Fn(&Self, Coord, Id) -> bool>(&self, ray: Ray3d, max_distance: f32, filter: F) -> Option<(Coord, Id)> {
-        let render_bounds = self.render_bounds_aabb();
-        let ray = if render_bounds.contains(ray.origin) {
-            ray
+    pub fn raycast_filter<F: FnMut(&Self, Coord, Id) -> bool>(&self, ray: Ray3d, max_distance: f32, filter: F) -> Option<RaycastResult> {
+        let mut filter = filter;
+        let stepx = if ray.direction.x > 0.0 {
+            Some(1i32)
+        } else if ray.direction.x < 0.0 {
+            Some(-1i32)
         } else {
-            let origin = render_bounds.intersection_point(ray)?;
-            Ray3d::new(origin, ray.direction.into())
+            None
         };
-        let (mut x, mut y, mut z) = (
-            ray.origin.x.floor(),
-            ray.origin.y.floor(),
-            ray.origin.z.floor()
+        let stepy = if ray.direction.y > 0.0 {
+            Some(1i32)
+        } else if ray.direction.y < 0.0 {
+            Some(-1i32)
+        } else {
+            None
+        };
+        let stepz = if ray.direction.z > 0.0 {
+            Some(1i32)
+        } else if ray.direction.z < 0.0 {
+            Some(-1i32)
+        } else {
+            None
+        };
+        let mut current = Coord::new(
+            ray.origin.x.floor() as i32,
+            ray.origin.y.floor() as i32,
+            ray.origin.z.floor() as i32
         );
-        let make_coord = |x: f32, y: f32, z: f32| {
-            let (x, y, z) = (x.floor() as i32, y.floor() as i32, z.floor() as i32);
-            Coord::new(x, y, z)
-        };
-        let mut coord = make_coord(x, y, z);
-        let ray_end = ray.origin + (ray.direction * max_distance);
-        let mut last_coord = make_coord(
-            ray_end.x,
-            ray_end.y,
-            ray_end.z
-        );
-        let state = self.get_block(coord);
-        if filter(self, coord, state) {
-            let mut current = state;
-            let orientation = current.block().orientation(self, coord, current);
-            if current != Id::AIR && current.block().raycast(self, coord, current, orientation) {
-                return Some((coord, current));
+        let dirfrac = AABB::calc_dirfrac(ray);
+        let id = self.get_block(current);
+        if filter(self, current, id) {
+            let orientation = id.block().orientation(self, current, id);
+            if id.block().raycast(self, current, id, orientation) {
+                return Some(RaycastResult::new(current, None, id));
             }
         }
-        let mut stepx = if ray.direction.x > 0.0 { 1.0f32 } else { -1.0f32 };
-        let mut stepy = if ray.direction.y > 0.0 { 1.0f32 } else { -1.0f32 };
-        let mut stepz = if ray.direction.z > 0.0 { 1.0f32 } else { -1.0f32 };
-        let next_vox_bound_x = x + stepx;
-        let next_vox_bound_y = y + stepy;
-        let next_vox_bound_z = z + stepz;
-        let (mut tmaxx, tdeltax) = if f32_not_zero(ray.direction.x) {
-            (
-                (next_vox_bound_x - ray.origin.x) / ray.direction.x,
-                1.0 / ray.direction.x * stepx
-            )
-        } else {
-            (f32::MAX, f32::MAX)
-        };
-        let (mut tmaxy, tdeltay) = if f32_not_zero(ray.direction.y) {
-            (
-                (next_vox_bound_y - ray.origin.y) / ray.direction.y,
-                1.0 / ray.direction.y * stepy
-            )
-        } else {
-            (f32::MAX, f32::MAX)
-        };
-        let (mut tmaxz, tdeltaz) = if f32_not_zero(ray.direction.z) {
-            (
-                (next_vox_bound_z - ray.origin.z) / ray.direction.z,
-                1.0 / ray.direction.z * stepz
-            )
-        } else {
-            (f32::MAX, f32::MAX)
-        };
-        let mut diff = (0, 0, 0);
-        let mut neg_ray = false;
-        if coord.x != last_coord.x && ray.direction.x < 0.0 {
-            diff.0 -= 1;
-            neg_ray = true;
-        }
-        if coord.y != last_coord.y && ray.direction.y < 0.0 {
-            diff.1 -= 1;
-            neg_ray = true;
-        }
-        if coord.z != last_coord.z && ray.direction.z < 0.0 {
-            diff.2 -= 1;
-            neg_ray = true;
-        }
-        if neg_ray {
-            coord.x += diff.0;
-            coord.y += diff.1;
-            coord.z += diff.2;
-            let state = self.get_block(coord);
-            if filter(self, coord, state) {
-                let orientation = state.block().orientation(self, coord, state);
-                if state != Id::AIR && state.block().raycast(self, coord, state, orientation) {
-                    return Some((coord, state));
+        let mut iterations = 0u64;
+        let max_iterations = max_distance as u64;
+        loop {
+            iterations += 1;
+            if iterations > max_iterations {
+                return None;
+            }
+            if let Some(stepx) = stepx {
+                let xcoord = (
+                    current.x + stepx,
+                    current.y,
+                    current.z
+                );
+                let aabb = AABB::voxel(xcoord);
+                if let Some(dist) = aabb.intersects_frac(ray, dirfrac) {
+                    if dist > max_distance {
+                        return None;
+                    }
+                    let id = self.get_block(xcoord);
+                    let xcoord = Coord::from(xcoord);
+                    if filter(self, xcoord, id) {
+                        let orientation = id.block().orientation(self, xcoord, id);
+                        if id.block().raycast(self, xcoord, id, orientation) {
+                            let direction = match stepx {
+                                1 => Direction::NegX,
+                                -1 => Direction::PosX,
+                                _ => unreachable!()
+                            };
+                            return Some(RaycastResult::new(xcoord, Some(direction), id));
+                        }
+                    }
+                    current.x += stepx;
+                    continue;
                 }
             }
-        }
-        while coord != last_coord {
-            if tmaxx < tmaxy {
-                if tmaxx < tmaxz {
-                    coord.x += stepx as i32;
-                    tmaxx += tdeltax;
-                } else {
-                    coord.z += stepz as i32;
-                    tmaxz += tdeltaz;
-                }
-            } else {
-                if tmaxy < tmaxz {
-                    coord.y += stepy as i32;
-                    tmaxy += tdeltay;
-                } else {
-                    coord.z += stepz as i32;
-                    tmaxz += tdeltaz;
+            if let Some(stepz) = stepz {
+                let stepcoord = (
+                    current.x,
+                    current.y,
+                    current.z + stepz
+                );
+                let aabb = AABB::voxel(stepcoord);
+                if let Some(dist) = aabb.intersects_frac(ray, dirfrac) {
+                    if dist > max_distance {
+                        return None;
+                    }
+                    let id = self.get_block(stepcoord);
+                    let stepcoord = Coord::from(stepcoord);
+                    if filter(self, stepcoord, id) {
+                        let orientation = id.block().orientation(self, stepcoord, id);
+                        if id.block().raycast(self, stepcoord, id, orientation) {
+                            let direction = match stepz {
+                                1 => Direction::NegZ,
+                                -1 => Direction::PosZ,
+                                _ => unreachable!()
+                            };
+                            return Some(RaycastResult::new(stepcoord, Some(direction), id));
+                        }
+                    }
+                    current.z += stepz;
+                    continue;
                 }
             }
-            let state = self.get_block(coord);
-            if filter(self, coord, state) {
-                let orientation = state.block().orientation(self, coord, state);
-                if state != Id::AIR && state.block().raycast(self, coord, state, orientation) {
-                    return Some((coord, state));
+            if let Some(stepy) = stepy {
+                let stepcoord = (
+                    current.x,
+                    current.y + stepy,
+                    current.z
+                );
+                let aabb = AABB::voxel(stepcoord);
+                if let Some(dist) = aabb.intersects_frac(ray, dirfrac) {
+                    if dist > max_distance {
+                        return None;
+                    }
+                    let id = self.get_block(stepcoord);
+                    let stepcoord = Coord::from(stepcoord);
+                    if filter(self, stepcoord, id) {
+                        let orientation = id.block().orientation(self, stepcoord, id);
+                        if id.block().raycast(self, stepcoord, id, orientation) {
+                            let direction = match stepy {
+                                1 => Direction::NegY,
+                                -1 => Direction::PosY,
+                                _ => unreachable!()
+                            };
+                            return Some(RaycastResult::new(stepcoord, Some(direction), id));
+                        }
+                    }
+                    current.y += stepy;
+                    continue;
                 }
             }
         }
         None
+        // let mut filter = filter;
+        // let render_bounds = self.render_bounds_aabb();
+        // let ray = if render_bounds.contains(ray.origin) {
+        //     ray
+        // } else {
+        //     let origin = render_bounds.intersection_point(ray)?;
+        //     Ray3d::new(origin, ray.direction.into())
+        // };
+        // let (mut x, mut y, mut z) = (
+        //     ray.origin.x.floor(),
+        //     ray.origin.y.floor(),
+        //     ray.origin.z.floor()
+        // );
+        // let make_coord = |x: f32, y: f32, z: f32| {
+        //     let (x, y, z) = (x.floor() as i32, y.floor() as i32, z.floor() as i32);
+        //     Coord::new(x, y, z)
+        // };
+        // let mut coord = make_coord(x, y, z);
+        // let ray_end = ray.origin + (ray.direction * max_distance);
+        // let mut last_coord = make_coord(
+        //     ray_end.x,
+        //     ray_end.y,
+        //     ray_end.z
+        // );
+        // let state = self.get_block(coord);
+        // if filter(self, coord, state) {
+        //     let mut current = state;
+        //     let orientation = current.block().orientation(self, coord, current);
+        //     if current != Id::AIR && current.block().raycast(self, coord, current, orientation) {
+        //         return Some((coord, current));
+        //     }
+        // }
+        // let mut stepx = if ray.direction.x > 0.0 { 1.0f32 } else if ray.direction.x < 0.0 { -1.0f32 } else { 0.0 };
+        // let mut stepy = if ray.direction.y > 0.0 { 1.0f32 } else if ray.direction.y < 0.0 { -1.0f32 } else { 0.0 };
+        // let mut stepz = if ray.direction.z > 0.0 { 1.0f32 } else if ray.direction.z < 0.0 { -1.0f32 } else { 0.0 };
+        // let next_vox_bound_x = x + stepx;
+        // let next_vox_bound_y = y + stepy;
+        // let next_vox_bound_z = z + stepz;
+        // let (mut tmaxx, tdeltax) = if f32_not_zero(ray.direction.x) {
+        //     (
+        //         (next_vox_bound_x - ray.origin.x) / ray.direction.x,
+        //         1.0 / ray.direction.x/*  * stepx */
+        //     )
+        // } else {
+        //     (f32::MAX, f32::MAX)
+        // };
+        // let (mut tmaxy, tdeltay) = if f32_not_zero(ray.direction.y) {
+        //     (
+        //         (next_vox_bound_y - ray.origin.y) / ray.direction.y,
+        //         1.0 / ray.direction.y/*  * stepy */
+        //     )
+        // } else {
+        //     (f32::MAX, f32::MAX)
+        // };
+        // let (mut tmaxz, tdeltaz) = if f32_not_zero(ray.direction.z) {
+        //     (
+        //         (next_vox_bound_z - ray.origin.z) / ray.direction.z,
+        //         1.0 / ray.direction.z/*  * stepz */
+        //     )
+        // } else {
+        //     (f32::MAX, f32::MAX)
+        // };
+        // let mut diff = (0, 0, 0);
+        // let mut neg_ray = false;
+        // if coord.x != last_coord.x && ray.direction.x < 0.0 {
+        //     diff.0 -= 1;
+        //     neg_ray = true;
+        // }
+        // if coord.y != last_coord.y && ray.direction.y < 0.0 {
+        //     diff.1 -= 1;
+        //     neg_ray = true;
+        // }
+        // if coord.z != last_coord.z && ray.direction.z < 0.0 {
+        //     diff.2 -= 1;
+        //     neg_ray = true;
+        // }
+        // let mut previous = coord;
+        // // if neg_ray {
+        // //     coord.x += diff.0;
+        // //     coord.y += diff.1;
+        // //     coord.z += diff.2;
+        // //     let state = self.get_block(coord);
+        // //     if filter(self, coord, state) {
+        // //         let orientation = state.block().orientation(self, coord, state);
+        // //         if state != Id::AIR && state.block().raycast(self, coord, state, orientation) {
+        // //             return Some((coord, state));
+        // //         }
+        // //     }
+        // // }
+        // let mut iterations = 064;
+        // while coord != last_coord {
+        //     iterations += 1;
+        //     if iterations == 1000 {
+        //         return None;
+        //     }
+        //     if tmaxx < tmaxy {
+        //         if tmaxx < tmaxz {
+        //             coord.x += stepx as i32;
+        //             tmaxx += tdeltax;
+        //         } else {
+        //             coord.z += stepz as i32;
+        //             tmaxz += tdeltaz;
+        //         }
+        //     } else {
+        //         if tmaxy < tmaxz {
+        //             coord.y += stepy as i32;
+        //             tmaxy += tdeltay;
+        //         } else {
+        //             coord.z += stepz as i32;
+        //             tmaxz += tdeltaz;
+        //         }
+        //     }
+        //     let state = self.get_block(coord);
+        //     if filter(self, coord, state) {
+        //         let orientation = state.block().orientation(self, coord, state);
+        //         if state != Id::AIR && state.block().raycast(self, coord, state, orientation) {
+        //             return Some((coord, state));
+        //         }
+        //     }
+        // }
+        // None
     }
 
-    pub fn raycast(&self, ray: Ray3d, max_distance: f32) -> Option<(Coord, Id)> {
+    pub fn raycast(&self, ray: Ray3d, max_distance: f32) -> Option<RaycastResult> {
         self.raycast_filter(ray, max_distance, |_, _, _| true)
     }
 
@@ -600,14 +755,14 @@ impl VoxelWorld {
         self
     }
 
-    fn mark_section_dirty(&mut self, section_coord: Coord) {
+    pub fn mark_section_dirty(&mut self, section_coord: Coord) {
         let block_y = section_coord.y * 16;
         if !self.render_chunks.bounds().contains(section_coord)
         || block_y < WORLD_BOTTOM
         || block_y >= WORLD_TOP {
             return;
         }
-        let Some(mut chunk) = self.chunks.take(section_coord.xz()) else {
+        let Some(mut chunk) = self.chunks.get_mut(section_coord.xz()) else {
             panic!("Chunk was None");
         };
         let section_index = (section_coord.y - chunk.section_y()) as usize;
@@ -615,7 +770,7 @@ impl VoxelWorld {
             chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
         }
         
-        self.chunks.set(section_coord.xz(), chunk);
+        // self.chunks.set(section_coord.xz(), chunk);
     }
 
     fn mark_modified(&mut self, chunk_coord: ChunkCoord) {
@@ -638,7 +793,7 @@ impl VoxelWorld {
     }
 
     
-    fn get_section(&self, section_coord: Coord) -> Option<&Section> {
+    pub fn get_section(&self, section_coord: Coord) -> Option<&Section> {
         let chunk = self.chunks.get((section_coord.x, section_coord.z))?;
         let y = section_coord.y - chunk.block_offset.y >> 4;
         if y < 0 || y as usize >= chunk.sections.len() {
@@ -648,7 +803,7 @@ impl VoxelWorld {
     }
 
     
-    fn get_section_mut(&mut self, section_coord: Coord) -> Option<&mut Section> {
+    pub fn get_section_mut(&mut self, section_coord: Coord) -> Option<&mut Section> {
         let chunk = self.chunks.get_mut((section_coord.x, section_coord.z))?;
         let y = section_coord.y - chunk.block_offset.y >> 4;
         if y < 0 || y as usize >= chunk.sections.len() {
@@ -778,10 +933,17 @@ impl VoxelWorld {
                     self.set_update_ref(coord, UpdateRef::NULL);
                     self.update_queue.remove(cur_ref);
                 }
+                self.mark_modified(coord.chunk_coord());
+                if change.marked_dirty {
+                    if self.render_bounds().contains(coord) {
+                        let section_coord = coord.section_coord();
+                        // self.dirty_sections.push(section_coord);
+                        self.mark_section_dirty(section_coord);
+                    }
+                }
                 let block = state.block();
                 let my_layer = block.layer(self, coord, state);
                 let my_orient = block.orientation(self, coord, state);
-                let my_occluder = block.occluder(self, state);
                 let my_occl = block.occluder(self, state);
                 let my_occlee = block.occludee(self, state);
                 let neighbors = self.neighbors(coord);
@@ -802,24 +964,21 @@ impl VoxelWorld {
                     let adj_occl = adj_block.occluder(self, adj_state);
                     let adj_occlee = adj_block.occludee(self, adj_state);
                     if my_occlee.occluded_by(my_orient, adj_dir, adj_occl, adj_orient) {
+                        // println!("My Hide face {coord} {dir}");
                         self.hide_face(coord, dir);
                     } else {
+                        // println!("My Show face {coord} {dir}");
                         self.show_face(coord, dir);
                     }
                     if adj_occlee.occluded_by(adj_orient, adj_dir, my_occl, my_orient) {
+                        // println!("Adj Hide face {adj_coord} {dir}");
                         self.hide_face(adj_coord, adj_dir);
                     } else {
+                        // println!("Adj Show face {adj_coord} {dir}");
                         self.show_face(adj_coord, adj_dir);
                     }
                 });
-                self.mark_modified(coord.chunk_coord());
-                if change.marked_dirty {
-                    if self.render_bounds().contains(coord) {
-                        let section_coord = coord.section_coord();
-                        // self.dirty_sections.push(section_coord);
-                        self.mark_section_dirty(section_coord);
-                    }
-                }
+                
                 old
             },
         }
@@ -861,11 +1020,11 @@ impl VoxelWorld {
         let change = chunk.show_face(coord, face);
         if change.change {
             self.mark_modified(coord.chunk_coord());
-        }
-        if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
-                // self.dirty_sections.push(section_coord);
+                let sect = self.get_section_mut(section_coord).unwrap();
+                sect.blocks_dirty.mark();
+                sect.section_dirty.mark();
                 self.mark_section_dirty(section_coord);
             }
         }
@@ -884,11 +1043,11 @@ impl VoxelWorld {
         let change = chunk.hide_face(coord, face);
         if !change.change {
             self.mark_modified(coord.chunk_coord());
-        }
-        if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
-                // self.dirty_sections.push(section_coord);
+                let sect = self.get_section_mut(section_coord).unwrap();
+                sect.blocks_dirty.mark();
+                sect.section_dirty.mark();
                 self.mark_section_dirty(section_coord);
             }
         }
@@ -969,7 +1128,6 @@ impl VoxelWorld {
         if change.marked_dirty {
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
-                // self.dirty_sections.push(section_coord);
                 self.mark_section_dirty(section_coord);
             }
         }
@@ -1214,7 +1372,7 @@ impl VoxelWorld {
         cast_coord!(coord);
         use Direction::*;
         macro_rules! get_faces {
-            ($(@$dir:expr),*) => {
+            ($($dir:expr),*) => {
                 Faces::new(
                     $(
                         if let Some(next) = coord.checked_neighbor($dir) {
@@ -1227,12 +1385,12 @@ impl VoxelWorld {
             };
         }
         get_faces!(
-            @NegX,
-            @NegY,
-            @NegZ,
-            @PosX,
-            @PosY,
-            @PosZ
+            NegX,
+            NegY,
+            NegZ,
+            PosX,
+            PosY,
+            PosZ
         )
     }
 

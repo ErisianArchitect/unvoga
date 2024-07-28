@@ -151,6 +151,7 @@ impl SectorManager {
 
     pub fn reallocate(&mut self, free: SectorOffset, new_size: BlockSize) -> Option<SectorOffset> {
         if new_size.0 == 0 {
+            println!("Size is 0");
             return None;
         }
 

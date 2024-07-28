@@ -374,7 +374,8 @@ fn menu(
 
 }
 
-fn update(
+fn 
+update(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut rotation: ResMut<CameraRotation>,

@@ -273,6 +273,7 @@ impl Section {
         if !old {
             self.blocks_dirty.mark();
             if self.section_dirty.mark() {
+                println!("Show mark dirty");
                 return SectionUpdate::new_dirty(old);
             }
         }
@@ -293,6 +294,7 @@ impl Section {
         if old {
             self.blocks_dirty.mark();
             if self.section_dirty.mark() {
+                println!("Hide mark dirty");
                 return SectionUpdate::new_dirty(old);
             }
         }

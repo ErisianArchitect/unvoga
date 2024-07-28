@@ -18,7 +18,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    const SECTION_COUNT: usize = WORLD_HEIGHT / 16;
+    const SECTION_COUNT: usize = WORLD_HEIGHT >> 4;
     
     pub fn new(offset: Coord) -> Self {
         Self {
@@ -55,13 +55,13 @@ impl Chunk {
 
     
     pub fn get_update_ref(&self, coord: Coord) -> UpdateRef {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].get_update_ref(coord)
     }
 
     
     pub fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> UpdateRef {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         let old = self.sections[section_index].set_update_ref(coord, value);
         if old != value {
             self.mark_modified();
@@ -71,7 +71,7 @@ impl Chunk {
 
     
     pub fn query<'a, T: VoxelQuery<'a>>(&'a self, coord: Coord) -> T::Output {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].query::<T>(coord)
     }
 
@@ -79,7 +79,7 @@ impl Chunk {
     pub fn get_block(&self, coord: Coord) -> Id {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].get_block(coord)
     }
 
@@ -87,7 +87,7 @@ impl Chunk {
     pub fn set_block(&mut self, coord: Coord, value: Id) -> SectionUpdate<StateChange> {
         // no bounds check because this will only be called by
         // the world, which will already be bounds checked.
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         let nonair = value != Id::AIR;
         self.heightmap.set(Coord::new(coord.x, coord.y - self.block_offset.y, coord.z), nonair);
         let update = self.sections[section_index].set_block(coord, value);
@@ -99,52 +99,50 @@ impl Chunk {
 
     
     pub fn occlusion(&self, coord: Coord) -> Occlusion {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].occlusion(coord)
     }
 
     
     pub fn face_visible(&self, coord: Coord, face: Direction) -> bool {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].face_visible(coord, face)
     }
 
     
     pub fn show_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         // We don't mark the chunk as modified for occlusion updates.
         self.sections[section_index].show_face(coord, face)
     }
 
     
     pub fn hide_face(&mut self, coord: Coord, face: Direction) -> SectionUpdate<bool> {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         // We don't mark the chunk as modified for occlusion updates.
         self.sections[section_index].hide_face(coord, face)
     }
     
     /// Returns the maximum of the block light and sky light.
-    
     pub fn get_light(&self, coord: Coord) -> u8 {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].get_light(coord)
     }
 
-    
     pub fn get_block_light(&self, coord: Coord) -> u8 {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].get_block_light(coord)
     }
 
     
     pub fn get_sky_light(&self, coord: Coord) -> u8 {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].get_sky_light(coord)
     }
 
     
     pub fn set_block_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         let update = self.sections[section_index].set_block_light(coord, level);
         if update.change.changed() {
             self.mark_modified();
@@ -154,7 +152,7 @@ impl Chunk {
 
     
     pub fn set_sky_light(&mut self, coord: Coord, level: u8) -> SectionUpdate<LightChange> {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         let update = self.sections[section_index].set_sky_light(coord, level);
         if update.change.changed() {
             self.mark_modified();
@@ -164,31 +162,31 @@ impl Chunk {
 
     
     pub fn get_data(&self, coord: Coord) -> Option<&Tag> {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].get_data(coord)
     }
 
     
     pub fn get_data_mut(&mut self, coord: Coord) -> Option<&mut Tag> {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].get_data_mut(coord)
     }
 
     
     pub fn get_or_insert_data(&mut self, coord: Coord, default: Tag) -> &mut Tag {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].get_or_insert_data(coord, default)
     }
 
     
     pub fn get_or_insert_data_with<T: Into<Tag>, F: FnOnce() -> T>(&mut self, coord: Coord, f: F) -> &mut Tag {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.sections[section_index].get_or_insert_data_with(coord, f)
     }
 
     
     pub fn delete_data(&mut self, coord: Coord) -> Option<Tag> {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         let data = self.sections[section_index].delete_data(coord);
         if data.is_some() {
             self.mark_modified();
@@ -198,7 +196,7 @@ impl Chunk {
 
     
     pub fn set_data(&mut self, coord: Coord, tag: Tag) -> Option<Tag> {
-        let section_index = (coord.y - self.block_offset.y) as usize / 16;
+        let section_index = (coord.y - self.block_offset.y) as usize >> 4;
         self.mark_modified();
         self.sections[section_index].set_data(coord, tag)
     }

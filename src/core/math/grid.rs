@@ -52,7 +52,7 @@ pub fn round_down_to_multiple_of_32(value: i32) -> i32 {
 
 pub fn calculate_region_requirement(chunk_width: i32) -> i32 {
     let rd32 = round_up_to_multiple_of_32(chunk_width);
-    let rdw = rd32 / 32;
+    let rdw = rd32 >> 5;
     (rdw + 1)
 }
 
@@ -60,8 +60,8 @@ pub fn calculate_region_requirement(chunk_width: i32) -> i32 {
 
 pub fn calculate_region_min(world_chunk_min: (i32, i32)) -> (i32, i32) {
     (
-        round_down_to_multiple_of_32(world_chunk_min.0) / 32,
-        round_down_to_multiple_of_32(world_chunk_min.1) / 32
+        round_down_to_multiple_of_32(world_chunk_min.0) >> 5,
+        round_down_to_multiple_of_32(world_chunk_min.1) >> 5
     )
 }
 

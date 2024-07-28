@@ -4,16 +4,17 @@ use std::sync::LazyLock;
 use std::time::Instant;
 use std::{sync::Arc, thread, time::Duration};
 
+use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::app::DynEq;
 use bevy::math::{vec2, vec3, IVec2};
-use bevy::window::PresentMode;
+use bevy::window::{CursorGrabMode, PresentMode, PrimaryWindow};
 use bevy_egui::EguiPlugin;
 use hashbrown::HashMap;
 use rollgrid::rollgrid3d::Bounds3D;
 use unvoga::core::voxel::rendering::voxelmaterial::VoxelMaterial;
 use unvoga::core::voxel::rendering::voxelmesh::MeshData;
-use unvoga::core::voxel::world::RenderChunkMarker;
+use unvoga::core::voxel::world::{RaycastResult, RenderChunkMarker};
 use unvoga::prelude::*;
 use unvoga::core::voxel::region::regionfile::RegionFile;
 use unvoga::prelude::*;
@@ -55,6 +56,7 @@ pub fn main() {
         .add_plugins(MaterialPlugin::<VoxelMaterial>::default())
         .add_systems(Startup, setup)
         .add_systems(Update, update)
+        .add_systems(Update, update_input.before(update))
         // .add_systems(Update, menu.before(update))
         // .add_systems(Update, loading_screen.run_if(in_state(GameState::LoadingScreen)))
         // .add_systems(Update, main_menu.run_if(in_state(GameState::MainMenu)))
@@ -205,6 +207,8 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut window: Query<&mut Window, With<PrimaryWindow>>,
+    asset_server: Res<AssetServer>,
 ) {
     let side_texture_paths = vec![
         "./assets/debug/textures/cube_sides/pos_y.png",
@@ -242,7 +246,7 @@ fn setup(
     blocks::register_block(DebugBlock);
     let mut world = VoxelWorld::open(
         "ignore/test_world",
-        16,
+        12,
         (0, 0, 0),
         cube_sides_texarray.clone(),
         &mut commands,
@@ -261,40 +265,93 @@ fn setup(
     //         }
     //     }
     // }
+    let rot = Quat::from_axis_angle(Vec3::Y, 0.0) * Quat::from_axis_angle(Vec3::NEG_X, 0.0);
     commands.spawn((
-        TransformBundle::from_transform(
-            Transform::from_xyz(0.0, 0.0, 0.0)
-                // .with_rotation(rot)
-        ),
-        // CameraAnchor,
-    )).with_children(|parent| {
-        let camera3d_bundle = Camera3dBundle {
+        Camera3dBundle {
             projection: PerspectiveProjection {
                 fov: 45.0,
                 aspect_ratio: 1.0,
                 far: 1000.0,
                 near: 0.01,
             }.into(),
-            transform: Transform::from_xyz(0.0, 0.0, 5.0)
-                .looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(0.0, 0.0, 0.0)
+                .with_rotation(rot),
             ..default()
-        };
-        parent.spawn((
-            camera3d_bundle,
-        ));
-    });
+        },
+        CameraMarker
+    ));
+
+    commands.spawn(
+        SpriteBundle {
+            texture: asset_server.load("debug/textures/cube_sides/pos_y.png"),
+            transform: Transform::from_xyz(0.0, 0.0, 0.0),
+            sprite: Sprite {
+                anchor: bevy::sprite::Anchor::Center,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    );
+
+    let mut primary = window.get_single_mut().unwrap();
+    primary.cursor.grab_mode = CursorGrabMode::Locked;
+    primary.cursor.visible = false;
+    commands.insert_resource(CameraRotation::default());
     commands.insert_resource(VoxelWorldRes { world });
+    commands.insert_resource(CameraLocation { position: Vec3::ZERO });
 }
 
-fn update(
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<VoxelMaterial>>,
-    mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
-    mut world: ResMut<VoxelWorldRes>,
+fn update_input(
+    mut evr_motion: EventReader<MouseMotion>,
+    mouse_buttons: Res<ButtonInput<MouseButton>>,
+    mut camera: Query<&mut Transform, With<CameraMarker>>,
+    mut camrot: ResMut<CameraRotation>,
+    time: Res<Time>,
+    mut campos: ResMut<CameraLocation>,
     keys: Res<ButtonInput<KeyCode>>,
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    mut app_exit_events: ResMut<Events<bevy::app::AppExit>>,
+    mut world: ResMut<VoxelWorldRes>,
 ) {
-    // I for Ingage (lol, yes I know it's spelled wrong)
-    let now = Instant::now();
+    
+    if keys.just_pressed(KeyCode::Escape) {
+        app_exit_events.send(bevy::app::AppExit);
+    }
+    let dt = time.delta_seconds();
+    let mut mouse_motion: Vec2 = evr_motion.read()
+        .map(|ev| ev.delta).sum();
+
+    camrot.x -= mouse_motion.x * dt * 0.05;
+    camrot.y += mouse_motion.y * dt * 0.05;
+    let mut transform = camera.get_single_mut().unwrap();
+    transform.rotation = Quat::from_axis_angle(Vec3::Y, camrot.x) * Quat::from_axis_angle(Vec3::NEG_X, camrot.y);
+    
+    let mut translation = Vec3::ZERO;
+    const MOVE_SPEED: f32 = 7.0;
+    
+    if keys.pressed(KeyCode::KeyW) {
+        translation += transform.forward() * dt * MOVE_SPEED;
+    }
+
+    if keys.pressed(KeyCode::KeyS) {
+        translation += transform.back() * dt * MOVE_SPEED;
+    }
+
+    if keys.pressed(KeyCode::KeyA) {
+        translation += transform.left() * dt * MOVE_SPEED;
+    }
+
+    if keys.pressed(KeyCode::KeyE) {
+        translation += Vec3::Y * dt * MOVE_SPEED;
+    }
+
+    if keys.pressed(KeyCode::KeyQ) {
+        translation += Vec3::NEG_Y * dt * MOVE_SPEED;
+    }
+
+    if keys.pressed(KeyCode::KeyD) {
+        translation += transform.right() * dt * MOVE_SPEED;
+    }
     if keys.just_pressed(KeyCode::KeyI) {
         let dirt = blockstate!(dirt).register();
         for y in 0..16 {
@@ -305,6 +362,7 @@ fn update(
                 }
             }
         }
+        println!("Set Blocks");
     }
     // U for Ungage
     if keys.just_pressed(KeyCode::KeyU) {
@@ -317,18 +375,91 @@ fn update(
             }
         }
     }
-    if keys.just_pressed(KeyCode::KeyR) {
-        let ray = Ray3d::new(Vec3::ZERO, Vec3::NEG_Z);
-        if let Some((coord, id)) = world.world.raycast(ray, 100.0) {
-            println!("Hit {id} at {coord}");
+    // if keys.just_pressed(KeyCode::KeyR) {
+    //     let ray = Ray3d::new(Vec3::ZERO, Vec3::NEG_Z);
+    //     if let Some((coord, id)) = world.world.raycast(ray, 100.0) {
+    //         println!("Hit {id} at {coord}");
+    //     }
+    // }
+    if mouse_buttons.just_pressed(MouseButton::Left) {
+        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+            if let Some(direction) = direction {
+                let next = coord + direction;
+                world.world.set_block(next, blockstate!(dirt).register());
+            } else {
+                println!("No direction");
+            }
         }
     }
+    if mouse_buttons.just_pressed(MouseButton::Right) {
+        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+            world.world.set_block(coord, Id::AIR);
+        }
+    }
+    if keys.just_pressed(KeyCode::Backspace) {
+        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+            // world.world.set_block(coord, Id::AIR);
+            let occlusion = world.world.get_occlusion(coord);
+            println!("Occlusion: {occlusion}");
+        }
+    }
+    if keys.just_pressed(KeyCode::Delete) {
+        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+            // world.world.set_block(coord, Id::AIR);
+            println!("Hit Coord: {coord} Direction: {direction:?} Id: {id}");
+        }
+    }
+    if keys.just_pressed(KeyCode::End) {
+        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+            // world.world.set_block(coord, Id::AIR);
+            let sect = world.world.get_section_mut(coord.section_coord()).unwrap();
+            sect.blocks_dirty.mark();
+            sect.section_dirty.mark();
+            world.world.mark_section_dirty(coord.section_coord());
+        }
+    }
+    transform.translation += translation;
+    campos.position = transform.translation;
+    if keys.just_pressed(KeyCode::Home) {
+        let (x, y, z) = (
+            campos.position.x.floor() as i32,
+            campos.position.y.floor() as i32,
+            campos.position.z.floor() as i32,
+        );
+        world.world.move_center((x, y, z));
+    }
+}
+
+#[derive(Resource)]
+struct CameraLocation {
+    position: Vec3
+}
+
+fn update(
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<VoxelMaterial>>,
+    mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
+    mut world: ResMut<VoxelWorldRes>,
+    keys: Res<ButtonInput<KeyCode>>,
+) {
+    // I for Ingage (lol, yes I know it's spelled wrong)
+    
+    let now = Instant::now();
     // let state = world.world.get_block((0,0,0));
     // world.world.set_block((0, 0, 0), if state.is_air() { blockstate!(dirt).register() } else { Id::AIR });
     world.world.talk_to_bevy(meshes, materials, render_chunks);
     let elapsed = now.elapsed();
-    println!("Frame time: {}", elapsed.as_secs_f64());
+    // println!("Frame time: {}", elapsed.as_secs_f64());
 }
+
+#[derive(Default, Resource)]
+struct CameraRotation {
+    x: f32,
+    y: f32,
+}
+
+#[derive(Component)]
+struct CameraMarker;
 
 #[test]
 fn bitmask_test() {

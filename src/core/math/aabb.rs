@@ -103,6 +103,24 @@ impl AABB {
         let b = orientation.transform(self.max);
         Self::from_bounds(a, b)
     }
+
+    pub fn voxel<C: Into<(i32, i32, i32)>>(coord: C) -> Self {
+        let (x, y, z) = coord.into();
+        let min = vec3(
+            x as f32,
+            y as f32,
+            z as f32,
+        );
+        let max = vec3(
+            (x + 1) as f32,
+            (y + 1) as f32,
+            (z + 1) as f32
+        );
+        Self {
+            min,
+            max
+        }
+    }
 }
 
 #[inline(always)]
