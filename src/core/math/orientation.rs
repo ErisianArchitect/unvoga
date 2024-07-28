@@ -85,7 +85,6 @@ impl Orientation {
     /// x and y of the coord, then pass that offset coord to this function, then add 8 back to the x and y
     /// to get your final coord.
     pub fn map_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
-        // I actually realized that I did this backwards. For what I want, I need to figure out the source coord.
         let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
         let coordmap = maptable::MAP_COORD_TABLE[table_index];
         coordmap.map(uv)
@@ -99,22 +98,22 @@ impl Orientation {
     pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
         let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
         let coordmap = maptable::SOURCE_FACE_COORD_TABLE[table_index];
-        // todo!("This method doesn't work properly.");
         coordmap.map(uv)
     }
 
+    /// Apply an orientation to an orientation.
     pub fn reorient<O: Into<Orientation>>(self, orientation: O) -> Self {
-        // TODO: I think that this might be borked for flipped orientations.
-        //       I'm not sure. But right now it works for non-flipped orientations.
         let orient: Orientation = orientation.into();
         let up = self.up();
         let fwd = self.forward();
         let reup = orient.reface(up);
         let refwd = orient.reface(fwd);
-        let flipup = reup.flip(self.flip.flip(orient.flip));
-        let flipfwd = refwd.flip(self.flip.flip(orient.flip));
-        let rot = Rotation::from_up_and_forward(flipup, flipfwd).expect("Failed to create rotation");
-        Orientation::new(rot, self.flip.flip(orient.flip))
+        // I'm not sure if this is right. But it seems to work in my tests.
+        let flip = self.flip.flip(orient.flip);
+        let flipup = reup.flip(flip);
+        let flipfwd = refwd.flip(flip);
+        let rot = Rotation::from_up_and_forward(flipup, flipfwd).unwrap();
+        Orientation::new(rot, flip)
     }
 }
 
