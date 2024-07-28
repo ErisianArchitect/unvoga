@@ -315,6 +315,7 @@ fn update_input(
 ) {
     
     if keys.just_pressed(KeyCode::Escape) {
+        world.world.save_world();
         app_exit_events.send(bevy::app::AppExit);
     }
     let dt = time.delta_seconds();
@@ -328,29 +329,33 @@ fn update_input(
     
     let mut translation = Vec3::ZERO;
     const MOVE_SPEED: f32 = 7.0;
-    
+    let move_speed = if keys.pressed(KeyCode::ShiftLeft) {
+        MOVE_SPEED * 5.0
+    } else {
+        MOVE_SPEED
+    };
     if keys.pressed(KeyCode::KeyW) {
-        translation += transform.forward() * dt * MOVE_SPEED;
+        translation += transform.forward() * dt * move_speed;
     }
 
     if keys.pressed(KeyCode::KeyS) {
-        translation += transform.back() * dt * MOVE_SPEED;
+        translation += transform.back() * dt * move_speed;
     }
 
     if keys.pressed(KeyCode::KeyA) {
-        translation += transform.left() * dt * MOVE_SPEED;
+        translation += transform.left() * dt * move_speed;
     }
 
     if keys.pressed(KeyCode::KeyE) {
-        translation += Vec3::Y * dt * MOVE_SPEED;
+        translation += Vec3::Y * dt * move_speed;
     }
 
     if keys.pressed(KeyCode::KeyQ) {
-        translation += Vec3::NEG_Y * dt * MOVE_SPEED;
+        translation += Vec3::NEG_Y * dt * move_speed;
     }
 
     if keys.pressed(KeyCode::KeyD) {
-        translation += transform.right() * dt * MOVE_SPEED;
+        translation += transform.right() * dt * move_speed;
     }
     if keys.just_pressed(KeyCode::KeyI) {
         let dirt = blockstate!(dirt).register();
@@ -374,6 +379,12 @@ fn update_input(
                 }
             }
         }
+    }
+    if keys.just_pressed(KeyCode::KeyT) {
+        let dirt = blockstate!(dirt).register();
+        world.world.render_bounds().iter().for_each(|coord| {
+            world.world.set_block(coord, dirt);
+        });
     }
     // if keys.just_pressed(KeyCode::KeyR) {
     //     let ray = Ray3d::new(Vec3::ZERO, Vec3::NEG_Z);
@@ -420,14 +431,12 @@ fn update_input(
     }
     transform.translation += translation;
     campos.position = transform.translation;
-    if keys.just_pressed(KeyCode::Home) {
-        let (x, y, z) = (
-            campos.position.x.floor() as i32,
-            campos.position.y.floor() as i32,
-            campos.position.z.floor() as i32,
-        );
-        world.world.move_center((x, y, z));
-    }
+    let (x, y, z) = (
+        campos.position.x.floor() as i32,
+        campos.position.y.floor() as i32,
+        campos.position.z.floor() as i32,
+    );
+    world.world.move_center((x, y, z));
 }
 
 #[derive(Resource)]

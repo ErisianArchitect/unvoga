@@ -526,6 +526,7 @@ impl VoxelWorld {
         move_render_chunk_queue.drain().for_each(|coord| {
             let rend_chunk = self.render_chunks.get_mut(coord).expect("Render chunk was not found");
             let ent = rend_chunk.entity.clone();
+            rend_chunk.move_id = PoolId::NULL;
             let mut trans = render_chunks.get_mut(ent).expect("Failed to get transform");
             let offset = vec3((coord.x * 16) as f32, (coord.y * 16) as f32, (coord.z * 16) as f32);
             trans.translation = offset;
@@ -551,19 +552,6 @@ impl VoxelWorld {
         // then move render chunks so that the new chunks can test against the new render bounds
         // then move data chunks
         // 
-        let mut render_chunks = self.render_chunks.lend("render_chunks in move_center");
-        render_chunks.reposition((render_x, render_y, render_z), |old_pos, new_pos, mut chunk| {
-            let Some(rendchunk) = &mut chunk  else {
-                panic!("Render chunk was None");
-            };
-            let old_id = rendchunk.move_id;
-            if !old_id.null() {
-                self.move_render_chunk_queue.remove(old_id);
-            }
-            rendchunk.move_id = self.move_render_chunk_queue.insert(Coord::from(new_pos));
-            chunk
-        });
-        self.render_chunks.give(render_chunks);
         let mut regions = self.regions.lend("regions in move_center");
         regions.reposition((region_x, region_z), |old_pos, (x, z), region| {
             let rg_path = self.get_region_path(x, z);
@@ -596,8 +584,9 @@ impl VoxelWorld {
                     let section_coord = Coord::new(chunk_x, section_y, chunk_z);
                     if self.render_chunks.bounds().contains(section_coord) 
                     && chunk.sections[i].dirty_id.null(){
-                        let id = self.dirty_queue.insert(section_coord);
-                        chunk.sections[i].dirty_id = id;
+                        // let id = self.dirty_queue.insert(section_coord);
+                        // chunk.sections[i].dirty_id = id;
+                        self.mark_section_dirty(section_coord);
                     }
                 }
                 chunk.edit_time = region.get_timestamp((x & 31, z & 31));
@@ -608,6 +597,24 @@ impl VoxelWorld {
         });
         self.chunks.give(chunks);
         self.regions.give(regions);
+        let mut render_chunks = self.render_chunks.lend("render_chunks in move_center");
+        render_chunks.reposition((render_x, render_y, render_z), |old_pos, new_pos, mut chunk| {
+            let Some(rendchunk) = &mut chunk  else {
+                panic!("Render chunk was None");
+            };
+            let old_id = rendchunk.move_id;
+            if !old_id.null() {
+                self.move_render_chunk_queue.remove(old_id);
+            }
+            rendchunk.move_id = self.move_render_chunk_queue.insert(Coord::from(new_pos));
+            // let sect = self.get_section_mut(new_pos.into()).expect("failed to get section in render_chunks.reposition");
+            // sect.light_dirty.mark();
+            // sect.blocks_dirty.mark();
+            // sect.section_dirty.mark();
+            // self.mark_section_dirty(new_pos.into());
+            chunk
+        });
+        self.render_chunks.give(render_chunks);
 
     }
 

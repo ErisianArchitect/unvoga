@@ -12,12 +12,12 @@ impl RegionCoord {
 
     
     pub fn x(self) -> i32 {
-        (self.0 & 0x31) as i32
+        (self.0 & 31) as i32
     }
 
     
     pub fn z(self) -> i32 {
-        (self.0 & 0x31) as i32
+        (self.0 & 31) as i32
     }
 
     
