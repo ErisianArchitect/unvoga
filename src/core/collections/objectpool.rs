@@ -28,7 +28,6 @@ impl<T,M: Copy> ObjectPool<T,M> {
     }
 
     #[must_use]
-    
     fn next_id() -> u64 {
         static mut ID: AtomicU64 = AtomicU64::new(0);
         unsafe {
@@ -73,17 +72,24 @@ impl<T,M: Copy> ObjectPool<T,M> {
         self.unused.push(id);
     }
 
-    
+    pub fn pop(&mut self) -> Option<T> {
+        let (id, value) = self.pool.pop()?;
+        self.unused.push(id);
+        Some(value)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pool.is_empty()
+    }
+
     pub fn len(&self) -> usize {
         self.pool.len()
     }
 
-    
     pub fn id(&self) -> u64 {
         self.id
     }
 
-    
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -94,7 +100,6 @@ impl<T,M: Copy> ObjectPool<T,M> {
         }
     }
 
-    
     #[must_use]
     pub fn get(&self, id: PoolId<M>) -> Option<&T> {
         if id.null() || id.pool_id() != self.id {
@@ -107,7 +112,6 @@ impl<T,M: Copy> ObjectPool<T,M> {
         Some(&self.pool[pool_index].1)
     }
 
-    
     #[must_use]
     pub fn get_mut(&mut self, id: PoolId<M>) -> Option<&mut T> {
         if id.null() || id.pool_id() != self.id {
@@ -120,19 +124,16 @@ impl<T,M: Copy> ObjectPool<T,M> {
         Some(&mut self.pool[pool_index].1)
     }
 
-    
     #[must_use]
     pub fn reconstruct_id(&self, index: usize, generation: u64) -> PoolId<M> {
         PoolId::new(self.id, index, generation)
     }
 
-    
     #[must_use]
     pub fn iter(&self) -> impl Iterator<Item = (PoolId<M>, &T)> {
         self.pool.iter().map(|(id, item)| (*id, item))
     }
 
-    
     #[must_use]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (PoolId<M>, &mut T)> {
         self.pool.iter_mut().map(|(id, item)| (*id, item))
