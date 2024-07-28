@@ -35,6 +35,7 @@ impl<T,M: Copy> ObjectPool<T,M> {
         }
     }
 
+    /// Insertion order is not maintained.
     #[must_use]
     pub fn insert(&mut self, value: T) -> PoolId<M> {
         if let Some(unused_index) = self.unused.pop() {
