@@ -58,9 +58,11 @@ pub trait Block: Any {
     fn on_data_delete(&self, world: &mut VoxelWorld, coord: Coord, state: Id, data: Tag) {}
     fn on_enabled_changed(&self, world: &mut VoxelWorld, coord: Coord, state: Id, enabled: bool) {}
     fn push_mesh(&self, mesh_builder: &mut MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {}
-    fn rotate(&self, coord: Coord, state: Id, rotation: Rotation) -> Id { state }
+    // fn rotate(&self, coord: Coord, state: Id, rotation: Rotation) -> Id { state }
     fn default_state(&self) -> BlockState;
-
+    fn raycast(&self, world: &VoxelWorld, coord: Coord, state: Id, orientation: Orientation) -> bool {
+        true
+    }
 }
 
 #[test]

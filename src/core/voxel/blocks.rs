@@ -284,6 +284,10 @@ impl std::fmt::Display for Id {
 pub struct AirBlock;
 
 impl Block for AirBlock {
+
+    fn raycast(&self, world: &VoxelWorld, coord: Coord, state: Id, orientation: crate::prelude::Orientation) -> bool {
+        false
+    }
     
     fn name(&self) -> &str {
         "air"

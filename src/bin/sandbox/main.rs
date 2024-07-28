@@ -317,6 +317,12 @@ fn update(
             }
         }
     }
+    if keys.just_pressed(KeyCode::KeyR) {
+        let ray = Ray3d::new(Vec3::ZERO, Vec3::NEG_Z);
+        if let Some((coord, id)) = world.world.raycast(ray, 100.0) {
+            println!("Hit {id} at {coord}");
+        }
+    }
     // let state = world.world.get_block((0,0,0));
     // world.world.set_block((0, 0, 0), if state.is_air() { blockstate!(dirt).register() } else { Id::AIR });
     world.world.talk_to_bevy(meshes, materials, render_chunks);

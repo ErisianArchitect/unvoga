@@ -32,6 +32,13 @@ impl VoxelMaterial {
         Self {
             array_texture,
             light_level: MIN_LIGHT_LEVEL,
+            // lightmap: vec![],
+            // lightmap_pad_pos_x: vec![],
+            // lightmap_pad_neg_x: vec![],
+            // lightmap_pad_pos_y: vec![],
+            // lightmap_pad_neg_y: vec![],
+            // lightmap_pad_pos_z: vec![],
+            // lightmap_pad_neg_z: vec![],
             lightmap: (0..4096).map(|_| 1.0).collect(),
             lightmap_pad_pos_x: (0..256).map(|_| 1.0).collect(),
             lightmap_pad_neg_x: (0..256).map(|_| 1.0).collect(),

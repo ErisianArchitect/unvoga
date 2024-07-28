@@ -25,7 +25,7 @@ use crate::core::voxel::region::regionfile::RegionFile;
 use crate::core::voxel::region::timestamp::Timestamp;
 use crate::core::voxel::rendering::meshbuilder::MeshBuilder;
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::Id, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
-use crate::prelude::SwapVal;
+use crate::prelude::{f32_not_zero, SwapVal};
 
 use super::chunk::Chunk;
 
@@ -133,6 +133,7 @@ impl VoxelWorld {
         std::fs::create_dir(&subworlds);
         let main_world = subworlds.join("main");
         std::fs::create_dir(&main_world);
+
         Self {
             initialized: false,
             subworld_directory: main_world,
@@ -188,17 +189,125 @@ impl VoxelWorld {
         AABB::new(vec3(minx, miny, minz), vec3(maxx, maxy, maxz))
     }
 
-    pub fn raycast(&self, ray: Ray3d, max_distance: f32) -> Option<IVec3> {
+    pub fn raycast_filter<F: Fn(&Self, Coord, Id) -> bool>(&self, ray: Ray3d, max_distance: f32, filter: F) -> Option<(Coord, Id)> {
         let render_bounds = self.render_bounds_aabb();
-        
-        let mut current = Id::AIR;
-        loop {
-
-            if current != Id::AIR {
-                break;
+        let ray = if render_bounds.contains(ray.origin) {
+            ray
+        } else {
+            let origin = render_bounds.intersection_point(ray)?;
+            Ray3d::new(origin, ray.direction.into())
+        };
+        let (mut x, mut y, mut z) = (
+            ray.origin.x.floor(),
+            ray.origin.y.floor(),
+            ray.origin.z.floor()
+        );
+        let make_coord = |x: f32, y: f32, z: f32| {
+            let (x, y, z) = (x.floor() as i32, y.floor() as i32, z.floor() as i32);
+            Coord::new(x, y, z)
+        };
+        let mut coord = make_coord(x, y, z);
+        let ray_end = ray.origin + (ray.direction * max_distance);
+        let mut last_coord = make_coord(
+            ray_end.x,
+            ray_end.y,
+            ray_end.z
+        );
+        let state = self.get_block(coord);
+        if filter(self, coord, state) {
+            let mut current = state;
+            let orientation = current.block().orientation(self, coord, current);
+            if current != Id::AIR && current.block().raycast(self, coord, current, orientation) {
+                return Some((coord, current));
             }
         }
-        todo!()
+        let mut stepx = if ray.direction.x > 0.0 { 1.0f32 } else { -1.0f32 };
+        let mut stepy = if ray.direction.y > 0.0 { 1.0f32 } else { -1.0f32 };
+        let mut stepz = if ray.direction.z > 0.0 { 1.0f32 } else { -1.0f32 };
+        let next_vox_bound_x = x + stepx;
+        let next_vox_bound_y = y + stepy;
+        let next_vox_bound_z = z + stepz;
+        let (mut tmaxx, tdeltax) = if f32_not_zero(ray.direction.x) {
+            (
+                (next_vox_bound_x - ray.origin.x) / ray.direction.x,
+                1.0 / ray.direction.x * stepx
+            )
+        } else {
+            (f32::MAX, f32::MAX)
+        };
+        let (mut tmaxy, tdeltay) = if f32_not_zero(ray.direction.y) {
+            (
+                (next_vox_bound_y - ray.origin.y) / ray.direction.y,
+                1.0 / ray.direction.y * stepy
+            )
+        } else {
+            (f32::MAX, f32::MAX)
+        };
+        let (mut tmaxz, tdeltaz) = if f32_not_zero(ray.direction.z) {
+            (
+                (next_vox_bound_z - ray.origin.z) / ray.direction.z,
+                1.0 / ray.direction.z * stepz
+            )
+        } else {
+            (f32::MAX, f32::MAX)
+        };
+        let mut diff = (0, 0, 0);
+        let mut neg_ray = false;
+        if coord.x != last_coord.x && ray.direction.x < 0.0 {
+            diff.0 -= 1;
+            neg_ray = true;
+        }
+        if coord.y != last_coord.y && ray.direction.y < 0.0 {
+            diff.1 -= 1;
+            neg_ray = true;
+        }
+        if coord.z != last_coord.z && ray.direction.z < 0.0 {
+            diff.2 -= 1;
+            neg_ray = true;
+        }
+        if neg_ray {
+            coord.x += diff.0;
+            coord.y += diff.1;
+            coord.z += diff.2;
+            let state = self.get_block(coord);
+            if filter(self, coord, state) {
+                let orientation = state.block().orientation(self, coord, state);
+                if state != Id::AIR && state.block().raycast(self, coord, state, orientation) {
+                    return Some((coord, state));
+                }
+            }
+        }
+        while coord != last_coord {
+            if tmaxx < tmaxy {
+                if tmaxx < tmaxz {
+                    coord.x += stepx as i32;
+                    tmaxx += tdeltax;
+                } else {
+                    coord.z += stepz as i32;
+                    tmaxz += tdeltaz;
+                }
+            } else {
+                if tmaxy < tmaxz {
+                    coord.y += stepy as i32;
+                    tmaxy += tdeltay;
+                } else {
+                    coord.z += stepz as i32;
+                    tmaxz += tdeltaz;
+                }
+            }
+            let state = self.get_block(coord);
+            if filter(self, coord, state) {
+                let orientation = state.block().orientation(self, coord, state);
+                if state != Id::AIR && state.block().raycast(self, coord, state, orientation) {
+                    return Some((coord, state));
+                }
+            }
+        }
+        None
+    }
+
+    pub fn raycast(&self, ray: Ray3d, max_distance: f32) -> Option<(Coord, Id)> {
+        self.raycast_filter(ray, max_distance, |_, _, _| true)
     }
 
     fn get_region_path(&self, region_x: i32, region_z: i32) -> PathBuf {

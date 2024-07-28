@@ -2,7 +2,7 @@ use core::f32;
 
 use bevy::math::{vec3, Ray3d, Vec3};
 
-use crate::prelude::Direction;
+use crate::prelude::{Direction, Orientation};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct AABB {
@@ -49,6 +49,11 @@ impl AABB {
         }
     }
 
+    pub fn intersection_point(self, ray: Ray3d) -> Option<Vec3> {
+        let dist = self.intersects(ray)?;
+        Some(ray.origin + (ray.direction * dist))
+    }
+
     /// Used for fast AABB intersection.
     /// When you need to intersect a lot of AABBs with the same ray,
     /// you can use this function to calculate a `dirfrac` Vec3 that
@@ -79,6 +84,25 @@ impl AABB {
         self.max.y > point.y &&
         self.max.z > point.z
     }
+
+    pub fn orient_centered(self, orientation: Orientation) -> Self {
+        let diff = self.max - self.min;
+        let center = self.min + (diff * 0.5);
+        let rel_min = self.min - center;
+        let rel_max = self.max - center;
+        let a = orientation.transform(rel_min) + center;
+        let b = orientation.transform(rel_max) + center;
+        Self::from_bounds(a, b)
+    }
+    
+    /// This does not preserve the center! This will orient around the world origin (0, 0, 0).
+    /// If you want the bounding box to remain centered in the same position, use orient_centered.
+    pub fn orient(self, orientation: 
+        Orientation) -> Self {
+        let a = orientation.transform(self.min);
+        let b = orientation.transform(self.max);
+        Self::from_bounds(a, b)
+    }
 }
 
 #[inline(always)]
@@ -92,22 +116,36 @@ fn inv_d(d: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    use crate::prelude::{Flip, Rotation};
+
     use super::*;
     #[test]
     fn intersect_test() {
-        let ray = Ray3d::new(vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0).normalize());
+        let ray = Ray3d::new(vec3(-5.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0).normalize());
         
         let aabb = AABB::from_bounds(Vec3::splat(1.0) * -0.5, Vec3::splat(1.0) * 0.5);
-        if let Some(dist) = aabb.intersects(ray) {
-            let origin = ray.origin;
-            let direction = ray.direction;
-            println!("   Origin: {origin}");
-            // println!("Direction: {direction}");
-            println!(" Distance: {dist}");
-            println!("Magnitude: {}", direction * dist);
-            println!("Intersection at {} {dist}", (ray.origin + (ray.direction.normalize() * dist)));
+        if let Some(point) = aabb.intersection_point(ray) {
+            println!("Intersects at {point}");
+            // let origin = ray.origin;
+            // let direction = ray.direction;
+            // println!("   Origin: {origin}");
+            // // println!("Direction: {direction}");
+            // println!(" Distance: {dist}");
+            // println!("Magnitude: {}", direction * dist);
+            // println!("Intersection at {} {dist}", (ray.origin + (ray.direction * dist)));
         } else {
             println!("No intersection");
         }
+    }
+
+    #[test]
+    fn orientation_test() {
+        let aabb = AABB::from_bounds(
+            vec3(-0.5, -2.5, -0.5),
+            vec3(0.5, 7.5, 0.5),
+        );
+        let orientation = Orientation::new(Rotation::new(Direction::PosX, 1), Flip::NONE);
+        let ort = aabb.orient_centered(orientation);
+        println!("{ort:?}");
     }
 }
