@@ -622,7 +622,9 @@ impl Section {
     pub fn unload(&mut self, world: &mut VoxelWorld) -> bool {
         let dirty_id = self.dirty_id.swap(PoolId::NULL);
         if !dirty_id.null() {
+            println!("Section::unload() before remove");
             world.dirty_queue.remove(dirty_id);
+            println!("Section::unload() after remove");
         }
         self.blocks = None;
         self.occlusion = None;

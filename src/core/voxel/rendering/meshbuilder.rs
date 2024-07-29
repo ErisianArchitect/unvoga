@@ -1,5 +1,5 @@
 #![allow(unused)]
-use bevy::{math::{Vec2, Vec3}, prelude::Mesh, render::{mesh::{Indices, MeshVertexAttribute, PrimitiveTopology}, render_asset::RenderAssetUsages, render_resource::VertexFormat}};
+use bevy::{math::{Vec2, Vec3, Vec4}, prelude::Mesh, render::{mesh::{Indices, MeshVertexAttribute, PrimitiveTopology}, render_asset::RenderAssetUsages, render_resource::VertexFormat}};
 
 use crate::prelude::{Orientation, Rotation};
 
@@ -137,4 +137,24 @@ impl Into<Mesh> for MeshBuilder {
     fn into(self) -> Mesh {
         self.to_mesh(RenderAssetUsages::all())
     }
+}
+
+pub const COLOR_MESH_POSITION: MeshVertexAttribute = MeshVertexAttribute::new("position", 0, VertexFormat::Float32x3);
+pub const COLOR_MESH_NORMAL: MeshVertexAttribute = MeshVertexAttribute::new("normal", 1, VertexFormat::Float32x3);
+pub const COLOR_MESH_COLOR: MeshVertexAttribute =MeshVertexAttribute::new("color", 2, VertexFormat::Float32x4);
+
+#[derive(Debug, Default, Clone)]
+pub struct ColorMesh {
+    vertices: Vec<Vec3>,
+    normals: Vec<Vec3>,
+    colors: Vec<Vec4>,
+    indices: Vec<u32>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ColorMeshBuilder {
+    vertices: Vec<Vec3>,
+    normals: Vec<Vec3>,
+    colors: Vec<Vec4>,
+    indices: Vec<u32>,
 }

@@ -1,7 +1,7 @@
 #![allow(unused)]
 use std::{borrow::Borrow, ops::{Deref, Index}, sync::{atomic::{AtomicBool, Ordering}, OnceLock}};
 
-use bevy::utils::hashbrown::HashMap;
+use bevy::{math::Ray3d, utils::hashbrown::HashMap};
 
 use crate::{blockstate, core::voxel::blockstate};
 
@@ -285,8 +285,8 @@ pub struct AirBlock;
 
 impl Block for AirBlock {
 
-    fn raycast(&self, world: &VoxelWorld, coord: Coord, state: Id, orientation: crate::prelude::Orientation) -> bool {
-        false
+    fn raycast(&self, ray: Ray3d, world: &VoxelWorld, coord: Coord, state: Id, orientation: crate::prelude::Orientation) -> Option<f32> {
+        None
     }
     
     fn name(&self) -> &str {

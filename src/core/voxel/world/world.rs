@@ -94,16 +94,18 @@ pub struct VoxelWorld {
     render_distance: i32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RaycastResult {
+    pub hit_point: Vec3,
     pub coord: Coord,
     pub direction: Option<Direction>,
     pub id: Id,
 }
 
 impl RaycastResult {
-    pub const fn new(coord: Coord, direction: Option<Direction>, id: Id) -> Self {
+    pub const fn new(hit_point: Vec3, coord: Coord, direction: Option<Direction>, id: Id) -> Self {
         Self {
+            hit_point,
             coord,
             direction,
             id
@@ -241,8 +243,8 @@ impl VoxelWorld {
         let id = self.get_block(current);
         if filter(self, current, id) {
             let orientation = id.block().orientation(self, current, id);
-            if id.block().raycast(self, current, id, orientation) {
-                return Some(RaycastResult::new(current, None, id));
+            if let Some(dist) = id.block().raycast(ray, self, current, id, orientation) {
+                return Some(RaycastResult::new(ray.origin + (ray.direction * dist), current, None, id));
             }
         }
         let mut iterations = 0u64;
@@ -267,13 +269,13 @@ impl VoxelWorld {
                     let xcoord = Coord::from(xcoord);
                     if filter(self, xcoord, id) {
                         let orientation = id.block().orientation(self, xcoord, id);
-                        if id.block().raycast(self, xcoord, id, orientation) {
+                        if let Some(dist) = id.block().raycast(ray, self, current, id, orientation) {
                             let direction = match stepx {
                                 1 => Direction::NegX,
                                 -1 => Direction::PosX,
                                 _ => unreachable!()
                             };
-                            return Some(RaycastResult::new(xcoord, Some(direction), id));
+                            return Some(RaycastResult::new(ray.origin + (ray.direction * dist), xcoord, Some(direction), id));
                         }
                     }
                     current.x += stepx;
@@ -295,13 +297,13 @@ impl VoxelWorld {
                     let stepcoord = Coord::from(stepcoord);
                     if filter(self, stepcoord, id) {
                         let orientation = id.block().orientation(self, stepcoord, id);
-                        if id.block().raycast(self, stepcoord, id, orientation) {
+                        if let Some(dist) = id.block().raycast(ray, self, current, id, orientation) {
                             let direction = match stepz {
                                 1 => Direction::NegZ,
                                 -1 => Direction::PosZ,
                                 _ => unreachable!()
                             };
-                            return Some(RaycastResult::new(stepcoord, Some(direction), id));
+                            return Some(RaycastResult::new(ray.origin + (ray.direction * dist), stepcoord, Some(direction), id));
                         }
                     }
                     current.z += stepz;
@@ -323,13 +325,13 @@ impl VoxelWorld {
                     let stepcoord = Coord::from(stepcoord);
                     if filter(self, stepcoord, id) {
                         let orientation = id.block().orientation(self, stepcoord, id);
-                        if id.block().raycast(self, stepcoord, id, orientation) {
+                        if let Some(dist) = id.block().raycast(ray, self, current, id, orientation) {
                             let direction = match stepy {
                                 1 => Direction::NegY,
                                 -1 => Direction::PosY,
                                 _ => unreachable!()
                             };
-                            return Some(RaycastResult::new(stepcoord, Some(direction), id));
+                            return Some(RaycastResult::new(ray.origin + (ray.direction * dist), stepcoord, Some(direction), id));
                         }
                     }
                     current.y += stepy;
@@ -486,7 +488,11 @@ impl VoxelWorld {
                     (false, false)
                 }
             };
-            let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
+            // let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
+            let Some(render_chunk) = self.render_chunks.get_mut(coord) else {
+                // TODO: Fix this. The chunk k
+                return;
+            };
             if blocks_dirty {
                 let mesh = meshes.get_mut(render_chunk.mesh.id()).expect("Failed to get the mesh");
                 MeshBuilder::build_mesh(mesh, |build| {
@@ -641,7 +647,13 @@ impl VoxelWorld {
             let result = region.write_timestamped((chunk_x & 31, chunk_z & 31), chunk.edit_time, |writer| {
                 chunk.write_to(writer)?;
                 Ok(())
-            }).expect("Failed to write chunk");
+            });
+            match result {
+                Err(err) => {
+                    println!("{err} at {chunk_x} {chunk_z}");
+                },
+                _ => (),
+            }
             chunk.save_id = PoolId::NULL;
             chunks.set((chunk_x, chunk_z), chunk);
             regions.set((region_x, region_z), region);

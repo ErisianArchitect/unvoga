@@ -85,6 +85,7 @@ impl AABB {
         self.max.z > point.z
     }
 
+    /// For when you want to apply an orientation while keeping the same relative center.
     pub fn orient_centered(self, orientation: Orientation) -> Self {
         let diff = self.max - self.min;
         let center = self.min + (diff * 0.5);
@@ -97,11 +98,27 @@ impl AABB {
     
     /// This does not preserve the center! This will orient around the world origin (0, 0, 0).
     /// If you want the bounding box to remain centered in the same position, use orient_centered.
-    pub fn orient(self, orientation: 
-        Orientation) -> Self {
+    pub fn orient(self, orientation: Orientation) -> Self {
         let a = orientation.transform(self.min);
         let b = orientation.transform(self.max);
         Self::from_bounds(a, b)
+    }
+
+    /// Orients inside of voxel space.
+    /// This will apply the orientation and then translate into voxel space.
+    pub fn orient_voxel<C: Into<(i32, i32, i32)>>(self, coord: C, orientation: Orientation) -> Self {
+        self.orient(orientation).translate_voxel(coord)
+    }
+
+    /// Translate into voxel space.
+    pub fn translate_voxel<C: Into<(i32, i32, i32)>>(self, coord: C) -> Self {
+        let (x, y, z) = coord.into();
+        let offset = vec3(
+            x as f32 + 0.5,
+            y as f32 + 0.5,
+            z as f32 + 0.5
+        );
+        Self::new(self.min + offset, self.max + offset)
     }
 
     pub fn voxel<C: Into<(i32, i32, i32)>>(coord: C) -> Self {
@@ -121,6 +138,8 @@ impl AABB {
             max
         }
     }
+
+    
 }
 
 #[inline(always)]

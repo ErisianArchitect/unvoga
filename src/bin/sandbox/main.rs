@@ -55,11 +55,8 @@ pub fn main() {
         .add_plugins(EguiPlugin)
         .add_plugins(MaterialPlugin::<VoxelMaterial>::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, update)
-        .add_systems(Update, update_input.before(update))
-        // .add_systems(Update, menu.before(update))
-        // .add_systems(Update, loading_screen.run_if(in_state(GameState::LoadingScreen)))
-        // .add_systems(Update, main_menu.run_if(in_state(GameState::MainMenu)))
+        .add_systems(Update, (update_input, update).chain())
+        // .add_systems(Update, update_input.before(update))SSSSSSSnu.run_if(in_state(GameState::MainMenu)))
         // .add_systems(OnEnter(GameState::LoadingScreen), enter_loading_screen)
         // .add_systems(OnExit(GameState::LoadingScreen), cleanup_system::<cleanup::LoadingScreen>)
         // .add_systems(OnEnter(GameState::MainMenu), on_enter_main_menu)
@@ -209,7 +206,11 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut window: Query<&mut Window, With<PrimaryWindow>>,
     asset_server: Res<AssetServer>,
+    mut giz_store: ResMut<GizmoConfigStore>,
 ) {
+    for (_, config, _) in giz_store.iter_mut() {
+        config.depth_bias = -1.0;
+    }
     let side_texture_paths = vec![
         "./assets/debug/textures/cube_sides/pos_y.png",
         "./assets/debug/textures/cube_sides/pos_x.png",
@@ -312,8 +313,14 @@ fn update_input(
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
     mut app_exit_events: ResMut<Events<bevy::app::AppExit>>,
     mut world: ResMut<VoxelWorldRes>,
+    mut gizmos: Gizmos,
 ) {
-    
+    // let (x, y, z) = (
+    //     campos.position.x.floor() as i32,
+    //     campos.position.y.floor() as i32,
+    //     campos.position.z.floor() as i32,
+    // );
+    // world.world.move_center((x, y, z));
     if keys.just_pressed(KeyCode::Escape) {
         world.world.save_world();
         app_exit_events.send(bevy::app::AppExit);
@@ -392,8 +399,11 @@ fn update_input(
     //         println!("Hit {id} at {coord}");
     //     }
     // }
-    if mouse_buttons.just_pressed(MouseButton::Left) {
-        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+    if let Some(RaycastResult { hit_point, coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+        gizmos.arrow(hit_point, hit_point + Vec3::X * 0.25, Color::RED);
+        gizmos.arrow(hit_point, hit_point + Vec3::Y * 0.25, Color::GREEN);
+        gizmos.arrow(hit_point, hit_point + Vec3::Z * 0.25, Color::BLUE);
+        if mouse_buttons.just_pressed(MouseButton::Left) {
             if let Some(direction) = direction {
                 let next = coord + direction;
                 world.world.set_block(next, blockstate!(dirt).register());
@@ -401,27 +411,17 @@ fn update_input(
                 println!("No direction");
             }
         }
-    }
-    if mouse_buttons.just_pressed(MouseButton::Right) {
-        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+        if mouse_buttons.just_pressed(MouseButton::Right) {
             world.world.set_block(coord, Id::AIR);
         }
-    }
-    if keys.just_pressed(KeyCode::Backspace) {
-        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
-            // world.world.set_block(coord, Id::AIR);
+        if keys.just_pressed(KeyCode::Backspace) {
             let occlusion = world.world.get_occlusion(coord);
             println!("Occlusion: {occlusion}");
         }
-    }
-    if keys.just_pressed(KeyCode::Delete) {
-        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
-            // world.world.set_block(coord, Id::AIR);
+        if keys.just_pressed(KeyCode::Delete) {
             println!("Hit Coord: {coord} Direction: {direction:?} Id: {id}");
         }
-    }
-    if keys.just_pressed(KeyCode::End) {
-        if let Some(RaycastResult { coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+        if keys.just_pressed(KeyCode::End) {
             // world.world.set_block(coord, Id::AIR);
             let sect = world.world.get_section_mut(coord.section_coord()).unwrap();
             sect.blocks_dirty.mark();
@@ -431,12 +431,7 @@ fn update_input(
     }
     transform.translation += translation;
     campos.position = transform.translation;
-    let (x, y, z) = (
-        campos.position.x.floor() as i32,
-        campos.position.y.floor() as i32,
-        campos.position.z.floor() as i32,
-    );
-    world.world.move_center((x, y, z));
+    
 }
 
 #[derive(Resource)]

@@ -1,6 +1,8 @@
 #![allow(unused)]
 use std::any::Any;
-use crate::prelude::*;
+use bevy::math::Ray3d;
+
+use crate::{core::math::aabb::AABB, prelude::*};
 
 use super::{blocklayer::BlockLayer, blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, rendering::meshbuilder::MeshBuilder, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
 
@@ -60,8 +62,9 @@ pub trait Block: Any {
     fn push_mesh(&self, mesh_builder: &mut MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {}
     // fn rotate(&self, coord: Coord, state: Id, rotation: Rotation) -> Id { state }
     fn default_state(&self) -> BlockState;
-    fn raycast(&self, world: &VoxelWorld, coord: Coord, state: Id, orientation: Orientation) -> bool {
-        true
+    fn raycast(&self, ray: Ray3d, world: &VoxelWorld, coord: Coord, state: Id, orientation: Orientation) -> Option<f32> {
+        let aabb = AABB::voxel(coord);
+        aabb.intersects(ray)
     }
 }
 

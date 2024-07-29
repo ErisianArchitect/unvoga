@@ -60,7 +60,8 @@ impl<T,M: Copy> ObjectPool<T,M> {
         if id.pool_id() != self.id {
             panic!("Id does not belong to this pool.");
         }
-        if self.indices.len() == 0 {
+        if id.index() >= self.indices.len() {
+            println!("Index out of bounds in object pool");
             return;
         }
         let pool_index = self.indices[id.index()];
