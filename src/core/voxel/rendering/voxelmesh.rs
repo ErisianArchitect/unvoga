@@ -1,5 +1,5 @@
 #![allow(unused)]
-use bevy::{math::{Vec2, Vec3}, prelude::Mesh, render::{mesh::{MeshVertexAttribute, PrimitiveTopology}, render_asset::RenderAssetUsages, render_resource::VertexFormat}};
+use bevy::{math::{vec3, Vec2, Vec3}, prelude::Mesh, render::{mesh::{MeshVertexAttribute, PrimitiveTopology}, render_asset::RenderAssetUsages, render_resource::VertexFormat}};
 
 use crate::{core::voxel::faces::Faces, prelude::Orientation};
 
@@ -106,3 +106,24 @@ impl Into<Mesh> for MeshData {
         self.to_mesh(RenderAssetUsages::all())
     }
 }
+
+// pub fn create_voxel_cube_mesh(
+//     pos_x: u32,
+//     pos_y: u32,
+//     pos_z: u32,
+//     neg_x: u32,
+//     neg_y: u32,
+//     neg_z: u32
+// ) -> Faces<MeshData> {
+//     let pos_y_normal = Vec3::Y;
+//     let pos_y_mesh = MeshData {
+//         vertices: vec![
+//             vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
+//             vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5)
+//         ],
+//         normals: vec![
+//             pos_y_normal, pos_y_normal, 
+//             pos_y_normal, pos_y_normal, 
+//         ]
+//     };
+// }

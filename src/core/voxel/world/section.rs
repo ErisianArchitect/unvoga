@@ -273,7 +273,6 @@ impl Section {
         if !old {
             self.blocks_dirty.mark();
             if self.section_dirty.mark() {
-                println!("Show mark dirty");
                 return SectionUpdate::new_dirty(old);
             }
         }
@@ -294,7 +293,6 @@ impl Section {
         if old {
             self.blocks_dirty.mark();
             if self.section_dirty.mark() {
-                println!("Hide mark dirty");
                 return SectionUpdate::new_dirty(old);
             }
         }
@@ -621,10 +619,8 @@ impl Section {
 
     pub fn unload(&mut self, world: &mut VoxelWorld) -> bool {
         let dirty_id = self.dirty_id.swap(PoolId::NULL);
-        if !dirty_id.null() {
-            println!("Section::unload() before remove");
+        if dirty_id.non_null() {
             world.dirty_queue.remove(dirty_id);
-            println!("Section::unload() after remove");
         }
         self.blocks = None;
         self.occlusion = None;

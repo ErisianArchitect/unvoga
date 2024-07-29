@@ -488,9 +488,24 @@ impl VoxelWorld {
                     (false, false)
                 }
             };
+            if let Some(sect) = self.get_section_mut(coord) {
+                sect.blocks_dirty.mark_clean();
+                sect.light_dirty.mark_clean();
+                sect.section_dirty.mark_clean();
+                sect.dirty_id = PoolId::NULL;
+            } else {
+                panic!("Section not found.");
+            }
             // let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
             let Some(render_chunk) = self.render_chunks.get_mut(coord) else {
-                // TODO: Fix this. The chunk k
+                // panic!("Render chunk not found.");
+                // I think that this happens when move_center is called twice before talk_to_bevy is called.
+                // This just means that a moved chunk isn't removing itself from the dirty queue
+                // when it's unloaded maybe.
+                // This might be a serious bug, or it might not be a problem. I'm not sure.
+                // I think there's a possibility that a chunk might have a dirty id that never gets cleared
+                // and as such can't be added back to the dirty queue. That would be a major problem.
+                println!("Render chunk not found {coord}");
                 return;
             };
             if blocks_dirty {
@@ -518,14 +533,7 @@ impl VoxelWorld {
             if light_map_dirty {
                 // TODO: Rebuild lightmap
             }
-            if let Some(sect) = self.get_section_mut(coord) {
-                sect.blocks_dirty.mark_clean();
-                sect.light_dirty.mark_clean();
-                sect.section_dirty.mark_clean();
-                sect.dirty_id = PoolId::NULL;
-            } else {
-                println!("Sect not found: {coord}");
-            }
+            
         });
         self.dirty_queue.give(dirty);
         let mut move_render_chunk_queue = self.move_render_chunk_queue.lend("Moving chunk entities");
@@ -584,17 +592,6 @@ impl VoxelWorld {
                     }
                     _ => (),
                 }
-                // let chunk_y = chunk.section_y();
-                // for i in 0..chunk.sections.len() {
-                //     let section_y = chunk_y + i as i32;
-                //     let section_coord = Coord::new(chunk_x, section_y, chunk_z);
-                //     if self.render_chunks.bounds().contains(section_coord) 
-                //     && chunk.sections[i].dirty_id.null(){
-                //         // let id = self.dirty_queue.insert(section_coord);
-                //         // chunk.sections[i].dirty_id = id;
-                //         self.mark_section_dirty(section_coord);
-                //     }
-                // }
                 chunk.edit_time = region.get_timestamp((x & 31, z & 31));
             }
             chunk.block_offset.x = x * 16;
@@ -608,7 +605,7 @@ impl VoxelWorld {
             let Some(rendchunk) = &mut chunk  else {
                 panic!("Render chunk was None");
             };
-            let old_id = rendchunk.move_id;
+            let old_id = rendchunk.move_id.swap(PoolId::NULL);
             if !old_id.null() {
                 self.move_render_chunk_queue.remove(old_id);
             }
@@ -622,15 +619,19 @@ impl VoxelWorld {
                 panic!("Chunk was None");
             };
             let section_index = (section_coord.y - block_chunk.section_y()) as usize;
-            if block_chunk.sections[section_index].dirty_id.null() {
-                block_chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
+            let dirty_id = block_chunk.sections[section_index].dirty_id.swap_null();
+            if dirty_id.non_null() {
+                // Gotta remove the old one
+                self.dirty_queue.remove(dirty_id);
             }
+            block_chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
             chunk
         });
         self.render_chunks.give(render_chunks);
 
     }
 
+    #[must_use]
     pub fn save_world(&mut self) -> Result<()> {
         self.save_queue.drain().try_for_each(|coord| {
             let (chunk_x, chunk_z) = coord.xz();
@@ -644,13 +645,13 @@ impl VoxelWorld {
             } else {
                 RegionFile::open_or_create(self.subworld_directory.join(format!("{region_x}.{region_z}.rg")))?
             };
-            let result = region.write_timestamped((chunk_x & 31, chunk_z & 31), chunk.edit_time, |writer| {
+            let result = region.write_timestamped((chunk_x, chunk_z), chunk.edit_time, |writer| {
                 chunk.write_to(writer)?;
                 Ok(())
             });
             match result {
                 Err(err) => {
-                    println!("{err} at {chunk_x} {chunk_z}");
+                    panic!("{err} at {chunk_x} {chunk_z}");
                 },
                 _ => (),
             }
@@ -821,7 +822,7 @@ impl VoxelWorld {
     
     pub fn get_section(&self, section_coord: Coord) -> Option<&Section> {
         let chunk = self.chunks.get((section_coord.x, section_coord.z))?;
-        let y = section_coord.y - chunk.block_offset.y >> 4;
+        let y = section_coord.y - (chunk.block_offset.y >> 4);
         if y < 0 || y as usize >= chunk.sections.len() {
             return None;
         }
@@ -831,7 +832,7 @@ impl VoxelWorld {
     
     pub fn get_section_mut(&mut self, section_coord: Coord) -> Option<&mut Section> {
         let chunk = self.chunks.get_mut((section_coord.x, section_coord.z))?;
-        let y = section_coord.y - chunk.block_offset.y >> 4;
+        let y = section_coord.y - (chunk.block_offset.y >> 4);
         if y < 0 || y as usize >= chunk.sections.len() {
             return None;
         }

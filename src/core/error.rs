@@ -1,6 +1,8 @@
 #![allow(unused)]
 use thiserror::Error as ThisError;
 
+use super::voxel::region::sectoroffset::{BlockSize, SectorOffset};
+
 #[derive(Debug, ThisError)]
 pub enum Error {
     #[error("std::io error: {0}")]
@@ -19,8 +21,8 @@ pub enum Error {
     NoHead,
     #[error("Path was not a file")]
     NotAFile,
-    #[error("Allocation failed")]
-    AllocationFailure,
+    #[error("Allocation failed ({0}, {1})")]
+    AllocationFailure(SectorOffset, BlockSize),
     #[error("Chunk not found")]
     ChunkNotFound,
     #[error("Parent directory not found")]

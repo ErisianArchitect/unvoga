@@ -56,6 +56,12 @@ impl Writeable for SectorOffset {
     }
 }
 
+impl std::fmt::Display for SectorOffset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SectorOffset(offset={}, size={})", self.file_offset(), self.block_size())
+    }
+}
+
 impl Readable for SectorOffset {
     fn read_from<R: std::io::Read>(reader: &mut R) -> crate::prelude::VoxelResult<Self> {
         let mut buf = [0u8; 4];
@@ -168,6 +174,12 @@ pub const fn block_size_notation(block_count: u64, exponent: u32, bit_size: u32)
         0
     };
     block_count * 2u64.pow(exponent) + spacer1 + spacer2
+}
+
+impl std::fmt::Display for BlockSize {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BlockSize({})", self.block_count())
+    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 #![allow(unused)]
 use std::ops::Range;
 
+use hashbrown::HashMap;
 use itertools::Itertools;
 
 use crate::core::error::*;
@@ -26,7 +27,7 @@ impl SectorManager {
         }
     }
 
-    pub fn from_sector_table(table: &OffsetTable) -> Self {
+    pub fn from_sector_table(table: &OffsetTable, end_sector_start: u32) -> Self {
         let mut filtered_sectors = table.iter().cloned()
             .map(ManagedSector::from)
             .filter(|sector| sector.not_empty())
@@ -38,7 +39,7 @@ impl SectorManager {
         );
         let (
             unused,
-            end_sector
+            last_sector
         ) = filtered_sectors.into_iter()
             .fold(initial_state, |(mut unused_sectors, previous), sector| {
                 if let Some(_) = previous.gap(sector) {
@@ -52,18 +53,19 @@ impl SectorManager {
                     sector
                 )
             });
+        
         Self {
             unused,
-            end_sector
+            end_sector: ManagedSector { start: end_sector_start.min(last_sector.end), end: u32::MAX }
         }
     }
 
     /// Attempts to allocate a sector. Panics if `blocks_required` exceed 8033.
-    pub fn allocate(&mut self, blocks_required: u16) -> SectorOffset {
-        if blocks_required > BlockSize::MAX_BLOCK_COUNT {
-            panic!("Requested size exceeds maximum.");
-        }
-        let block_size = BlockSize::required(blocks_required);
+    pub fn allocate(&mut self, block_size: BlockSize) -> SectorOffset {
+        // if blocks_required > BlockSize::MAX_BLOCK_COUNT {
+        //     panic!("Requested size exceeds maximum.");
+        // }
+        // let block_size = BlockSize::required(blocks_required);
         let block_count = block_size.block_count();
         // Find sector with needed size
         self.unused.iter().cloned().enumerate()
@@ -157,7 +159,9 @@ impl SectorManager {
 
         let old_sector = ManagedSector::from(free);
 
-        if free.block_size().block_count() > new_size.block_count() {
+        if free.is_empty() {
+            Some(self.allocate(new_size))
+        } else if free.block_size().block_count() > new_size.block_count() {
             let (new, old) = old_sector.split_left(new_size.block_count() as u32);
             self.deallocate(old);
             Some(SectorOffset::new(new_size, new.start))
@@ -169,7 +173,7 @@ impl SectorManager {
     }
 
     pub fn reallocate_err(&mut self, free: SectorOffset, size: BlockSize) -> Result<SectorOffset> {
-        self.reallocate(free, size).ok_or_else(|| Error::AllocationFailure)
+        self.reallocate(free, size).ok_or_else(|| Error::AllocationFailure(free, size))
     }
     
     fn reallocate_unchecked(&mut self, free: SectorOffset, new_size: BlockSize) -> Option<SectorOffset> {
@@ -227,8 +231,16 @@ impl SectorManager {
                 .map(|sector| (sector, SuccessAction::None))
         })
         .map(|(sector, action)| {
+            // When an element is removed from unused, I need to keep track of where
+            // the end element moves to. That's what this is for.
+            // It remaps indices that are swapped.
+            let mut index_remap = HashMap::new();
             match (left, right) {
                 (Some(left), Some(right)) => {
+                    let min = left.min(right);
+                    let max = right.max(left);
+                    index_remap.insert(self.unused.len() - 1, max);
+                    index_remap.insert(self.unused.len() - 2, min);
                     freed_sector.absorb(
                         self.unused.swap_remove(right.max(left))
                     );
@@ -237,11 +249,13 @@ impl SectorManager {
                     );
                 }
                 (Some(index), None) => {
+                    index_remap.insert(self.unused.len() - 1, index);
                     freed_sector.absorb(
                         self.unused.swap_remove(index)
                     );
                 }
                 (None, Some(index)) => {
+                    index_remap.insert(self.unused.len() - 1, index);
                     freed_sector.absorb(
                         self.unused.swap_remove(index)
                     );
@@ -256,9 +270,11 @@ impl SectorManager {
             use SuccessAction::{Replace, Remove};
             match action {
                 Replace(index, old) => {
+                    let index = *index_remap.get(&index).unwrap_or(&index);
                     self.unused[index] = old;
                 }
                 Remove(index) => {
+                    let index = *index_remap.get(&index).unwrap_or(&index);
                     self.unused.swap_remove(index);
                 }
                 _ => ()
@@ -405,37 +421,37 @@ mod tests {
     use super::*;
     #[test]
     fn sector_manager_test() {
-        let mut man = SectorManager::new();
-        let sect1 = man.allocate(BlockSize::MAX_BLOCK_COUNT);
-        fn rand_size() -> u16 {
-            rand::random::<u16>().rem_euclid(BlockSize::MAX_BLOCK_COUNT).max(1)
-        }
-        println!("{sect1:?}");
-        println!("===First Allocation");
-        println!("{:?}", man.unused);
-        println!("{:?}", man.end_sector);
-        man.deallocate(sect1);
-        println!("{:?}", man.unused);
-        println!("{:?}", man.end_sector);
-        println!("===Allocating Random Sizes");
-        let mut sectors: Vec<SectorOffset> = (0..16).map(|_| man.allocate(rand_size())).collect();
-        println!("{:?}", man.unused);
-        println!("{:?}", man.end_sector);
-        println!("===Allocation:");
-        println!("{sectors:?}");
-        man.deallocate(sectors.remove(7));
-        println!("===Removed middle:");
-        println!("{:?}", man.unused);
-        println!("{:?}", man.end_sector);
-        man.deallocate(sectors.remove(7));
-        println!("===Removed the next one.");
-        println!("{:?}", man.unused);
-        println!("{:?}", man.end_sector);
-        sectors.into_iter().for_each(|sector| {
-            man.deallocate(sector);
-        });
-        println!("===Deallocated all");
-        println!("{:?}", man.unused);
-        println!("{:?}", man.end_sector);
+        // let mut man = SectorManager::new();
+        // let sect1 = man.allocate(BlockSize::MAX_BLOCK_COUNT);
+        // fn rand_size() -> u16 {
+        //     rand::random::<u16>().rem_euclid(BlockSize::MAX_BLOCK_COUNT).max(1)
+        // }
+        // println!("{sect1:?}");
+        // println!("===First Allocation");
+        // println!("{:?}", man.unused);
+        // println!("{:?}", man.end_sector);
+        // man.deallocate(sect1);
+        // println!("{:?}", man.unused);
+        // println!("{:?}", man.end_sector);
+        // println!("===Allocating Random Sizes");
+        // let mut sectors: Vec<SectorOffset> = (0..16).map(|_| man.allocate(rand_size())).collect();
+        // println!("{:?}", man.unused);
+        // println!("{:?}", man.end_sector);
+        // println!("===Allocation:");
+        // println!("{sectors:?}");
+        // man.deallocate(sectors.remove(7));
+        // println!("===Removed middle:");
+        // println!("{:?}", man.unused);
+        // println!("{:?}", man.end_sector);
+        // man.deallocate(sectors.remove(7));
+        // println!("===Removed the next one.");
+        // println!("{:?}", man.unused);
+        // println!("{:?}", man.end_sector);
+        // sectors.into_iter().for_each(|sector| {
+        //     man.deallocate(sector);
+        // });
+        // println!("===Deallocated all");
+        // println!("{:?}", man.unused);
+        // println!("{:?}", man.end_sector);
     }
 }

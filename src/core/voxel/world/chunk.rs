@@ -236,7 +236,7 @@ impl Chunk {
             let offset = Coord::new(self.block_offset.x, y, self.block_offset.z);
             let marked = self.sections[i].unload(world);
         }
-        let save_id = self.save_id.swap(PoolId::NULL);
+        let save_id = self.save_id.swap_null();
         world.save_queue.remove(save_id);
     }
 

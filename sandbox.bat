@@ -1,2 +1,3 @@
 @echo OFF
-cargo run --release --bin sandbox
+set RUST_BACKTRACE=FULL
+cargo run --release --bin sandbox %*

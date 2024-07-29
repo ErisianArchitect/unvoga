@@ -1,6 +1,8 @@
 #![allow(unused)]
 use std::{iter::Map, marker::PhantomData, num::NonZeroU64, sync::atomic::AtomicU64, vec::Drain};
 
+use crate::prelude::SwapVal;
+
 
 /// An unordered object pool with O(1) lookup, insertion, deletion, and iteration.
 /// Sounds too good to be true!
@@ -61,8 +63,7 @@ impl<T,M: Copy> ObjectPool<T,M> {
             panic!("Id does not belong to this pool.");
         }
         if id.index() >= self.indices.len() {
-            println!("Index out of bounds in object pool");
-            return;
+            panic!("Out of bounds");
         }
         let pool_index = self.indices[id.index()];
         if self.pool[pool_index].0.0 != id.0 {
@@ -229,6 +230,14 @@ impl<M: Copy> PoolId<M> {
         self.0 == 0
     }
 
+    #[must_use]
+    pub fn non_null(self) -> bool {
+        self.0 != 0
+    }
+
+    pub fn swap_null(&mut self) -> Self {
+        self.swap(PoolId::NULL)
+    }
     
     #[must_use]
     fn new(pool_id: u64, index: usize, generation: u64) -> Self {
@@ -284,6 +293,8 @@ impl<M: Copy> PoolId<M> {
 
 #[cfg(test)]
 mod tests {
+    use rand::Rng;
+
     use super::*;
     #[test]
     fn pool_test() {
@@ -306,5 +317,50 @@ mod tests {
         assert_eq!(pool[fred], "Fred");
         assert_eq!(pool[test], "Test string");
         assert_eq!(pool[bob], "Bob");
+
+        let mut pool = ObjectPool::<i32>::new();
+        let mut ids = Vec::new();
+        for i in 0..1000 {
+            ids.push(pool.insert(rand::random()));
+        }
+        fn take_random_element<T>(elements: &mut Vec<T>) -> T {
+            if elements.is_empty() {
+                panic!("Can't be empty.");
+            }
+            let index = rand::thread_rng().gen_range(0..elements.len());
+            elements.swap_remove(index)
+        }
+        for i in 0..43 {
+            let id = take_random_element(&mut ids);
+            pool.remove(id);
+        }
+        for i in 0..54 {
+            ids.push(pool.insert(rand::random()));
+        }
+        for i in 0..44 {
+            let id = take_random_element(&mut ids);
+            pool.remove(id);
+        }
+        for i in 0..24 {
+            ids.push(pool.insert(rand::random()));
+        }
+        for i in 0..25 {
+            let id = take_random_element(&mut ids);
+            pool.remove(id);
+        }
+        for i in 0..55 {
+            ids.push(pool.insert(rand::random()));
+        }
+        for i in 0..52 {
+            let id = take_random_element(&mut ids);
+            pool.remove(id);
+        }
+        for i in 0..51 {
+            ids.push(pool.insert(rand::random()));
+        }
+        while !ids.is_empty() {
+            let id = take_random_element(&mut ids);
+            pool.remove(id);
+        }
     }
 }

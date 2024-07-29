@@ -1,4 +1,5 @@
 #![allow(unused)]
+use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 use std::time::Instant;
@@ -247,7 +248,7 @@ fn setup(
     blocks::register_block(DebugBlock);
     let mut world = VoxelWorld::open(
         "ignore/test_world",
-        12,
+        14,
         (0, 0, 0),
         cube_sides_texarray.clone(),
         &mut commands,
@@ -270,7 +271,7 @@ fn setup(
     commands.spawn((
         Camera3dBundle {
             projection: PerspectiveProjection {
-                fov: 45.0,
+                fov: 70.0,
                 aspect_ratio: 1.0,
                 far: 1000.0,
                 near: 0.01,
@@ -315,12 +316,6 @@ fn update_input(
     mut world: ResMut<VoxelWorldRes>,
     mut gizmos: Gizmos,
 ) {
-    // let (x, y, z) = (
-    //     campos.position.x.floor() as i32,
-    //     campos.position.y.floor() as i32,
-    //     campos.position.z.floor() as i32,
-    // );
-    // world.world.move_center((x, y, z));
     if keys.just_pressed(KeyCode::Escape) {
         world.world.save_world();
         app_exit_events.send(bevy::app::AppExit);
@@ -364,13 +359,17 @@ fn update_input(
     if keys.pressed(KeyCode::KeyD) {
         translation += transform.right() * dt * move_speed;
     }
+    const BOUND_SIZE: i32 = 32;
+    const X_BOUND: Range<i32> = -BOUND_SIZE..BOUND_SIZE;
+    const Y_BOUND: Range<i32> = -BOUND_SIZE..BOUND_SIZE;
+    const Z_BOUND: Range<i32> = -BOUND_SIZE..BOUND_SIZE;
     if keys.just_pressed(KeyCode::KeyI) {
         let dirt = blockstate!(dirt).register();
-        for y in 0..16 {
-            for z in 0..16 {
-                for x in 0..16 {
-                    let (nx, ny, nz) = (x - 8, y - 8, z - 30);
-                    world.world.set_block((nx, ny, nz), dirt);
+        for y in Y_BOUND {
+            for z in Z_BOUND {
+                for x in X_BOUND {
+                    let coord_dirt = blockstate!(dirt, coord=IVec3::new(x, y, z)).register();
+                    world.world.set_block((x, y, z), coord_dirt);
                 }
             }
         }
@@ -378,20 +377,27 @@ fn update_input(
     }
     // U for Ungage
     if keys.just_pressed(KeyCode::KeyU) {
-        for y in 0..16 {
-            for z in 0..16 {
-                for x in 0..16 {
-                    let (nx, ny, nz) = (x - 8, y - 8, z - 30);
-                    world.world.set_block((nx, ny, nz), Id::AIR);
+        for y in Y_BOUND {
+            for z in Z_BOUND {
+                for x in X_BOUND {
+                    world.world.set_block((x, y, z), Id::AIR);
                 }
             }
         }
     }
     if keys.just_pressed(KeyCode::KeyT) {
         let dirt = blockstate!(dirt).register();
-        world.world.render_bounds().iter().for_each(|coord| {
-            world.world.set_block(coord, dirt);
-        });
+        let Bounds3D { min, max } = world.world.render_bounds();
+        let x_range = min.0..max.0;
+        let z_range = min.2..max.2;
+        let y_range = min.1..min.1 + 16;
+        for y in y_range.clone() {
+            for z in z_range.clone() {
+                for x in x_range.clone() {
+                    world.world.set_block((x, y, z), dirt);
+                }
+            }
+        }
     }
     // if keys.just_pressed(KeyCode::KeyR) {
     //     let ray = Ray3d::new(Vec3::ZERO, Vec3::NEG_Z);
@@ -406,7 +412,7 @@ fn update_input(
         if mouse_buttons.just_pressed(MouseButton::Left) {
             if let Some(direction) = direction {
                 let next = coord + direction;
-                world.world.set_block(next, blockstate!(dirt).register());
+                world.world.set_block(next, blockstate!(dirt, coord=IVec3::new(next.x, next.y, next.z)).register());
             } else {
                 println!("No direction");
             }
@@ -431,6 +437,12 @@ fn update_input(
     }
     transform.translation += translation;
     campos.position = transform.translation;
+    let (x, y, z) = (
+        campos.position.x.floor() as i32,
+        campos.position.y.floor() as i32,
+        campos.position.z.floor() as i32,
+    );
+    world.world.move_center((x, y, z));
     
 }
 
