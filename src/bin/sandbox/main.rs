@@ -213,14 +213,16 @@ fn setup(
         config.depth_bias = -1.0;
     }
     let side_texture_paths = vec![
-        "./assets/debug/textures/cube_sides/pos_y.png",
-        "./assets/debug/textures/cube_sides/pos_x.png",
-        "./assets/debug/textures/cube_sides/pos_z.png",
-        "./assets/debug/textures/cube_sides/neg_y.png",
-        "./assets/debug/textures/cube_sides/neg_x.png",
-        "./assets/debug/textures/cube_sides/neg_z.png",
+        // "./assets/debug/textures/cube_sides/pos_y.png",     // 0
+        // "./assets/debug/textures/cube_sides/pos_x.png",     // 1
+        // "./assets/debug/textures/cube_sides/pos_z.png",     // 2
+        // "./assets/debug/textures/cube_sides/neg_y.png",     // 3
+        // "./assets/debug/textures/cube_sides/neg_x.png",     // 4
+        // "./assets/debug/textures/cube_sides/neg_z.png",     // 5
+        "./assets/debug/textures/blocks/stone_bricks.png",  // 6
+        "./assets/debug/textures/blocks/cement.png",        // 7
     ];
-    let cube_sides_texarray = images.add(unvoga::core::util::texture_array::create_texture_array_from_paths(512, 512, side_texture_paths).expect("Failed to create texture array."));
+    let cube_sides_texarray = images.add(unvoga::core::util::texture_array::create_texture_array_from_paths(256, 256, side_texture_paths).expect("Failed to create texture array."));
     let pos_y_mesh = MeshData {
         vertices: vec![
             vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
@@ -243,7 +245,8 @@ fn setup(
             1, 2, 3,
         ],
     };
-    blocks::register_block(DirtBlock);
+    // blocks::register_block(DirtBlock);
+    blocks::register_block(StoneBricksBlock);
     blocks::register_block(RotatedBlock);
     blocks::register_block(DebugBlock);
     let mut world = VoxelWorld::open(
@@ -255,7 +258,8 @@ fn setup(
         &mut meshes,
         &mut materials
     );
-    let dirt = blockstate!(dirt).register();
+    // let dirt = blockstate!(dirt).register();
+    // let bricks = blockstate!(stone_bricks).register();
     // world.set_block((1, 1, 1), dirt);
     // world.set_block((1, 0, 1), dirt);
     // world.set_block((1, 1, 0), dirt);
@@ -364,11 +368,10 @@ fn update_input(
     const Y_BOUND: Range<i32> = -BOUND_SIZE..BOUND_SIZE;
     const Z_BOUND: Range<i32> = -BOUND_SIZE..BOUND_SIZE;
     if keys.just_pressed(KeyCode::KeyI) {
-        let dirt = blockstate!(dirt).register();
         for y in Y_BOUND {
             for z in Z_BOUND {
                 for x in X_BOUND {
-                    let coord_dirt = blockstate!(dirt, coord=IVec3::new(x, y, z)).register();
+                    let coord_dirt = blockstate!(stone_bricks, coord=IVec3::new(x, y, z)).register();
                     world.world.set_block((x, y, z), coord_dirt);
                 }
             }
@@ -386,7 +389,7 @@ fn update_input(
         }
     }
     if keys.just_pressed(KeyCode::KeyT) {
-        let dirt = blockstate!(dirt).register();
+        let dirt = blockstate!(stone_bricks).register();
         let Bounds3D { min, max } = world.world.render_bounds();
         let x_range = min.0..max.0;
         let z_range = min.2..max.2;
@@ -412,7 +415,7 @@ fn update_input(
         if mouse_buttons.just_pressed(MouseButton::Left) {
             if let Some(direction) = direction {
                 let next = coord + direction;
-                world.world.set_block(next, blockstate!(dirt, coord=IVec3::new(next.x, next.y, next.z)).register());
+                world.world.set_block(next, blockstate!(stone_bricks, coord=IVec3::new(next.x, next.y, next.z)).register());
             } else {
                 println!("No direction");
             }
@@ -575,6 +578,76 @@ mod testing_sandbox {
     }
 }
 
+struct StoneBricksBlock;
+
+impl Block for StoneBricksBlock {
+    fn name(&self) -> &str {
+        "stone_bricks"
+    }
+
+    fn default_state(&self) -> unvoga::core::voxel::blockstate::BlockState {
+        blockstate!(stone_bricks)
+    }
+
+    fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
+        static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
+            let pos_y_mesh = MeshData {
+                vertices: vec![
+                    vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
+                    vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
+                ],
+                normals: vec![
+                    Vec3::Y, Vec3::Y,
+                    Vec3::Y, Vec3::Y,
+                ],
+                uvs: vec![
+                    vec2(0.0, 0.0), vec2(1.0, 0.0),
+                    vec2(0.0, 1.0), vec2(1.0, 1.0),
+                ],
+                texindices: vec![
+                    1, 1,
+                    1, 1,
+                ],
+                indices: vec![
+                    0, 2, 1,
+                    1, 2, 3,
+                ],
+            };
+            let pos_x_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::PosX, 0), Flip::NONE))
+                .map_texindices(0);
+            let pos_z_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::PosZ, 0), Flip::NONE))
+                .map_texindices(0);
+            let neg_y_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::NegY, 0), Flip::NONE))
+                .map_texindices(1);
+            let neg_x_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::NegX, 0), Flip::NONE))
+                .map_texindices(0);
+            let neg_z_mesh = pos_y_mesh.clone()
+                .map_orientation(Orientation::new(Rotation::new(Direction::NegZ, 0), Flip::NONE))
+                .map_texindices(0);
+            Faces::new(
+                neg_x_mesh,
+                neg_y_mesh,
+                neg_z_mesh,
+                pos_x_mesh,
+                pos_y_mesh,
+                pos_z_mesh
+            )
+        });
+        Direction::iter().for_each(|dir| {
+            if occlusion.visible(dir) {
+                // get the source face because the mesh_builder will orient that face
+                // to dir
+                let src_face = orientation.source_face(dir);
+                mesh_builder.push_mesh_data(MESH_DATA.face(dir));
+            }
+        });
+    }
+}
+
 struct DirtBlock;
 impl Block for DirtBlock {
 
@@ -651,10 +724,6 @@ impl Block for DirtBlock {
                 pos_z_mesh
             )
         });
-        if occlusion.neg_x() {
-            let src_neg_x = orientation.source_face(Direction::NegX);
-            mesh_builder.push_mesh_data(&MESH_DATA.face(src_neg_x));
-        }
         Direction::iter().for_each(|dir| {
             if occlusion.visible(dir) {
                 // get the source face because the mesh_builder will orient that face
