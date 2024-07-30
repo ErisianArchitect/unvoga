@@ -1,4 +1,7 @@
 #![allow(unused)]
+
+mod textureregistry;
+use std::cell::LazyCell;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::LazyLock;
@@ -13,6 +16,7 @@ use bevy::window::{CursorGrabMode, PresentMode, PrimaryWindow};
 use bevy_egui::EguiPlugin;
 use hashbrown::HashMap;
 use rollgrid::rollgrid3d::Bounds3D;
+use unvoga::core::voxel::blockstate::BlockState;
 use unvoga::core::voxel::rendering::voxelmaterial::VoxelMaterial;
 use unvoga::core::voxel::rendering::voxelmesh::MeshData;
 use unvoga::core::voxel::world::{RaycastResult, RenderChunkMarker};
@@ -212,17 +216,49 @@ fn setup(
     for (_, config, _) in giz_store.iter_mut() {
         config.depth_bias = -1.0;
     }
-    let side_texture_paths = vec![
-        // "./assets/debug/textures/cube_sides/pos_y.png",     // 0
-        // "./assets/debug/textures/cube_sides/pos_x.png",     // 1
-        // "./assets/debug/textures/cube_sides/pos_z.png",     // 2
-        // "./assets/debug/textures/cube_sides/neg_y.png",     // 3
-        // "./assets/debug/textures/cube_sides/neg_x.png",     // 4
-        // "./assets/debug/textures/cube_sides/neg_z.png",     // 5
-        "./assets/debug/textures/blocks/stone_bricks.png",  // 6
-        "./assets/debug/textures/blocks/cement.png",        // 7
-    ];
-    let cube_sides_texarray = images.add(unvoga::core::util::texture_array::create_texture_array_from_paths(256, 256, side_texture_paths).expect("Failed to create texture array."));
+    use textureregistry as texreg;
+    let cube_sides_dir = PathBuf::from("./assets/debug/textures/cube_sides/");
+    let blocks_dir = PathBuf::from("./assets/debug/textures/blocks/");
+    texreg::register("pos_x", cube_sides_dir.join("pos_x.png"));
+    texreg::register("pos_y", cube_sides_dir.join("pos_y.png"));
+    texreg::register("pos_z", cube_sides_dir.join("pos_z.png"));
+    texreg::register("neg_x", cube_sides_dir.join("neg_x.png"));
+    texreg::register("neg_y", cube_sides_dir.join("neg_y.png"));
+    texreg::register("neg_z", cube_sides_dir.join("neg_z.png"));
+    macro_rules! reg_block_tex {
+        ($name:ident) => {
+            texreg::register(stringify!($name), blocks_dir.join(format!("{}.png", stringify!(name))));
+        };
+    }
+    reg_block_tex!(stone_bricks);
+    reg_block_tex!(sky_bricks);
+    reg_block_tex!(cement);
+    reg_block_tex!(metal_grid);
+    reg_block_tex!(marble_01);
+    reg_block_tex!(marble_02);
+    reg_block_tex!(checkered);
+    reg_block_tex!(dirt);
+    reg_block_tex!(stone);
+    reg_block_tex!(darkstone);
+    reg_block_tex!(sand);
+    reg_block_tex!(snow);
+    reg_block_tex!(fancy_wood);
+    reg_block_tex!(fancy_wood_red);
+    reg_block_tex!(fancy_wood_green);
+    reg_block_tex!(fancy_wood_blue);
+    reg_block_tex!(fancy_wood_yellow);
+    let texture_array = images.add(texreg::build_texture_array(256, 256).expect("Failed to build texture array"));
+    // let side_texture_paths = vec![
+    //     // "./assets/debug/textures/cube_sides/pos_y.png",     // 0
+    //     // "./assets/debug/textures/cube_sides/pos_x.png",     // 1
+    //     // "./assets/debug/textures/cube_sides/pos_z.png",     // 2
+    //     // "./assets/debug/textures/cube_sides/neg_y.png",     // 3
+    //     // "./assets/debug/textures/cube_sides/neg_x.png",     // 4
+    //     // "./assets/debug/textures/cube_sides/neg_z.png",     // 5
+    //     "./assets/debug/textures/blocks/stone_bricks.png",  // 6
+    //     "./assets/debug/textures/blocks/cement.png",        // 7
+    // ];
+    // let cube_sides_texarray = images.add(unvoga::core::util::texture_array::create_texture_array_from_paths(256, 256, side_texture_paths).expect("Failed to create texture array."));
     let pos_y_mesh = MeshData {
         vertices: vec![
             vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
@@ -246,14 +282,25 @@ fn setup(
         ],
     };
     // blocks::register_block(DirtBlock);
-    blocks::register_block(StoneBricksBlock);
-    blocks::register_block(RotatedBlock);
+    // blocks::register_block(StoneBricksBlock);
+    blocks::register_block(SolidBlock::vertical_block("stone_bricks", blockstate!(stone_bricks), texreg::get_texture_index("cement"), texreg::get_texture_index("stone_bricks")));
+    blocks::register_block(SolidBlock::single("dirt", blockstate!(dirt), texreg::get_texture_index("dirt")));
+    blocks::register_block(SolidBlock::single("sand", blockstate!(sand), texreg::get_texture_index("sand")));
+    blocks::register_block(SolidBlock::single("metal_grid", blockstate!(metal_grid), texreg::get_texture_index("metal_grid")));
+    blocks::register_block(SolidBlock::single("marble_01", blockstate!(marble_01), texreg::get_texture_index("marble_01")));
+    blocks::register_block(SolidBlock::single("marble_02", blockstate!(marble_02), texreg::get_texture_index("marble_02")));
+    blocks::register_block(SolidBlock::single("fancy_wood", blockstate!(fancy_wood), texreg::get_texture_index("fancy_wood")));
+    blocks::register_block(SolidBlock::single("fancy_wood_red", blockstate!(fancy_wood_red), texreg::get_texture_index("fancy_wood_red")));
+    blocks::register_block(SolidBlock::single("fancy_wood_green", blockstate!(fancy_wood_green), texreg::get_texture_index("fancy_wood_green")));
+    blocks::register_block(SolidBlock::single("fancy_wood_blue", blockstate!(fancy_wood_blue), texreg::get_texture_index("fancy_wood_blue")));
+    blocks::register_block(SolidBlock::single("fancy_wood_yellow", blockstate!(fancy_wood_yellow), texreg::get_texture_index("fancy_wood_yellow")));
+    // blocks::register_block(RotatedBlock);
     blocks::register_block(DebugBlock);
     let mut world = VoxelWorld::open(
         "ignore/test_world",
         14,
         (0, 0, 0),
-        cube_sides_texarray.clone(),
+        texture_array.clone(),
         &mut commands,
         &mut meshes,
         &mut materials
@@ -305,7 +352,11 @@ fn setup(
     commands.insert_resource(CameraRotation::default());
     commands.insert_resource(VoxelWorldRes { world });
     commands.insert_resource(CameraLocation { position: Vec3::ZERO });
+    commands.insert_resource(SelectedBlock(blockstate!(dirt).register()));
 }
+
+#[derive(Resource)]
+struct SelectedBlock(Id);
 
 fn update_input(
     mut evr_motion: EventReader<MouseMotion>,
@@ -319,7 +370,23 @@ fn update_input(
     mut app_exit_events: ResMut<Events<bevy::app::AppExit>>,
     mut world: ResMut<VoxelWorldRes>,
     mut gizmos: Gizmos,
+    mut selection: ResMut<SelectedBlock>,
 ) {
+    static KEY_BLOCKS: LazyLock<Vec<(KeyCode, Id)>> = LazyLock::new(|| {
+        let mut items = Vec::new();
+        items.push((KeyCode::Digit1, blockstate!(dirt).register()));
+        items.push((KeyCode::Digit2, blockstate!(stone_bricks).register()));
+        items.push((KeyCode::Digit3, blockstate!(sand).register()));
+        items.push((KeyCode::Digit4, blockstate!(metal_grid).register()));
+        items.push((KeyCode::Digit5, blockstate!(fancy_wood_blue).register()));
+        items.push((KeyCode::Digit6, blockstate!(debug).register()));
+        items
+    });
+    KEY_BLOCKS.iter().for_each(|&(key, id)| {
+        if keys.just_pressed(key) {
+            selection.0 = id;
+        }
+    });
     if keys.just_pressed(KeyCode::Escape) {
         world.world.save_world();
         app_exit_events.send(bevy::app::AppExit);
@@ -415,7 +482,7 @@ fn update_input(
         if mouse_buttons.just_pressed(MouseButton::Left) {
             if let Some(direction) = direction {
                 let next = coord + direction;
-                world.world.set_block(next, blockstate!(stone_bricks, coord=IVec3::new(next.x, next.y, next.z)).register());
+                world.world.set_block(next, selection.0);
             } else {
                 println!("No direction");
             }
@@ -578,6 +645,96 @@ mod testing_sandbox {
     }
 }
 
+struct SolidBlock {
+    mesh_data: Faces<MeshData>,
+    name: String,
+    default_state: BlockState,
+}
+
+impl SolidBlock {
+    pub fn single<S: AsRef<str>>(name: S, default_state: BlockState, texture_index: u32) -> Self {
+        Self::new(name, default_state, Faces::new(texture_index, texture_index, texture_index, texture_index, texture_index, texture_index))
+    }
+    pub fn vertical_block<S: AsRef<str>>(name: S, default_state: BlockState, vertical_texture_index: u32, side_texture_index: u32) -> Self {
+        Self::new(name, default_state, Faces::new(
+            side_texture_index,
+            vertical_texture_index,
+            side_texture_index,
+            side_texture_index,
+            vertical_texture_index,
+            side_texture_index
+        ))
+    }
+
+    pub fn new<S: AsRef<str>>(name: S, default_state: BlockState, texindices: Faces<u32>) -> Self {
+        static POS_Y_MESH: LazyLock<MeshData> = LazyLock::new(|| MeshData {
+            vertices: vec![
+                vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
+                vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
+            ],
+            normals: vec![
+                Vec3::Y, Vec3::Y,
+                Vec3::Y, Vec3::Y,
+            ],
+            uvs: vec![
+                vec2(0.0, 0.0), vec2(1.0, 0.0),
+                vec2(0.0, 1.0), vec2(1.0, 1.0),
+            ],
+            texindices: vec![
+                0, 0,
+                0, 0,
+            ],
+            indices: vec![
+                0, 2, 1,
+                1, 2, 3,
+            ],
+        });
+        let pos_x_mesh = POS_Y_MESH.clone().map_orientation(Rotation::new(Direction::PosX, 0).into())
+            .map_texindices(texindices.pos_x);
+        let pos_z_mesh = POS_Y_MESH.clone().map_orientation(Rotation::new(Direction::PosZ, 0).into())
+            .map_texindices(texindices.pos_z);
+        let neg_x_mesh = POS_Y_MESH.clone().map_orientation(Rotation::new(Direction::NegX, 0).into())
+            .map_texindices(texindices.neg_x);
+        let neg_y_mesh = POS_Y_MESH.clone().map_orientation(Rotation::new(Direction::NegY, 0).into())
+            .map_texindices(texindices.neg_y);
+        let neg_z_mesh = POS_Y_MESH.clone().map_orientation(Rotation::new(Direction::NegZ, 0).into())
+            .map_texindices(texindices.neg_z);
+        Self {
+            mesh_data: Faces {
+                pos_x: pos_x_mesh,
+                pos_y: POS_Y_MESH.clone().map_texindices(texindices.pos_y),
+                pos_z: pos_z_mesh,
+                neg_x: neg_x_mesh,
+                neg_y: neg_y_mesh,
+                neg_z: neg_z_mesh
+            },
+            name: name.as_ref().to_owned(),
+            default_state,
+        }
+    }
+}
+
+impl Block for SolidBlock {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn default_state(&self) -> BlockState {
+        self.default_state.clone()
+    }
+
+    fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
+        Direction::iter().for_each(|dir| {
+            if occlusion.visible(dir) {
+                // get the source face because the mesh_builder will orient that face
+                // to dir
+                let src_face = orientation.source_face(dir);
+                mesh_builder.push_mesh_data(self.mesh_data.face(dir));
+            }
+        });
+    }
+}
+
 struct StoneBricksBlock;
 
 impl Block for StoneBricksBlock {
@@ -591,6 +748,8 @@ impl Block for StoneBricksBlock {
 
     fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
         static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
+            let sides_index = textureregistry::get_texture_index("stone_bricks");
+            let y_index = textureregistry::get_texture_index("cement");
             let pos_y_mesh = MeshData {
                 vertices: vec![
                     vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
@@ -605,8 +764,8 @@ impl Block for StoneBricksBlock {
                     vec2(0.0, 1.0), vec2(1.0, 1.0),
                 ],
                 texindices: vec![
-                    1, 1,
-                    1, 1,
+                    y_index, y_index,
+                    y_index, y_index,
                 ],
                 indices: vec![
                     0, 2, 1,
@@ -615,19 +774,19 @@ impl Block for StoneBricksBlock {
             };
             let pos_x_mesh = pos_y_mesh.clone()
                 .map_orientation(Orientation::new(Rotation::new(Direction::PosX, 0), Flip::NONE))
-                .map_texindices(0);
+                .map_texindices(sides_index);
             let pos_z_mesh = pos_y_mesh.clone()
                 .map_orientation(Orientation::new(Rotation::new(Direction::PosZ, 0), Flip::NONE))
-                .map_texindices(0);
+                .map_texindices(sides_index);
             let neg_y_mesh = pos_y_mesh.clone()
                 .map_orientation(Orientation::new(Rotation::new(Direction::NegY, 0), Flip::NONE))
-                .map_texindices(1);
+                .map_texindices(y_index);
             let neg_x_mesh = pos_y_mesh.clone()
                 .map_orientation(Orientation::new(Rotation::new(Direction::NegX, 0), Flip::NONE))
-                .map_texindices(0);
+                .map_texindices(sides_index);
             let neg_z_mesh = pos_y_mesh.clone()
                 .map_orientation(Orientation::new(Rotation::new(Direction::NegZ, 0), Flip::NONE))
-                .map_texindices(0);
+                .map_texindices(sides_index);
             Faces::new(
                 neg_x_mesh,
                 neg_y_mesh,
@@ -678,6 +837,7 @@ impl Block for DirtBlock {
 
     fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
         static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
+            let texindex = textureregistry::get_texture_index("dirt");
             let pos_y_mesh = MeshData {
                 vertices: vec![
                     vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
@@ -692,8 +852,8 @@ impl Block for DirtBlock {
                     vec2(0.0, 1.0), vec2(1.0, 1.0),
                 ],
                 texindices: vec![
-                    0, 0,
-                    0, 0,
+                    texindex, texindex,
+                    texindex, texindex,
                 ],
                 indices: vec![
                     0, 2, 1,
@@ -701,20 +861,15 @@ impl Block for DirtBlock {
                 ],
             };
             let pos_x_mesh = pos_y_mesh.clone()
-                .map_orientation(Orientation::new(Rotation::new(Direction::PosX, 0), Flip::NONE))
-                .map_texindices(1);
+                .map_orientation(Orientation::new(Rotation::new(Direction::PosX, 0), Flip::NONE));
             let pos_z_mesh = pos_y_mesh.clone()
-                .map_orientation(Orientation::new(Rotation::new(Direction::PosZ, 0), Flip::NONE))
-                .map_texindices(2);
+                .map_orientation(Orientation::new(Rotation::new(Direction::PosZ, 0), Flip::NONE));
             let neg_y_mesh = pos_y_mesh.clone()
-                .map_orientation(Orientation::new(Rotation::new(Direction::NegY, 0), Flip::NONE))
-                .map_texindices(3);
+                .map_orientation(Orientation::new(Rotation::new(Direction::NegY, 0), Flip::NONE));
             let neg_x_mesh = pos_y_mesh.clone()
-                .map_orientation(Orientation::new(Rotation::new(Direction::NegX, 0), Flip::NONE))
-                .map_texindices(4);
+                .map_orientation(Orientation::new(Rotation::new(Direction::NegX, 0), Flip::NONE));
             let neg_z_mesh = pos_y_mesh.clone()
-                .map_orientation(Orientation::new(Rotation::new(Direction::NegZ, 0), Flip::NONE))
-                .map_texindices(5);
+                .map_orientation(Orientation::new(Rotation::new(Direction::NegZ, 0), Flip::NONE));
             Faces::new(
                 neg_x_mesh,
                 neg_y_mesh,
@@ -809,23 +964,73 @@ impl Block for DebugBlock {
     fn name(&self) -> &str {
         "debug"
     }
-    fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
-        const OCCLUDER: Occluder = Occluder {
-            neg_x: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
-                [1, 0],
-                [1, 1],
-            ])),
-            neg_y: OcclusionShape::Full,
-            neg_z: OcclusionShape::Full,
-            pos_x: OcclusionShape::Full,
-            pos_y: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
-                [1, 0],
-                [1, 1],
-            ])),
-            pos_z: OcclusionShape::Full,
-        };
-        &OCCLUDER
+
+    fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
+        static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
+            let pos_x_index = textureregistry::get_texture_index("pos_x");
+            let pos_y_index = textureregistry::get_texture_index("pos_y");
+            let pos_z_index = textureregistry::get_texture_index("pos_z");
+            let neg_x_index = textureregistry::get_texture_index("neg_x");
+            let neg_y_index = textureregistry::get_texture_index("neg_y");
+            let neg_z_index = textureregistry::get_texture_index("neg_z");
+            let pos_y = MeshData {
+                vertices: vec![
+                    vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
+                    vec3(-0.5, 0.5, 0.5), vec3(0.5, 0.5, 0.5),
+                ],
+                normals: vec![
+                    Vec3::Y, Vec3::Y,
+                    Vec3::Y, Vec3::Y,
+                ],
+                uvs: vec![
+                    vec2(0.0, 0.0), vec2(1.0, 0.0),
+                    vec2(0.0, 1.0), vec2(1.0, 1.0),
+                ],
+                texindices: vec![
+                    pos_y_index, pos_y_index,
+                    pos_y_index, pos_y_index,
+                ],
+                indices: vec![
+                    0, 2, 1,
+                    1, 2, 3,
+                ],
+            };
+            let pos_x = pos_y.clone().map_orientation(Rotation::new(Direction::PosX, 0).into())
+                .map_texindices(pos_x_index);
+            let pos_z = pos_y.clone().map_orientation(Rotation::new(Direction::PosZ, 0).into())
+                .map_texindices(pos_z_index);
+            let neg_x = pos_y.clone().map_orientation(Rotation::new(Direction::NegX, 0).into())
+                .map_texindices(neg_x_index);
+            let neg_y = pos_y.clone().map_orientation(Rotation::new(Direction::NegY, 0).into())
+                .map_texindices(neg_y_index);
+            let neg_z = pos_y.clone().map_orientation(Rotation::new(Direction::NegZ, 0).into())
+                .map_texindices(neg_z_index);
+            Faces {
+                pos_x,
+                pos_y,
+                pos_z,
+                neg_x,
+                neg_y,
+                neg_z
+            }
+        });
+        Direction::iter().for_each(|face| {
+            if occlusion.hidden(face) {
+                return;
+            }
+            let src_face = orientation.source_face(face);
+            mesh_builder.push_mesh_data(MESH_DATA.face(face));
+        })
     }
+
+    fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
+        &Occluder::FULL_FACES
+    }
+
+    fn occludee(&self, world: &VoxelWorld, state: Id) -> &Occluder {
+        &Occluder::FULL_FACES
+    }
+
     fn default_state(&self) -> unvoga::core::voxel::blockstate::BlockState {
         blockstate!(debug)
     }
@@ -856,7 +1061,6 @@ impl Block for DebugBlock {
         if matches!(context.replacement()["replace"], StateValue::Bool(true)) {
             context.replace(blockstate!(debug).register());
         } else if matches!(context.replacement()["withdata"], StateValue::Bool(true)) {
-            println!("Adding data...");
             context.set_data(Tag::from("The quick brown fox jumps over the lazy dog."));
         }
     }
@@ -877,7 +1081,6 @@ impl Block for DebugBlock {
     }
     fn on_update(&self, world: &mut VoxelWorld, coord: Coord, state: Id) {
         println!("Update {coord} {state}");
-        // world.set_block(coord + Direction::PosY, state);
     }
     fn enable_on_place(&self, world: &VoxelWorld, coord: Coord, state: Id) -> bool {
         matches!(state["enabled"], StateValue::Bool(true))
