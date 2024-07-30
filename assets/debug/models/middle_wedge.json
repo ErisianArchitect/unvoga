@@ -1,5 +1,31 @@
 {
     "model": "./assets/debug/models/middle_wedge.glb",
+    "textures": {
+        "pos_x": {
+            "name": "pos_x",
+            "path": "./assets/debug/textures/blocks/pos_x.png"
+        },
+        "pos_y": {
+            "name": "pos_y",
+            "path": "./assets/debug/textures/blocks/pos_y.png"
+        },
+        "pos_z": {
+            "name": "pos_z",
+            "path": "./assets/debug/textures/blocks/pos_z.png"
+        },
+        "neg_x": {
+            "name": "neg_x",
+            "path": "./assets/debug/textures/blocks/neg_x.png"
+        },
+        "neg_y": {
+            "name": "neg_y",
+            "path": "./assets/debug/textures/blocks/neg_y.png"
+        },
+        "neg_z": {
+            "name": "neg_z",
+            "path": "./assets/debug/textures/blocks/neg_z.png"
+        }
+    },
     "mesh_data": {
         "extra": [
             {

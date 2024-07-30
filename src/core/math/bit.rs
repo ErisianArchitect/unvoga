@@ -318,8 +318,7 @@ macro_rules! __get_set_impl {
 
             #[must_use]
             fn set_bitmask(self, mask: Range<u32>, value: Self) -> Self {
-                let mask_len = mask.len();
-                let size_mask = ((1 as Self) << mask_len)-1;
+                let size_mask = ((1 as Self) << mask.len())-1;
                 let bitmask = size_mask << mask.start;
                 let delete = self & !bitmask;
                 let value = value & size_mask;
