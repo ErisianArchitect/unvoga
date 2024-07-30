@@ -23,4 +23,6 @@ itertools = "0.13.0"
 paste = "1.0.15"
 rand = "0.8.5"
 rollgrid = { git = "https://github.com/ErisianArchitect/rollgrid.git" }
+serde = "1.0.204"
+serde_json = "1.0.121"
 thiserror = "1.0.61"

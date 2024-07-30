@@ -29,6 +29,8 @@ pub enum Error {
     ParentNotFound,
     #[error("u24 was out of range")]
     U24OutOfRange,
+    #[error("Json Error: {0}")]
+    JsonError(#[from] serde_json::Error),
     #[error("Custom Error: {0}")]
     Custom(&'static str),
 }

@@ -1,0 +1,41 @@
+{
+    "model": "./assets/debug/models/middle_wedge.glb",
+    "mesh_data": {
+        "extra": [
+            {
+                "name": "top",
+                "texture": "pos_y"
+            }
+        ],
+        "neg_y": [
+            {
+                "name": "bottom",
+                "texture": "neg_y"
+            }
+        ],
+        "neg_x": [
+            {
+                "name": "left",
+                "texture": "neg_x"
+            }
+        ],
+        "pos_x": [
+            {
+                "name": "right",
+                "texture": "pos_x"
+            }
+        ],
+        "neg_z": [
+            {
+                "name": "front",
+                "texture": "neg_z"
+            }
+        ],
+        "pos_z": [
+            {
+                "name": "back",
+                "texture": "pos_z"
+            }
+        ]
+    }
+}
