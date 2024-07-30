@@ -698,6 +698,7 @@ impl VoxelWorld {
         //         return Ok(());
         //     }
         // };
+        chunk.unload(self);
         let result = region.read((chunk_x & 31, chunk_z & 31), |reader| {
             chunk.read_from(reader, self)
         });
@@ -729,6 +730,7 @@ impl VoxelWorld {
     fn load_chunk(&mut self, chunk_x: i32, chunk_z: i32) -> Result<()> {
         let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
         let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
+        chunk.unload(self);
         let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
             region
         } else {
@@ -985,6 +987,8 @@ impl VoxelWorld {
                     }
                     // No occlusion happens if they are on different layers.
                     if adj_layer != my_layer {
+                        self.show_face(coord, dir);
+                        self.show_face(adj_coord, adj_dir);
                         return;
                     }
                     let adj_orient = adj_block.orientation(self, adj_coord, adj_state);

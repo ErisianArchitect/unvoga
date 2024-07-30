@@ -59,7 +59,7 @@ pub fn register_state<B: Borrow<BlockState>>(state: B) -> Id {
 }
 
 #[must_use]
-pub fn register_block<B: Block>(block: B) -> BlockId {
+pub fn register_block<B: Block>(mut block: B) -> BlockId {
     init();
     unsafe {
         let block_lookup = BLOCK_LOOKUP.get_mut().expect("Failed to get");
@@ -69,6 +69,7 @@ pub fn register_block<B: Block>(block: B) -> BlockId {
         let blocks = BLOCKS.get_mut().expect("Failed to get");
         let id = blocks.len() as u32;
         block_lookup.insert(block.name().to_owned(), BlockId(id));
+        block.on_register();
         blocks.push(Box::new(block));
         BlockId(id)
     }

@@ -3,7 +3,7 @@ use std::{cell::RefCell, path::{Path, PathBuf}, sync::LazyLock};
 use bevy::prelude::Image;
 use bevy_egui::egui::mutex::Mutex;
 use hashbrown::HashMap;
-use unvoga::core::util::texture_array::{create_texture_array, create_texture_array_from_paths, BuildTextureArrayError};
+use crate::core::util::texture_array::{create_texture_array, create_texture_array_from_paths, BuildTextureArrayError};
 
 struct RegEntry {
     name: String,
@@ -25,13 +25,14 @@ impl TextureRegistry {
         }
     }
 
-    pub fn register(&mut self, name: String, path: PathBuf) {
+    pub fn register(&mut self, name: String, path: PathBuf) -> u32 {
         if self.lookup.contains_key(&name) {
             panic!("{} already added to texture registry.", name);
         }
         let index = self.entries.len() as u16;
         self.lookup.insert(name.clone(), index);
         self.entries.push(RegEntry { name: name, path: path, texture_index: index as u32 });
+        index as u32
     }
 
     pub fn get_texture_index<S: AsRef<str>>(&self, name: S) -> u32 {
@@ -49,9 +50,9 @@ impl TextureRegistry {
 
 static REGISTRY: LazyLock<Mutex<TextureRegistry>> = LazyLock::new(|| Mutex::new(TextureRegistry::new()));
 
-pub fn register<S: AsRef<str>, P: AsRef<Path>>(name: S, path: P) {
+pub fn register<S: AsRef<str>, P: AsRef<Path>>(name: S, path: P) -> u32 {
     let mut registry = REGISTRY.lock();
-    registry.register(name.as_ref().to_owned(), path.as_ref().to_owned());
+    registry.register(name.as_ref().to_owned(), path.as_ref().to_owned())
 }
 
 pub fn get_texture_index<S: AsRef<str>>(name: S) -> u32 {

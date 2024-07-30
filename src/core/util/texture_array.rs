@@ -58,9 +58,13 @@ pub fn create_texture_array<I: Into<DynamicImage>, It: Iterator<Item = I>>(width
 pub fn create_texture_array_from_paths<P: AsRef<Path>>(width: u32, height: u32, paths: Vec<P>) -> Result<Image, BuildTextureArrayError> {
     let mut stack_2d = RgbaImage::new(width, height * paths.len() as u32);
     paths.iter().enumerate().try_for_each(|(index, path)| {
+        if !path.as_ref().is_file() {
+            println!("Path not found: {}", path.as_ref().display());
+        }
         let layer = image::open(path.as_ref())?;
         if layer.width() != width
         || layer.height() != height {
+            println!("path: {}", path.as_ref().display());
             return Err(BuildTextureArrayError::IncorrectDimensions);
         }
         let y_start = index as u32 * height;

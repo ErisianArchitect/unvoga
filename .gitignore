@@ -4,3 +4,4 @@
 /ignore
 .vscode/
 *.code-workspace
+jupyter.ipynb

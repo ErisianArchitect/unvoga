@@ -218,11 +218,14 @@ impl Chunk {
 
     
     pub fn read_from<R: Read>(&mut self, reader: &mut R, world: &mut VoxelWorld) -> Result<()> {
+        self.unload(world);
         self.heightmap.read_from(reader)?;
         for i in 0..self.sections.len() {
             let y = i as i32 * 16 + self.block_offset.y;
+            // wtf is this?
             let offset = Coord::new(self.block_offset.x, y, self.block_offset.z);
-            let marked = self.sections[i].read_from(reader, world, offset)?;
+            // and this?
+            /* let marked =  */self.sections[i].read_from(reader, world, offset)?;
             // if offset is not in the render bounds, we don't want to add it
             // to the dirty_queue
         }

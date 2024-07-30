@@ -16,6 +16,22 @@
 
 const MIN_LIGHT: f32 = 0.025;
 
+const LIGHT_DIR: vec3f = vec3f(
+    -0.23570228, -0.9428091, 0.23570228
+);
+const LIGHT_COLOR: vec3f = vec3f(
+    1.0,
+    1.0,
+    1.0,
+);
+const DIFFUSE_MIN: f32 = 0.2;
+const DIFFUSE_MAX: f32 = 1.0;
+
+fn calc_diffuse(diff: f32) -> f32 {
+    let diff_diff = DIFFUSE_MAX - DIFFUSE_MIN;
+    return diff * diff_diff + DIFFUSE_MIN;
+}
+
 fn lightmap_index(x: u32, y: u32, z: u32) -> u32 {
     return x | (z << 4) | (y << 8);
 }
@@ -63,6 +79,12 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
         uv,
         input.texindex
     );
+    let norm = input.normal;
+    let diff = calc_diffuse(max(dot(norm, -LIGHT_DIR), 0.0));
+    let diffuse = diff * LIGHT_COLOR;
+    // color.rgb = color.rgb * diffuse;
+    let rgb = color.rgb * diffuse;
+    let output = vec4f(rgb, color.a);
     // Light level adjustment. I have to rewrite this for 3D.
     // let x = u32(rem_euclid(input.localpos.x, 16.0));
     // let y = u32(rem_euclid(input.localpos.z, 16.0));
@@ -72,7 +94,7 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
     // let adj_light_level = (1.0 - light_level) * min_light + light_level;
     // let adj_rgb = color.rgb * adj_light_level;
     // let output = vec4f(adj_rgb, color.a);
-    let output = vec4f(color.rgb, color.a);
+    // let output = vec4f(color.rgb, color.a);
     return output;
 }
 

@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-mod textureregistry;
+// mod textureregistry;
 use std::cell::LazyCell;
 use std::ops::Range;
 use std::path::PathBuf;
@@ -16,6 +16,7 @@ use bevy::window::{CursorGrabMode, PresentMode, PrimaryWindow};
 use bevy_egui::EguiPlugin;
 use hashbrown::HashMap;
 use rollgrid::rollgrid3d::Bounds3D;
+use unvoga::core::voxel::blocklayer::BlockLayer;
 use unvoga::core::voxel::blockstate::BlockState;
 use unvoga::core::voxel::rendering::voxelmaterial::VoxelMaterial;
 use unvoga::core::voxel::rendering::voxelmesh::MeshData;
@@ -25,6 +26,7 @@ use unvoga::core::voxel::region::regionfile::RegionFile;
 use unvoga::prelude::*;
 use unvoga::core::error::*;
 use unvoga::{blockstate, core::{util::counter::AtomicCounter, voxel::{block::Block, blocks::{self, Id}, coord::Coord, direction::Direction, faces::Faces, occluder::Occluder, occlusionshape::{OcclusionShape, OcclusionShape16x16, OcclusionShape2x2}, tag::Tag, world::{query::Enabled, PlaceContext, VoxelWorld}}}};
+use unvoga::core::util::textureregistry as texreg;
 
 #[derive(Debug, Default)]
 struct BlockRegistry {
@@ -72,7 +74,7 @@ pub fn main() {
         .insert_resource(Assets::<Mesh>::default())
         // .insert_resource(Assets::<Image>::default())
         .insert_resource(ClearColor(Color::rgb(0.2,0.2,0.2)))
-        // .insert_resource(Msaa::Off)
+        .insert_resource(Msaa::Off)
         .run();
     // BLOCKS.foo();
     // return;
@@ -204,6 +206,23 @@ struct VoxelWorldRes {
     world: VoxelWorld,
 }
 
+#[cfg(test)]
+mod testing_sandbox {
+    use super::*;
+    #[test]
+    fn sandbox() {
+        let light_dir = vec3(-0.25, -1.0, 0.25).normalize();
+        println!("{light_dir}");
+    }
+}
+
+const BLOCKS_DIR: &'static str = "./assets/debug/textures/blocks/";
+
+macro_rules! reg_block_tex {
+    ($name:ident) => {
+        unvoga::core::util::textureregistry::register(stringify!($name), PathBuf::from(BLOCKS_DIR).join(format!("{}.png", stringify!($name))))
+    };
+}
 fn setup(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
@@ -216,20 +235,16 @@ fn setup(
     for (_, config, _) in giz_store.iter_mut() {
         config.depth_bias = -1.0;
     }
-    use textureregistry as texreg;
-    let cube_sides_dir = PathBuf::from("./assets/debug/textures/cube_sides/");
+    // use textureregistry as texreg;
+    use texreg;
     let blocks_dir = PathBuf::from("./assets/debug/textures/blocks/");
-    texreg::register("pos_x", cube_sides_dir.join("pos_x.png"));
-    texreg::register("pos_y", cube_sides_dir.join("pos_y.png"));
-    texreg::register("pos_z", cube_sides_dir.join("pos_z.png"));
-    texreg::register("neg_x", cube_sides_dir.join("neg_x.png"));
-    texreg::register("neg_y", cube_sides_dir.join("neg_y.png"));
-    texreg::register("neg_z", cube_sides_dir.join("neg_z.png"));
-    macro_rules! reg_block_tex {
-        ($name:ident) => {
-            texreg::register(stringify!($name), blocks_dir.join(format!("{}.png", stringify!(name))));
-        };
-    }
+    
+    reg_block_tex!(pos_x);
+    reg_block_tex!(pos_y);
+    reg_block_tex!(pos_z);
+    reg_block_tex!(neg_x);
+    reg_block_tex!(neg_y);
+    reg_block_tex!(neg_z);
     reg_block_tex!(stone_bricks);
     reg_block_tex!(sky_bricks);
     reg_block_tex!(cement);
@@ -602,49 +617,6 @@ fn write_read_test() -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod testing_sandbox {
-    use std::sync::OnceLock;
-
-    #[derive(Debug)]
-    struct OnDrop(u32);
-
-    impl OnDrop {
-        fn reset(&mut self) {
-            self.0 = 0;
-        }
-    }
-
-    impl Drop for OnDrop {
-        fn drop(&mut self) {
-            println!("Dropping id: {}", self.0);
-        }
-    }
-
-    use super::*;
-    #[test]
-    fn sandbox() {
-        static mut DATA: OnceLock<Vec<OnDrop>> = OnceLock::new();
-        unsafe {
-            DATA.set(Vec::new());
-            let Some(data) = DATA.get_mut() else {
-                panic!();
-            };
-            data.push(OnDrop(0));
-            data.push(OnDrop(1));
-            data.push(OnDrop(2));
-            println!("Before First Removal");
-            data[1] = OnDrop(5);
-            data[2].reset();
-            data[2] = OnDrop(0);
-            println!("After First Removal");
-            DATA.take();
-            println!("After Take");
-        }
-
-    }
-}
-
 struct SolidBlock {
     mesh_data: Faces<MeshData>,
     name: String,
@@ -748,8 +720,8 @@ impl Block for StoneBricksBlock {
 
     fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
         static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
-            let sides_index = textureregistry::get_texture_index("stone_bricks");
-            let y_index = textureregistry::get_texture_index("cement");
+            let sides_index = texreg::get_texture_index("stone_bricks");
+            let y_index = texreg::get_texture_index("cement");
             let pos_y_mesh = MeshData {
                 vertices: vec![
                     vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
@@ -837,7 +809,7 @@ impl Block for DirtBlock {
 
     fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
         static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
-            let texindex = textureregistry::get_texture_index("dirt");
+            let texindex = texreg::get_texture_index("dirt");
             let pos_y_mesh = MeshData {
                 vertices: vec![
                     vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),
@@ -965,14 +937,18 @@ impl Block for DebugBlock {
         "debug"
     }
 
+    fn layer(&self, world: &VoxelWorld, coord: Coord, state: Id) -> unvoga::core::voxel::blocklayer::BlockLayer {
+        BlockLayer::Other(0)
+    }
+
     fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
         static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
-            let pos_x_index = textureregistry::get_texture_index("pos_x");
-            let pos_y_index = textureregistry::get_texture_index("pos_y");
-            let pos_z_index = textureregistry::get_texture_index("pos_z");
-            let neg_x_index = textureregistry::get_texture_index("neg_x");
-            let neg_y_index = textureregistry::get_texture_index("neg_y");
-            let neg_z_index = textureregistry::get_texture_index("neg_z");
+            let pos_x_index = texreg::get_texture_index("pos_x");
+            let pos_y_index = texreg::get_texture_index("pos_y");
+            let pos_z_index = texreg::get_texture_index("pos_z");
+            let neg_x_index = texreg::get_texture_index("neg_x");
+            let neg_y_index = texreg::get_texture_index("neg_y");
+            let neg_z_index = texreg::get_texture_index("neg_z");
             let pos_y = MeshData {
                 vertices: vec![
                     vec3(-0.5, 0.5, -0.5), vec3(0.5, 0.5, -0.5),

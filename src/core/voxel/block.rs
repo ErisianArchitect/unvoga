@@ -18,6 +18,7 @@ mod sealed {
 
 pub trait Block: Any {
     fn name(&self) -> &str;
+    fn on_register(&mut self) {}
     /// The occluder that occludes
     fn occluder(&self, world: &VoxelWorld, state: Id) -> &Occluder {
         &Occluder::FULL_FACES

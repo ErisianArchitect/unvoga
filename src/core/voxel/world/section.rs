@@ -581,7 +581,8 @@ impl Section {
     pub fn read_from<R: std::io::Read>(&mut self, reader: &mut R, world: &mut VoxelWorld, offset: Coord) -> Result<bool> {
         let flag = bool::read_from(reader)?;
         if !flag {
-            return Ok(self.unload(world));
+            // We assume the chunk has already been unloaded.
+            return Ok(false);
         }
         read_section_blocks(reader, &mut self.blocks, &mut self.block_count)?;
         read_section_occlusions(reader, &mut self.occlusion, &mut self.occlusion_count)?;
