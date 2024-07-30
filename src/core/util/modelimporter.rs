@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use crate::prelude::Direction;
 use crate::{core::voxel::rendering::voxelmesh::MeshData, prelude::Faces};
 use crate::core::error::*;
 use serde::{
@@ -18,6 +19,21 @@ pub struct ModelInfo {
 pub struct ModelData {
     faces: Option<Box<Faces<Option<MeshData>>>>,
     extra: Option<Box<MeshData>>,
+}
+
+impl ModelData {
+    /// This method will panic if the face is not present!
+    /// I expect that you would know whether or not a face is present
+    /// if you are using this ModelData, as I would assume that you imported it
+    /// from a file that you created.
+    pub fn face(&self, face: Direction) -> &MeshData {
+        self.faces.as_ref().unwrap().face(face).as_ref().unwrap()
+    }
+
+    /// This method will panic if extra is not present.
+    pub fn extra(&self) -> &MeshData {
+        self.extra.as_ref().unwrap()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
