@@ -106,7 +106,7 @@ impl Rotation {
         }
     }
 
-    pub fn mul(self, rotation: Self) -> Self {
+    pub fn reorient(self, rotation: Self) -> Self {
         let up = self.up();
         let fwd = self.forward();
         let rot_up = rotation.reface(up);
@@ -357,7 +357,7 @@ impl Rotation {
     }
 
     /// Rotates direction.
-    pub fn reface(self, direction: Direction) -> Direction {
+    pub const fn reface(self, direction: Direction) -> Direction {
         match direction {
             Direction::NegX => self.left(),
             Direction::NegY => self.down(),
@@ -369,7 +369,7 @@ impl Rotation {
     }
 
     /// Tells which [Direction] rotated to `destination`.
-    pub fn source_face(self, destination: Direction) -> Direction {
+    pub const fn source_face(self, destination: Direction) -> Direction {
         // This code was bootstrap generated. I wrote a naive solution,
         // then generated this code with the naive solution.
         // Besides maybe if you rearrange the order of matching,
