@@ -92,14 +92,14 @@ fn setup(
         config.depth_bias = -1.0;
     }
     let side_texture_paths = vec![
-        "./assets/debug/textures/cube_sides/pos_y.png",
-        "./assets/debug/textures/cube_sides/pos_x.png",
-        "./assets/debug/textures/cube_sides/pos_z.png",
-        "./assets/debug/textures/cube_sides/neg_y.png",
-        "./assets/debug/textures/cube_sides/neg_x.png",
-        "./assets/debug/textures/cube_sides/neg_z.png",
+        "./assets/debug/textures/blocks/pos_y.png",
+        "./assets/debug/textures/blocks/pos_x.png",
+        "./assets/debug/textures/blocks/pos_z.png",
+        "./assets/debug/textures/blocks/neg_y.png",
+        "./assets/debug/textures/blocks/neg_x.png",
+        "./assets/debug/textures/blocks/neg_z.png",
     ];
-    let cube_sides_texarray = images.add(unvoga::core::util::texture_array::create_texture_array_from_paths(512, 512, side_texture_paths).expect("Failed to create texture array."));
+    let cube_sides_texarray = images.add(unvoga::core::util::texture_array::create_texture_array_from_paths(256, 256, side_texture_paths).expect("Failed to create texture array."));
     let material = materials.add(VoxelMaterial {
         array_texture: cube_sides_texarray.clone(),
         light_level: 1.0,
@@ -359,6 +359,10 @@ fn menu(
                     if ui.button("⊞").clicked() {
                         let current = orientation.new_orientation;
                         orientation.set(current.reorient(*orient));
+                    }
+                    if ui.button("⊟").clicked() {
+                        let current = orientation.new_orientation;
+                        orientation.set(current.deorient(*orient));
                     }
                     if ui.button("❌").clicked() {
                         remove.replace(index);
@@ -699,12 +703,12 @@ fn on_enter_main_menu(
     voxel_resources: Res<VoxelWorldResources>,
 ) {
     let side_texture_paths = vec![
-        "./assets/debug/textures/cube_sides/pos_y.png",
-        "./assets/debug/textures/cube_sides/pos_x.png",
-        "./assets/debug/textures/cube_sides/pos_z.png",
-        "./assets/debug/textures/cube_sides/neg_y.png",
-        "./assets/debug/textures/cube_sides/neg_x.png",
-        "./assets/debug/textures/cube_sides/neg_z.png",
+        "./assets/debug/textures/debug/blocks/pos_y.png",
+        "./assets/debug/textures/debug/blocks/pos_x.png",
+        "./assets/debug/textures/debug/blocks/pos_z.png",
+        "./assets/debug/textures/debug/blocks/neg_y.png",
+        "./assets/debug/textures/debug/blocks/neg_x.png",
+        "./assets/debug/textures/debug/blocks/neg_z.png",
     ];
     let cube_sides_texarray = images.add(unvoga::core::util::texture_array::create_texture_array_from_paths(512, 512, side_texture_paths).expect("Failed to create texture array."));
     let mut mesh = bevy::prelude::Mesh::new(bevy::render::mesh::PrimitiveTopology::TriangleList, RenderAssetUsages::all());
