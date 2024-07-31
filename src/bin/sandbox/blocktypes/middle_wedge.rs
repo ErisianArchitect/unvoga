@@ -2,7 +2,17 @@ use std::sync::LazyLock;
 
 use unvoga::{blockstate, core::util::modelimporter::{read_model_data, ModelData}, prelude::{Block, Direction, Occluder, OcclusionRect, OcclusionShape, OcclusionShape2x2, OcclusionShape4x4, Orientation, StateValue}};
 
-pub struct MiddleWedge;
+pub struct MiddleWedge {
+    mesh_data: ModelData,
+}
+
+impl MiddleWedge {
+    pub fn new() -> Self {
+        Self {
+            mesh_data: read_model_data("./assets/debug/models/middle_wedge.json", None).expect("Failed to read model for middle_wedge.")
+        }
+    }
+}
 
 impl Block for MiddleWedge {
     fn name(&self) -> &str {
@@ -81,33 +91,37 @@ impl Block for MiddleWedge {
         }
     }
 
+    fn reorient(&self, world: &unvoga::core::voxel::world::VoxelWorld, coord: unvoga::prelude::Coord, state: unvoga::prelude::Id, orientation: Orientation) -> unvoga::prelude::Id {
+        blockstate!(middle_wedge, orientation=orientation).register()
+    }
+
     fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &unvoga::core::voxel::world::VoxelWorld, coord: unvoga::prelude::Coord, state: unvoga::prelude::Id, occlusion: unvoga::prelude::Occlusion, orientation: Orientation) {
-        static MODEL: LazyLock<ModelData> = LazyLock::new(|| {
-            read_model_data("./assets/debug/models/middle_wedge.json", None).expect("Failed to read model for middle_wedge.")
-        });
+        // static MODEL: LazyLock<ModelData> = LazyLock::new(|| {
+        //     read_model_data("./assets/debug/models/middle_wedge.json", None).expect("Failed to read model for middle_wedge.")
+        // });
         if occlusion.neg_x() {
             let src_face = orientation.source_face(Direction::NegX);
-            mesh_builder.push_mesh_data(MODEL.face(src_face));
+            mesh_builder.push_mesh_data(self.mesh_data.face(src_face));
         }
         if occlusion.pos_x() {
             let src_face = orientation.source_face(Direction::PosX);
-            mesh_builder.push_mesh_data(MODEL.face(src_face));
+            mesh_builder.push_mesh_data(self.mesh_data.face(src_face));
         }
         if occlusion.neg_z() {
             let src_face = orientation.source_face(Direction::NegZ);
-            mesh_builder.push_mesh_data(MODEL.face(src_face));
+            mesh_builder.push_mesh_data(self.mesh_data.face(src_face));
         }
         if occlusion.pos_z() {
             let src_face = orientation.source_face(Direction::PosZ);
-            mesh_builder.push_mesh_data(MODEL.face(src_face));
+            mesh_builder.push_mesh_data(self.mesh_data.face(src_face));
         }
         if occlusion.neg_y() {
             let src_face = orientation.source_face(Direction::NegY);
-            mesh_builder.push_mesh_data(MODEL.face(src_face));
+            mesh_builder.push_mesh_data(self.mesh_data.face(src_face));
         }
         if occlusion.pos_y() {
             let src_face = orientation.source_face(Direction::PosY);
-            mesh_builder.push_mesh_data(MODEL.face(src_face));
+            mesh_builder.push_mesh_data(self.mesh_data.face(src_face));
         }
     }
 }

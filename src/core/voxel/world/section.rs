@@ -1,7 +1,7 @@
 #![allow(unused)]
 use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, utils::tracing::Instrument};
 
-use crate::{core::{collections::objectpool::PoolId, error::*}, prelude::{SwapVal, Writeable}};
+use crate::{core::{collections::objectpool::PoolId, error::*}, prelude::{BitFlags, BitFlags8, SwapVal, Writeable}};
 use crate::core::voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, rendering::voxelmaterial::VoxelMaterial, tag::Tag};
 
 use super::{blockdata::{BlockDataContainer, BlockDataRef}, dirty::Dirty, heightmap::Heightmap, io::{read_block_data, read_enabled, read_section_blocks, read_section_light, read_section_occlusions}, occlusion::Occlusion, query::VoxelQuery, update::UpdateRef, DirtyIdMarker, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_HEIGHT};
@@ -30,6 +30,7 @@ pub struct Section {
     pub sky_light_count: u16,
     pub block_data_count: u16,
     pub update_ref_count: u16,
+    pub used_flags: BitFlags8,
     pub blocks_dirty: Dirty,
     pub light_dirty: Dirty,
     /// I use this flag to determine if this section has been added
@@ -39,7 +40,12 @@ pub struct Section {
 }
 
 impl Section {
-    
+    const BLOCKS_BIT_INDEX: u32 = 0;
+    const OCCLUSION_BIT_INDEX: u32 = 1;
+    const BLOCK_LIGHT_BIT_INDEX: u32 = 2;
+    const SKY_LIGHT_BIT_INDEX: u32 = 3;
+    const BLOCK_DATA_BIT_INDEX: u32 = 4;
+    const UPDATE_REFS_BIT_INDEX: u32 = 5;
     pub fn new() -> Self {
         Self {
             blocks: None,
@@ -55,6 +61,7 @@ impl Section {
             sky_light_count: 0,
             block_data_count: 0,
             update_ref_count: 0,
+            used_flags: BitFlags8::default(),
             blocks_dirty: Dirty::new(),
             light_dirty: Dirty::new(),
             section_dirty: Dirty::new(),
@@ -152,6 +159,7 @@ impl Section {
             if value.null() {
                 return UpdateRef::NULL;
             } else {
+                self.used_flags.set(Self::UPDATE_REFS_BIT_INDEX, true);
                 self.update_refs = Some(make_empty_update_refs());
             }
         }
@@ -167,6 +175,7 @@ impl Section {
                 self.update_ref_count -= 1;
                 if self.update_ref_count == 0 {
                     self.update_refs = None;
+                    self.used_flags.set(Self::UPDATE_REFS_BIT_INDEX, false);
                 }
             }
         }
@@ -189,6 +198,7 @@ impl Section {
         if self.blocks.is_none() {
             // if state isn't air and blocks is None, create an empty block array.
             if !state.is_air() {
+                self.used_flags.set(Self::BLOCKS_BIT_INDEX, true);
                 self.blocks = Some(make_empty_section_blocks());
             } else {
                 // state was air, and blocks was None (all air), so the state is unchanged.
@@ -213,6 +223,7 @@ impl Section {
                 // If the block count is zero, set blocks to None to free up the memory.
                 self.block_count -= 1;
                 if self.block_count == 0 {
+                    self.used_flags.set(Self::BLOCKS_BIT_INDEX, false);
                     self.blocks = None;
                 }
             }
@@ -267,6 +278,7 @@ impl Section {
             // when the occlusion_count is 0, self.occlusion is set to None to free up memory.
             self.occlusion_count -= 1;
             if self.occlusion_count == 0 {
+                self.used_flags.set(Self::OCCLUSION_BIT_INDEX, false);
                 self.occlusion = None;
             }
         }
@@ -289,6 +301,7 @@ impl Section {
             // increment the occlusion_count to keep track of how many blocks are occluded.
             // this allows for being able to free up memory when no blocks are occluded.
             self.occlusion_count += 1;
+            self.used_flags.set(Self::OCCLUSION_BIT_INDEX, true);
         }
         if old {
             self.blocks_dirty.mark();
@@ -339,6 +352,7 @@ impl Section {
         if self.block_light.is_none() {
             if level != 0 {
                 // if level isn't 0, we want to make an empty lightmap
+                self.used_flags.set(Self::BLOCK_LIGHT_BIT_INDEX, true);
                 self.block_light = Some(make_empty_section_light());
             } else {
                 // No change has occurred
@@ -373,6 +387,7 @@ impl Section {
         } else if level == 0 && old_level != 0 {
             self.block_light_count -= 1;
             if self.block_light_count == 0 {
+                self.used_flags.set(Self::BLOCK_LIGHT_BIT_INDEX, false);
                 self.block_light = None;
             }
         }
@@ -413,6 +428,7 @@ impl Section {
         };
         if self.sky_light.is_none() {
             if level != 15 {
+                self.used_flags.set(Self::SKY_LIGHT_BIT_INDEX, true);
                 self.sky_light = Some(make_empty_section_light());
             } else {
                 return SectionUpdate::new(LightChange {
@@ -446,6 +462,7 @@ impl Section {
         } else if level == 15 && old_level != 15 {
             self.sky_light_count -= 1;
             if self.sky_light_count == 0 {
+                self.used_flags.set(Self::SKY_LIGHT_BIT_INDEX, false);
                 self.sky_light = None;
             }
         }
@@ -484,6 +501,9 @@ impl Section {
     }
 
     pub fn get_or_insert_data_with<T: Into<Tag>, F: FnOnce() -> T>(&mut self, coord: Coord, f: F) -> &mut Tag {
+        if self.block_data_refs.is_none() {
+            self.used_flags.set(Self::BLOCK_DATA_BIT_INDEX, true);
+        }
         let data = self.block_data_refs.get_or_insert_with(make_empty_block_data);
         let index = Section::index(coord);
         let dref = data[index];
@@ -507,6 +527,7 @@ impl Section {
         if !old.null() {
             self.block_data_count -= 1;
             if self.block_data_count == 0 {
+                self.used_flags.set(Self::BLOCK_DATA_BIT_INDEX, false);
                 self.block_data_refs = None;
             }
             Some(self.block_data.delete(old))
@@ -520,6 +541,7 @@ impl Section {
         let (oldref, data) = if let Some(data) = &mut self.block_data_refs {
             (data[index], data)
         } else {
+            self.used_flags.set(Self::BLOCK_DATA_BIT_INDEX, true);
             let data = self.block_data_refs.insert((0..4096).map(|_| BlockDataRef::NULL).collect());
             (BlockDataRef::NULL, data)
         };
@@ -603,6 +625,12 @@ impl Section {
             let uref = world.update_queue.push(block_coord);
             update_refs[index as usize] = uref;
         }, &mut self.update_ref_count)?;
+        self.used_flags.set(Self::BLOCKS_BIT_INDEX, self.blocks.is_some());
+        self.used_flags.set(Self::OCCLUSION_BIT_INDEX, self.occlusion.is_some());
+        self.used_flags.set(Self::BLOCK_LIGHT_BIT_INDEX, self.block_light.is_some());
+        self.used_flags.set(Self::SKY_LIGHT_BIT_INDEX, self.sky_light.is_some());
+        self.used_flags.set(Self::UPDATE_REFS_BIT_INDEX, self.update_refs.is_some());
+        self.used_flags.set(Self::BLOCK_DATA_BIT_INDEX, self.block_data_refs.is_some());
         self.blocks_dirty.mark();
         self.light_dirty.mark();
         return Ok(self.section_dirty.mark());
@@ -628,6 +656,7 @@ impl Section {
         self.block_light = None;
         self.sky_light = None;
         self.block_data_refs = None;
+        self.used_flags = BitFlags8::default();
         self.disable_all(world);
         self.block_data.clear();
         self.block_count = 0;
@@ -641,9 +670,7 @@ impl Section {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.block_count == 0
-        && self.block_light_count == 0
-        && self.sky_light_count == 0
+        self.used_flags.0 == 0
     }
 }
 

@@ -266,7 +266,6 @@ fn setup(
     reg_block_tex!(fancy_wood_green);
     reg_block_tex!(fancy_wood_blue);
     reg_block_tex!(fancy_wood_yellow);
-    let texture_array = images.add(texreg::build_texture_array(256, 256).expect("Failed to build texture array"));
     // let side_texture_paths = vec![
     //     // "./assets/debug/textures/cube_sides/pos_y.png",     // 0
     //     // "./assets/debug/textures/cube_sides/pos_x.png",     // 1
@@ -314,11 +313,12 @@ fn setup(
     blocks::register_block(SolidBlock::single("fancy_wood_green", blockstate!(fancy_wood_green), texreg::get_texture_index("fancy_wood_green")));
     blocks::register_block(SolidBlock::single("fancy_wood_blue", blockstate!(fancy_wood_blue), texreg::get_texture_index("fancy_wood_blue")));
     blocks::register_block(SolidBlock::single("fancy_wood_yellow", blockstate!(fancy_wood_yellow), texreg::get_texture_index("fancy_wood_yellow")));
-    blocks::register_block(MiddleWedge);
+    blocks::register_block(MiddleWedge::new());
+    let texture_array = images.add(texreg::build_texture_array(256, 256).expect("Failed to build texture array"));
     // blocks::register_block(RotatedBlock);
     let mut world = VoxelWorld::open(
         "ignore/test_world",
-        14,
+        16,
         (0, 0, 0),
         texture_array.clone(),
         &mut commands,
@@ -370,7 +370,7 @@ fn setup(
     primary.cursor.grab_mode = CursorGrabMode::Locked;
     primary.cursor.visible = false;
     commands.insert_resource(CameraRotation::default());
-    commands.insert_resource(VoxelWorldRes { world });
+    commands.insert_resource(world);
     commands.insert_resource(CameraLocation { position: Vec3::ZERO });
     commands.insert_resource(SelectedBlock(blockstate!(dirt).register()));
 }
@@ -388,7 +388,7 @@ fn update_input(
     keys: Res<ButtonInput<KeyCode>>,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
     mut app_exit_events: ResMut<Events<bevy::app::AppExit>>,
-    mut world: ResMut<VoxelWorldRes>,
+    mut world: ResMut<VoxelWorld>,
     mut gizmos: Gizmos,
     mut selection: ResMut<SelectedBlock>,
 ) {
@@ -409,7 +409,7 @@ fn update_input(
         }
     });
     if keys.just_pressed(KeyCode::Escape) {
-        world.world.save_world();
+        world.save_world();
         app_exit_events.send(bevy::app::AppExit);
     }
     let dt = time.delta_seconds();
@@ -451,6 +451,10 @@ fn update_input(
     if keys.pressed(KeyCode::KeyD) {
         translation += transform.right() * dt * move_speed;
     }
+    if keys.pressed(KeyCode::KeyV) {
+        let dynsize = world.dynamic_usage();
+        println!("{dynsize}");
+    }
     const BOUND_SIZE: i32 = 32;
     const X_BOUND: Range<i32> = -BOUND_SIZE..BOUND_SIZE;
     const Y_BOUND: Range<i32> = -BOUND_SIZE..BOUND_SIZE;
@@ -460,7 +464,7 @@ fn update_input(
             for z in Z_BOUND {
                 for x in X_BOUND {
                     let coord_dirt = blockstate!(stone_bricks, coord=IVec3::new(x, y, z)).register();
-                    world.world.set_block((x, y, z), coord_dirt);
+                    world.set_block((x, y, z), coord_dirt);
                 }
             }
         }
@@ -471,21 +475,21 @@ fn update_input(
         for y in Y_BOUND {
             for z in Z_BOUND {
                 for x in X_BOUND {
-                    world.world.set_block((x, y, z), Id::AIR);
+                    world.set_block((x, y, z), Id::AIR);
                 }
             }
         }
     }
     if keys.just_pressed(KeyCode::KeyT) {
         let dirt = blockstate!(stone_bricks).register();
-        let Bounds3D { min, max } = world.world.render_bounds();
+        let Bounds3D { min, max } = world.render_bounds();
         let x_range = min.0..max.0;
         let z_range = min.2..max.2;
         let y_range = min.1..min.1 + 16;
         for y in y_range.clone() {
             for z in z_range.clone() {
                 for x in x_range.clone() {
-                    world.world.set_block((x, y, z), dirt);
+                    world.set_block((x, y, z), dirt);
                 }
             }
         }
@@ -496,23 +500,23 @@ fn update_input(
     //         println!("Hit {id} at {coord}");
     //     }
     // }
-    if let Some(RaycastResult { hit_point, coord, direction, id }) = world.world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
+    if let Some(RaycastResult { hit_point, coord, direction, id }) = world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
         gizmos.arrow(hit_point, hit_point + Vec3::X * 0.25, Color::RED);
         gizmos.arrow(hit_point, hit_point + Vec3::Y * 0.25, Color::GREEN);
         gizmos.arrow(hit_point, hit_point + Vec3::Z * 0.25, Color::BLUE);
         if mouse_buttons.just_pressed(MouseButton::Left) {
             if let Some(direction) = direction {
                 let next = coord + direction;
-                world.world.set_block(next, selection.0);
+                world.set_block(next, selection.0);
             } else {
                 println!("No direction");
             }
         }
         if mouse_buttons.just_pressed(MouseButton::Right) {
-            world.world.set_block(coord, Id::AIR);
+            world.set_block(coord, Id::AIR);
         }
         if keys.just_pressed(KeyCode::Backspace) {
-            let occlusion = world.world.get_occlusion(coord);
+            let occlusion = world.get_occlusion(coord);
             println!("Occlusion: {occlusion}");
         }
         if keys.just_pressed(KeyCode::Delete) {
@@ -520,10 +524,16 @@ fn update_input(
         }
         if keys.just_pressed(KeyCode::End) {
             // world.world.set_block(coord, Id::AIR);
-            let sect = world.world.get_section_mut(coord.section_coord()).unwrap();
+            let sect = world.get_section_mut(coord.section_coord()).unwrap();
             sect.blocks_dirty.mark();
             sect.section_dirty.mark();
-            world.world.mark_section_dirty(coord.section_coord());
+            world.mark_section_dirty(coord.section_coord());
+        }
+        if mouse_buttons.just_pressed(MouseButton::Middle) {
+            let state = world.get_block(coord);
+            let orientation = state.block().orientation(&world, coord, state);
+            let new_state = state.block().reorient(&world, coord, state, orientation.rotate_y(1));
+            world.set_block(coord, new_state);
         }
     }
     transform.translation += translation;
@@ -533,7 +543,7 @@ fn update_input(
         campos.position.y.floor() as i32,
         campos.position.z.floor() as i32,
     );
-    world.world.move_center((x, y, z));
+    world.move_center((x, y, z));
     
 }
 
@@ -543,6 +553,7 @@ struct CameraLocation {
 }
 
 fn update(
+    mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
     mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
@@ -554,7 +565,7 @@ fn update(
     let now = Instant::now();
     // let state = world.world.get_block((0,0,0));
     // world.world.set_block((0, 0, 0), if state.is_air() { blockstate!(dirt).register() } else { Id::AIR });
-    world.world.talk_to_bevy(meshes, materials, render_chunks);
+    world.world.talk_to_bevy(commands, meshes, materials, render_chunks);
     let elapsed = now.elapsed();
     // println!("Frame time: {}", elapsed.as_secs_f64());
 }

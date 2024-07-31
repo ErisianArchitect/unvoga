@@ -43,7 +43,7 @@ impl<T,M: Copy> ObjectPool<T,M> {
         if let Some(unused_index) = self.unused.pop() {
             let new_id = unused_index.increment_generation();
             self.indices[new_id.index()] = self.pool.len();
-            self.pool.push((new_id, value, ));
+            self.pool.push((new_id, value));
             new_id
         } else {
             let index = self.indices.len();
