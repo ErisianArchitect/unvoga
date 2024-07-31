@@ -115,6 +115,22 @@ impl Orientation {
         let rot = Rotation::from_up_and_forward(flipup, flipfwd).unwrap();
         Orientation::new(rot, flip)
     }
+
+    /// Remove an orientation from an orientation.
+    /// This is the inverse operation to [Orientation::reorient].
+    pub fn deorient<O: Into<Orientation>>(self, orientation: O) -> Self {
+        let orient: Orientation = orientation.into();
+        let up = self.up();
+        let fwd = self.forward();
+        let reup = orient.source_face(up);
+        let refwd = orient.source_face(fwd);
+        // I'm not sure if this is right. But it seems to work in my tests.
+        let flip = self.flip.flip(orient.flip);
+        let flipup = reup.flip(flip);
+        let flipfwd = refwd.flip(flip);
+        let rot = Rotation::from_up_and_forward(flipup, flipfwd).unwrap();
+        Orientation::new(rot, flip)
+    }
 }
 
 impl From<Rotation> for Orientation {
@@ -314,8 +330,27 @@ mod testing_sandbox {
         println!("Count: {count}");
     }
 
+    #[test]
+    fn deorient_test() {
+        Direction::iter().for_each(|up1| {
+            (0..4).for_each(|angle1| {
+                (0..8).map(|i| Orientation::new(Rotation::new(up1, angle1), Flip(i))).for_each(|orient1| {
+                    Direction::iter().for_each(|up2| {
+                        (0..4).for_each(|angle2| {
+                            (0..8).map(|i| Orientation::new(Rotation::new(up2, angle2), Flip(i))).for_each(|orient2| {
+                                let reorient = orient1.reorient(orient2);
+                                let deorient = reorient.deorient(orient2);
+                                assert_eq!(deorient, orient1);
+                            });
+                        });
+                    });
+                })
+            })
+        });
+    }
+
     // This is used to generate the table in maptable.rs.
-    // you need to uncoment map_face_coord_naive for this to work.
+    // you need to uncoment map_up2_coord_naive for this to work.
     // I commented it out because I don't need it anymore, but I'd like to keep
     // the code around in case I need it later as a reference.
     // #[test]
