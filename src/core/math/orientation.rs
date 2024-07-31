@@ -3,7 +3,7 @@ use bevy::math::Vec3;
 
 use crate::prelude::*;
 
-use super::{coordmap::{pack_flip_and_rotation, unpack_flip_and_rotation}, flip::Flip, maptable::{self, map_face_coord_table_index}, rotation::Rotation};
+use super::{coordmap::{pack_flip_and_rotation, unpack_flip_and_rotation}, flip::Flip, orient_table::{self, map_face_coord_table_index}, rotation::Rotation};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Orientation {
@@ -11,7 +11,44 @@ pub struct Orientation {
     pub rotation: Rotation,
 }
 
+use Direction::*;
 impl Orientation {
+    pub const UNORIENTED: Orientation = Orientation::new(Rotation::new(PosY, 0), Flip::NONE);
+    pub const ROTATE_X: Rotation = Rotation::new(Direction::NegZ, 2);
+    pub const X_ROTATIONS: [Rotation; 4] = [
+        Rotation::new(PosY, 0),
+        Rotation::new(NegZ, 2),
+        Rotation::new(NegY, 0),
+        Rotation::new(PosZ, 0),
+    ];
+    pub const ROTATE_Y: Rotation = Rotation::new(Direction::PosY, 1);
+    pub const Y_ROTATIONS: [Rotation; 4] = [
+        Rotation::new(PosY, 0),
+        Rotation::new(PosY, 1),
+        Rotation::new(PosY, 2),
+        Rotation::new(PosY, 3),
+    ];
+    pub const ROTATE_Z: Rotation = Rotation::new(Direction::PosX, 1);
+    pub const Z_ROTATIONS: [Rotation; 4] = [
+        Rotation::new(PosY, 0),
+        Rotation::new(PosX, 1),
+        Rotation::new(NegY, 2),
+        Rotation::new(NegX, 3),
+    ];
+    const CORNER_ROTATIONS_MATRIX: [[[Rotation; 2]; 2]; 2] = [
+        [
+            [Rotation::new(PosZ, 3), Rotation::new(NegX, 2)],
+            [Rotation::new(PosX, 0), Rotation::new(NegZ, 1)]
+        ],
+        [
+            [Rotation::new(NegX, 0), Rotation::new(NegZ, 3)],
+            [Rotation::new(PosZ, 1), Rotation::new(PosX, 2)]
+        ],
+    ];
+    // pub const CORNER_X0_Y0_Z0_ROTATIONS: [Rotation; 4] = [
+    //     Rotation::
+    // ];
+
     pub const fn new(rotation: Rotation, flip: Flip) -> Self {
         Self {
             flip,
@@ -21,13 +58,13 @@ impl Orientation {
     
     /// Packs the flip and rotation into a single byte where the first 3 bits are the flip
     /// and the remaining 5 bits are the rotation.
-    pub fn pack(self) -> u8 {
+    pub const fn pack(self) -> u8 {
         pack_flip_and_rotation(self.flip, self.rotation)
     }
 
     /// Unpacks the flip and rotation from a single byte where the first 3 bits are the flip
     /// and the remaining 5 bits are the rotation.
-    pub fn unpack(packed: u8) -> Self {
+    pub const fn unpack(packed: u8) -> Self {
         let (flip, rotation) = unpack_flip_and_rotation(packed);
         Self {
             flip,
@@ -35,45 +72,52 @@ impl Orientation {
         }
     }
 
-    pub fn up(self) -> Direction {
+    /// Gets the direction that [Direction::PosY] is pointing towards.
+    pub const fn up(self) -> Direction {
         self.reface(Direction::PosY)
     }
 
-    pub fn down(self) -> Direction {
+    /// Gets the direction that [Direction::NegY] is pointing towards.
+    pub const fn down(self) -> Direction {
         self.reface(Direction::NegY)
     }
 
-    pub fn forward(self) -> Direction {
+    /// Gets the direction that [Direction::NegZ] is pointing towards.
+    pub const fn forward(self) -> Direction {
         self.reface(Direction::NegZ)
     }
 
-    pub fn backward(self) -> Direction {
+    /// Gets the direction that [Direction::PosZ] is pointing towards.
+    pub const fn backward(self) -> Direction {
         self.reface(Direction::PosZ)
     }
 
-    pub fn left(self) -> Direction {
+    /// Gets the direction that [Direction::NegX] is pointing towards.
+    pub const fn left(self) -> Direction {
         self.reface(Direction::NegX)
     }
 
-    pub fn right(self) -> Direction {
+    /// Gets the direction that [Direction::PosX] is pointing towards.
+    pub const fn right(self) -> Direction {
         self.reface(Direction::PosX)
     }
 
     /// `reface` can be used to determine where a face will end up after orientation.
     /// First rotates and then flips the face.
-    pub fn reface(self, face: Direction) -> Direction {
+    pub const fn reface(self, face: Direction) -> Direction {
         let rotated = self.rotation.reface(face);
         rotated.flip(self.flip)
     }
 
     /// This determines which face was oriented to `face`. I hope that makes sense.
-    pub fn source_face(self, face: Direction) -> Direction {
+    pub const fn source_face(self, face: Direction) -> Direction {
         let flipped = face.flip(self.flip);
         self.rotation.source_face(flipped)
     }
 
-    /// If you're using this function to transform mesh vertices, make sure that you 
-    /// change your indices if the face will be flipped (for backface culling)
+    /// If you're using this method to transform mesh vertices, make sure that you 
+    /// change your indices if the face will be flipped (for backface culling).
+    /// This method will rotate and then flip the coordinate.
     pub fn transform<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T, T)> + From<(T, T, T)>>(self, point: C) -> C {
         let rotated = self.rotation.rotate(point);
         self.flip.flip_coord(rotated)
@@ -86,7 +130,7 @@ impl Orientation {
     /// to get your final coord.
     pub fn map_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
         let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
-        let coordmap = maptable::MAP_COORD_TABLE[table_index];
+        let coordmap = orient_table::MAP_COORD_TABLE[table_index];
         coordmap.map(uv)
     }
 
@@ -97,39 +141,80 @@ impl Orientation {
     /// to get your final coord.
     pub fn source_face_coord<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T)> + From<(T, T)>>(self, face: Direction, uv: C) -> C {
         let table_index = map_face_coord_table_index(self.rotation, self.flip, face);
-        let coordmap = maptable::SOURCE_FACE_COORD_TABLE[table_index];
+        let coordmap = orient_table::SOURCE_FACE_COORD_TABLE[table_index];
         coordmap.map(uv)
     }
 
     /// Apply an orientation to an orientation.
-    pub fn reorient<O: Into<Orientation>>(self, orientation: O) -> Self {
-        let orient: Orientation = orientation.into();
+    pub const fn reorient(self, orientation: Orientation) -> Self {
         let up = self.up();
         let fwd = self.forward();
-        let reup = orient.reface(up);
-        let refwd = orient.reface(fwd);
-        // I'm not sure if this is right. But it seems to work in my tests.
-        let flip = self.flip.flip(orient.flip);
+        let reup = orientation.reface(up);
+        let refwd = orientation.reface(fwd);
+        let flip = self.flip.flip(orientation.flip);
         let flipup = reup.flip(flip);
         let flipfwd = refwd.flip(flip);
-        let rot = Rotation::from_up_and_forward(flipup, flipfwd).unwrap();
+        let Some(rot) = Rotation::from_up_and_forward(flipup, flipfwd) else {
+            unreachable!()
+        };
         Orientation::new(rot, flip)
     }
 
     /// Remove an orientation from an orientation.
     /// This is the inverse operation to [Orientation::reorient].
-    pub fn deorient<O: Into<Orientation>>(self, orientation: O) -> Self {
-        let orient: Orientation = orientation.into();
+    pub const fn deorient(self, orientation: Orientation) -> Self {
         let up = self.up();
         let fwd = self.forward();
-        let reup = orient.source_face(up);
-        let refwd = orient.source_face(fwd);
-        // I'm not sure if this is right. But it seems to work in my tests.
-        let flip = self.flip.flip(orient.flip);
+        let reup = orientation.source_face(up);
+        let refwd = orientation.source_face(fwd);
+        let flip = self.flip.flip(orientation.flip);
         let flipup = reup.flip(flip);
         let flipfwd = refwd.flip(flip);
-        let rot = Rotation::from_up_and_forward(flipup, flipfwd).unwrap();
+        let Some(rot) = Rotation::from_up_and_forward(flipup, flipfwd) else {
+            unreachable!()
+        };
         Orientation::new(rot, flip)
+    }
+    
+    /// Returns the orientation that can be applied to deorient by [self].
+    pub const fn invert(self) -> Self {
+        Orientation::UNORIENTED.deorient(self)
+    }
+
+    pub const fn flip_x(mut self) -> Self {
+        self.flip = self.flip.flip_x();
+        self
+    }
+
+    pub const fn flip_y(mut self) -> Self {
+        self.flip = self.flip.flip_y();
+        self
+    }
+
+    pub const fn flip_z(mut self) -> Self {
+        self.flip = self.flip.flip_z();
+        self
+    }
+
+    pub const fn rotate_x(self, angle: i32) -> Self {
+        self.reorient(Orientation::new(
+            Orientation::X_ROTATIONS[angle.rem_euclid(4) as usize],
+            Flip::NONE
+        ))
+    }
+
+    pub const fn rotate_y(self, angle: i32) -> Self {
+        self.reorient(Orientation::new(
+            Orientation::Y_ROTATIONS[angle.rem_euclid(4) as usize],
+            Flip::NONE
+        ))
+    }
+
+    pub const fn rotate_z(self, angle: i32) -> Self {
+        self.reorient(Orientation::new(
+            Orientation::Z_ROTATIONS[angle.rem_euclid(4) as usize],
+            Flip::NONE
+        ))
     }
 }
 
@@ -319,6 +404,8 @@ mod testing_sandbox {
                             let coord = (x, y);
                             let source = orientation.source_face_coord(face, coord);
                             let map = orientation.map_face_coord(face, coord);
+                            let map2 = map_face_coord_naive(orientation, face).map(coord);
+                            assert_eq!(map, map2);
                             let map_src = orientation.source_face_coord(face, map);
                             assert_eq!(map_src, coord);
                         }}
@@ -418,7 +505,7 @@ mod testing_sandbox {
         println!("Wrote the output to file at ./ignore/source_face_coord_table.rs");
     }
 
-    use crate::core::math::maptable;
+    use crate::core::math::orient_table;
 
     use super::*;
     #[test]

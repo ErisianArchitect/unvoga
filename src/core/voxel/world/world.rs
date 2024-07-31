@@ -994,7 +994,7 @@ impl VoxelWorld {
                     let adj_orient = adj_block.orientation(self, adj_coord, adj_state);
                     let adj_occl = adj_block.occluder(self, adj_state);
                     let adj_occlee = adj_block.occludee(self, adj_state);
-                    if my_occlee.occluded_by(my_orient, adj_dir, adj_occl, adj_orient) {
+                    if my_occlee.occluded_by(my_orient, dir, adj_occl, adj_orient) {
                         // println!("My Hide face {coord} {dir}");
                         self.hide_face(coord, dir);
                     } else {

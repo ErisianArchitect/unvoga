@@ -21,21 +21,21 @@ impl Flip {
         Self((x as u8) | ((y as u8) << 1) | ((z as u8) << 2))
     }
     
-    pub fn x(self) -> bool {
-        self & Flip::X == Flip::X
+    pub const fn x(self) -> bool {
+        self.0 & Flip::X.0 == Flip::X.0
     }
 
     
-    pub fn y(self) -> bool {
-        self & Flip::Y == Flip::Y
+    pub const fn y(self) -> bool {
+        self.0 & Flip::Y.0 == Flip::Y.0
     }
 
     
-    pub fn z(self) -> bool {
-        self & Flip::Z == Flip::Z
+    pub const fn z(self) -> bool {
+        self.0 & Flip::Z.0 == Flip::Z.0
     }
 
-    pub fn flip(self, flip: Flip) -> Self {
+    pub const fn flip(self, flip: Flip) -> Self {
         Self::new(self.x() ^ flip.x(), self.y() ^ flip.y(), self.z() ^ flip.z())
     }
 
@@ -69,6 +69,21 @@ impl Flip {
         old
     }
 
+    pub const fn flip_x(mut self) -> Self {
+        self.0 = self.0 ^ Flip::X.0;
+        self
+    }
+
+    pub const fn flip_y(mut self) -> Self {
+        self.0 = self.0 ^ Flip::Y.0;
+        self
+    }
+
+    pub const fn flip_z(mut self) -> Self {
+        self.0 = self.0 ^ Flip::Z.0;
+        self
+    }
+
     pub fn invert_x(&mut self) -> bool {
         let old = self.x();
         self.set_x(!old)
@@ -85,7 +100,7 @@ impl Flip {
     }
 
     /// Xors all the bits.
-    pub fn xor(self) -> bool {
+    pub const fn xor(self) -> bool {
         self.x() ^ self.y() ^ self.z()
     }
 
@@ -104,7 +119,7 @@ impl Flip {
     }
 
     /// Determines if a face is on an axis that is flipped.
-    pub fn is_flipped(self, face: Direction) -> bool {
+    pub const fn is_flipped(self, face: Direction) -> bool {
         if self.0 == 0 {
             return false;
         }

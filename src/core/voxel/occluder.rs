@@ -88,7 +88,7 @@ impl Occluder {
             return false;
         }
         if r_occl.is_full() {
-            return true;
+            return !l_occl.is_empty();
         }
         match l_occl {
             OcclusionShape::Full => match r_occl {

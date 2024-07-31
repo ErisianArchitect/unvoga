@@ -31,6 +31,10 @@ pub enum Error {
     U24OutOfRange,
     #[error("Json Error: {0}")]
     JsonError(#[from] serde_json::Error),
+    #[error("GLTF Error: {0}")]
+    GltfError(#[from] gltf::Error),
+    #[error("Mesh Extraction Error")]
+    MeshExtractionError,
     #[error("Custom Error: {0}")]
     Custom(&'static str),
 }

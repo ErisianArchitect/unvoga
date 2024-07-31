@@ -9,6 +9,7 @@ use crate::prelude::*;
 pub struct Rotation(pub u8);
 
 impl Rotation {
+    pub const UNROTATED: Rotation = Rotation::new(Direction::PosY, 0);
     pub const fn new(up: Direction, angle: i32) -> Self {
         let up = up as u8;
         let angle = angle.rem_euclid(4) as u8;
@@ -106,12 +107,30 @@ impl Rotation {
         }
     }
 
-    pub fn reorient(self, rotation: Self) -> Self {
+    pub const fn reorient(self, rotation: Self) -> Self {
         let up = self.up();
         let fwd = self.forward();
         let rot_up = rotation.reface(up);
         let rot_fwd = rotation.reface(fwd);
-        Self::from_up_and_forward(rot_up, rot_fwd).unwrap()
+        let Some(rot) = Self::from_up_and_forward(rot_up, rot_fwd) else {
+            unreachable!()
+        };
+        rot
+    }
+
+    pub const fn deorient(self, rotation: Self) -> Self {
+        let up = self.up();
+        let fwd = self.forward();
+        let rot_up = rotation.source_face(up);
+        let rot_fwd = rotation.source_face(fwd);
+        let Some(rot) = Self::from_up_and_forward(rot_up, rot_fwd) else {
+            unreachable!()
+        };
+        rot
+    }
+
+    pub const fn invert(self) -> Self {
+        Self::UNROTATED.deorient(self)
     }
 
     pub const fn forward(self) -> Direction {

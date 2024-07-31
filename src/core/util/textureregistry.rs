@@ -26,13 +26,17 @@ impl TextureRegistry {
     }
 
     pub fn register(&mut self, name: String, path: PathBuf) -> u32 {
-        if self.lookup.contains_key(&name) {
-            panic!("{} already added to texture registry.", name);
+        if let Some(&entry_id) = self.lookup.get(&name) {
+            if self.entries[entry_id as usize].path != path {
+                panic!("Tried to already registered \"{name}\" with different path.");
+            }
+            self.entries[entry_id as usize].texture_index
+        } else {
+            let index = self.entries.len() as u16;
+            self.lookup.insert(name.clone(), index);
+            self.entries.push(RegEntry { name: name, path: path, texture_index: index as u32 });
+            index as u32
         }
-        let index = self.entries.len() as u16;
-        self.lookup.insert(name.clone(), index);
-        self.entries.push(RegEntry { name: name, path: path, texture_index: index as u32 });
-        index as u32
     }
 
     pub fn get_texture_index<S: AsRef<str>>(&self, name: S) -> u32 {

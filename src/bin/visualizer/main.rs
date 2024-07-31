@@ -50,7 +50,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(bevy::window::Window {
-                title: "Unvoga".into(),
+                title: "Orientation Visualizer".into(),
                 resolution: (1280.0, 720.0).into(),
                 present_mode: PresentMode::AutoVsync,
                 prevent_default_event_handling: false,

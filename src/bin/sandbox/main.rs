@@ -1,5 +1,9 @@
 #![allow(unused)]
 
+mod blocktypes;
+
+use blocktypes::middle_wedge::MiddleWedge;
+
 // mod textureregistry;
 use std::cell::LazyCell;
 use std::ops::Range;
@@ -298,6 +302,7 @@ fn setup(
     };
     // blocks::register_block(DirtBlock);
     // blocks::register_block(StoneBricksBlock);
+    blocks::register_block(DebugBlock);
     blocks::register_block(SolidBlock::vertical_block("stone_bricks", blockstate!(stone_bricks), texreg::get_texture_index("cement"), texreg::get_texture_index("stone_bricks")));
     blocks::register_block(SolidBlock::single("dirt", blockstate!(dirt), texreg::get_texture_index("dirt")));
     blocks::register_block(SolidBlock::single("sand", blockstate!(sand), texreg::get_texture_index("sand")));
@@ -309,8 +314,8 @@ fn setup(
     blocks::register_block(SolidBlock::single("fancy_wood_green", blockstate!(fancy_wood_green), texreg::get_texture_index("fancy_wood_green")));
     blocks::register_block(SolidBlock::single("fancy_wood_blue", blockstate!(fancy_wood_blue), texreg::get_texture_index("fancy_wood_blue")));
     blocks::register_block(SolidBlock::single("fancy_wood_yellow", blockstate!(fancy_wood_yellow), texreg::get_texture_index("fancy_wood_yellow")));
+    blocks::register_block(MiddleWedge);
     // blocks::register_block(RotatedBlock);
-    blocks::register_block(DebugBlock);
     let mut world = VoxelWorld::open(
         "ignore/test_world",
         14,
@@ -395,6 +400,7 @@ fn update_input(
         items.push((KeyCode::Digit4, blockstate!(metal_grid).register()));
         items.push((KeyCode::Digit5, blockstate!(fancy_wood_blue).register()));
         items.push((KeyCode::Digit6, blockstate!(debug).register()));
+        items.push((KeyCode::Digit7, blockstate!(middle_wedge).register()));
         items
     });
     KEY_BLOCKS.iter().for_each(|&(key, id)| {

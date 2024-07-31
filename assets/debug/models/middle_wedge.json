@@ -27,7 +27,7 @@
         }
     },
     "mesh_data": {
-        "extra": [
+        "pos_y": [
             {
                 "name": "top",
                 "texture": "pos_y"

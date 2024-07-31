@@ -9,17 +9,17 @@ use super::{
 
 use crate::core::voxel::direction::Direction;
 
-pub fn pack_flip_and_rotation(flip: Flip, rotation: Rotation) -> u8 {
+pub const fn pack_flip_and_rotation(flip: Flip, rotation: Rotation) -> u8 {
     flip.0 | rotation.0 << 3
 }
 
-pub fn unpack_flip_and_rotation(packed: u8) -> (Flip, Rotation) {
+pub const fn unpack_flip_and_rotation(packed: u8) -> (Flip, Rotation) {
     let flip = packed & 0b111;
     let rotation = packed >> 3;
     (Flip(flip), Rotation(rotation))
 }
 
-pub fn rotate_face_coord(angle: u8, x: usize, y: usize, size: usize) -> (usize, usize) {
+pub const fn rotate_face_coord(angle: u8, x: usize, y: usize, size: usize) -> (usize, usize) {
     match angle & 0b11 {
         0 => (x, y),
         1 => (size - y, x),

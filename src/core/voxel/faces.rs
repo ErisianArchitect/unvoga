@@ -4,6 +4,7 @@ use std::ops::{Index, IndexMut};
 use super::direction::Direction;
 use paste::paste;
 
+#[derive(Debug)]
 pub struct Faces<T> {
     pub neg_x: T,
     pub neg_y: T,

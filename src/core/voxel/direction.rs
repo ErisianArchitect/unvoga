@@ -117,7 +117,7 @@ impl Direction {
         }
     }
 
-    pub fn flip(self, flip: Flip) -> Self {
+    pub const fn flip(self, flip: Flip) -> Self {
         use Direction::*;
         match self {
             NegX if flip.x() => PosX,
