@@ -1270,7 +1270,7 @@ mod tests {
         tag.write_to(&mut cursor)?;
         // writer.write_value(&tag)?;
         cursor.seek(SeekFrom::Start(0))?;
-        let (text, hash) = <(String, i64)>::read_from(&mut cursor)?;
+        // let (text, hash) = <(String, i64)>::read_from(&mut cursor)?;
         let read_tag = Tag::read_from(&mut cursor)?;
         assert_eq!(tag, read_tag);
         Ok(())

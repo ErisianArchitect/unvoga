@@ -317,7 +317,7 @@ fn setup(
     let texture_array = images.add(texreg::build_texture_array(256, 256).expect("Failed to build texture array"));
     // blocks::register_block(RotatedBlock);
     let mut world = VoxelWorld::open(
-        "ignore/test_world",
+        "ignore/first_world",
         16,
         (0, 0, 0),
         texture_array.clone(),

@@ -34,9 +34,11 @@ use crate::core::error::*;
 
 // Make sure this value is always a multiple of 16 and
 // preferably a multiple of 64.
-pub const WORLD_HEIGHT: usize = 320;
+// pub const WORLD_HEIGHT: usize = 320;
+// pub const WORLD_BOTTOM: i32 = -160;
+pub const WORLD_HEIGHT: usize = 640;
+pub const WORLD_BOTTOM: i32 = -400;
 pub const WORLD_TOP: i32 = WORLD_BOTTOM + WORLD_HEIGHT as i32;
-pub const WORLD_BOTTOM: i32 = -160;
 pub const WORLD_SIZE_MAX: usize = 64;
 /// The pad size is the added chunk width for light updates.
 /// If WORLD_SIZE_MAX is the range that is visible to the player,
@@ -132,6 +134,7 @@ impl VoxelWorld {
             meshes: &mut ResMut<Assets<Mesh>>,
             materials: &mut ResMut<Assets<VoxelMaterial>>,
         ) -> Self {
+            
         let center: (i32, i32, i32) = center.into();
         let center: Coord = center.into();
         let mut center = center;
