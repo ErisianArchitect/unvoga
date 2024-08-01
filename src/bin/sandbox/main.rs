@@ -557,7 +557,7 @@ fn update(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
     mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
-    mut world: ResMut<VoxelWorldRes>,
+    mut world: ResMut<VoxelWorld>,
     keys: Res<ButtonInput<KeyCode>>,
 ) {
     // I for Ingage (lol, yes I know it's spelled wrong)
@@ -565,7 +565,7 @@ fn update(
     let now = Instant::now();
     // let state = world.world.get_block((0,0,0));
     // world.world.set_block((0, 0, 0), if state.is_air() { blockstate!(dirt).register() } else { Id::AIR });
-    world.world.talk_to_bevy(commands, meshes, materials, render_chunks);
+    world.talk_to_bevy(commands, meshes, materials, render_chunks);
     let elapsed = now.elapsed();
     // println!("Frame time: {}", elapsed.as_secs_f64());
 }

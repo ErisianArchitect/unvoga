@@ -11,3 +11,4 @@ pub mod flip;
 pub mod orient_table;
 pub mod vector;
 pub mod aabb;
+pub mod fnv1a;
