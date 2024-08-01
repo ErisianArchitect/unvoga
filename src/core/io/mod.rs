@@ -97,6 +97,7 @@ use bevy::math::*;
 use bytemuck::NoUninit;
 use hashbrown::HashMap;
 use itertools::Itertools;
+use paste::paste;
 use rollgrid::{rollgrid2d::Bounds2D, rollgrid3d::Bounds3D};
 use voxel::direction::Cardinal;
 use voxel::faceflags::FaceFlags;
@@ -1187,6 +1188,66 @@ pub fn write_bytes<W: Write>(writer: &mut W, data: &[u8]) -> Result<u64> {
     Ok(writer.write_all(data).map(|_| data.len() as u64)?)
 }
 
+macro_rules! read_tuple_impls {
+    ($($tn:ident),+) => {
+        impl<$($tn: Readable),*> Readable for ($($tn),*) {
+            fn read_from<R: Read>(reader: &mut R) -> Result<Self> {
+                Ok((
+                    $(
+                        $tn::read_from(reader)?,
+                    )*
+                ))
+            }
+        }
+    };
+}
+
+macro_rules! write_tuple_impls {
+    ($($tn:ident),+) => {
+        impl<$($tn: Writeable,)*> Writeable for ($($tn),*) {
+            fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
+                let mut length = 0;
+                paste!{
+                    #[allow(non_snake_case)]
+                    let (
+                        $(
+                            [<_ $tn>],
+                        )*
+                    ) = self;
+                    $(
+                        length += [<_ $tn>].write_to(writer)?;
+                    )*
+                    Ok(length)
+                }
+            }
+
+        }
+    };
+}
+
+macro_rules! tuple_impls {
+    ($($tn:ident),+) => {
+        read_tuple_impls!($($tn),*);
+        write_tuple_impls!($($tn),*);
+    };
+}
+
+tuple_impls!(T0, T1);
+tuple_impls!(T0, T1, T2);
+tuple_impls!(T0, T1, T2, T3);
+tuple_impls!(T0, T1, T2, T3, T4);
+tuple_impls!(T0, T1, T2, T3, T4, T5);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6, T7);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6, T7, T8);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14);
+tuple_impls!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15);
+
 #[cfg(test)]
 mod tests {
     use std::{fs::File, io::{BufReader, BufWriter, Cursor, SeekFrom}};
@@ -1209,6 +1270,7 @@ mod tests {
         tag.write_to(&mut cursor)?;
         // writer.write_value(&tag)?;
         cursor.seek(SeekFrom::Start(0))?;
+        let (text, hash) = <(String, i64)>::read_from(&mut cursor)?;
         let read_tag = Tag::read_from(&mut cursor)?;
         assert_eq!(tag, read_tag);
         Ok(())
