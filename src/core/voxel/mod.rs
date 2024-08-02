@@ -19,6 +19,7 @@ pub mod region;
 pub mod faceflags;
 pub mod statevalue;
 pub mod blocklayer;
+pub mod procgen;
 
 #[cfg(test)]
 mod tests {

@@ -170,6 +170,7 @@ pub fn read_model_data<P: AsRef<Path>>(path: P, textures: Option<HashMap<String,
                 return;
             }
         }
+        println!("Registered {}", &modtex.name);
         let index = textureregistry::register(&modtex.name, &modtex.path);
         texture_map.insert(key.to_owned(), index);
     });
@@ -186,6 +187,7 @@ pub fn read_model_data<P: AsRef<Path>>(path: P, textures: Option<HashMap<String,
             let Some(&texindex) = texture_map.get(&texture) else {
                 return Err(Error::MeshExtractionError);
             };
+            println!("Texture: {} Texture Index: {}", &texture, texindex);
             let meshdata = mesh.clone().to_meshdata(texindex);
             build.push_mesh_data(&meshdata);
             Result::Ok(())

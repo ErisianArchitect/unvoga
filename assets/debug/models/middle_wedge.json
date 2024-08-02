@@ -1,14 +1,6 @@
 {
     "model": "./assets/debug/models/middle_wedge.glb",
     "textures": {
-        "arcade": {
-            "name": "arcade_carpet",
-            "path": "./assets/debug/textures/blocks/arcade_carpet.png"
-        },
-        "circuitry": {
-            "name": "circuitry",
-            "path": "./assets/debug/textures/blocks/circuitry.png"
-        },
         "pos_x": {
             "name": "pos_x",
             "path": "./assets/debug/textures/blocks/pos_x.png"
