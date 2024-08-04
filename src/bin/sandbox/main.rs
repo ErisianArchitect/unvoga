@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 mod blocktypes;
+mod worldgentest;
 
 use blocktypes::middle_wedge::MiddleWedge;
 
@@ -304,6 +305,7 @@ fn setup(
     blocks::register_block(DebugBlock);
     blocks::register_block(SolidBlock::vertical_block("stone_bricks", blockstate!(stone_bricks), texreg::get_texture_index("cement"), texreg::get_texture_index("stone_bricks")));
     blocks::register_block(SolidBlock::single("dirt", blockstate!(dirt), texreg::get_texture_index("dirt")));
+    blocks::register_block(SolidBlock::single("stone", blockstate!(stone), texreg::get_texture_index("stone")));
     blocks::register_block(SolidBlock::single("sand", blockstate!(sand), texreg::get_texture_index("sand")));
     blocks::register_block(SolidBlock::single("metal_grid", blockstate!(metal_grid), texreg::get_texture_index("metal_grid")));
     blocks::register_block(SolidBlock::single("marble_01", blockstate!(marble_01), texreg::get_texture_index("marble_01")));
@@ -316,9 +318,10 @@ fn setup(
     blocks::register_block(MiddleWedge::new());
     let texture_array = images.add(texreg::build_texture_array(256, 256).expect("Failed to build texture array"));
     // blocks::register_block(RotatedBlock);
+    std::fs::remove_dir_all("ignore/worldgen");
     let mut world = VoxelWorld::open(
-        "ignore/first_world",
-        16,
+        "ignore/worldgen",
+        32,
         (0, 0, 0),
         texture_array.clone(),
         &mut commands,
@@ -397,7 +400,7 @@ fn update_input(
         items.push((KeyCode::Digit1, blockstate!(dirt).register()));
         items.push((KeyCode::Digit2, blockstate!(stone_bricks).register()));
         items.push((KeyCode::Digit3, blockstate!(sand).register()));
-        items.push((KeyCode::Digit4, blockstate!(metal_grid).register()));
+        items.push((KeyCode::Digit4, blockstate!(stone).register()));
         items.push((KeyCode::Digit5, blockstate!(fancy_wood_blue).register()));
         items.push((KeyCode::Digit6, blockstate!(debug).register()));
         items.push((KeyCode::Digit7, blockstate!(middle_wedge).register()));
@@ -481,18 +484,19 @@ fn update_input(
         }
     }
     if keys.just_pressed(KeyCode::KeyT) {
-        let dirt = blockstate!(stone_bricks).register();
-        let Bounds3D { min, max } = world.render_bounds();
-        let x_range = min.0..max.0;
-        let z_range = min.2..max.2;
-        let y_range = min.1..min.1 + 16;
-        for y in y_range.clone() {
-            for z in z_range.clone() {
-                for x in x_range.clone() {
-                    world.set_block((x, y, z), dirt);
-                }
-            }
-        }
+        worldgentest::generate_world(&mut world);
+        // let dirt = blockstate!(stone_bricks).register();
+        // let Bounds3D { min, max } = world.render_bounds();
+        // let x_range = min.0..max.0;
+        // let z_range = min.2..max.2;
+        // let y_range = min.1..min.1 + 16;
+        // for y in y_range.clone() {
+        //     for z in z_range.clone() {
+        //         for x in x_range.clone() {
+        //             world.set_block((x, y, z), dirt);
+        //         }
+        //     }
+        // }
     }
     // if keys.just_pressed(KeyCode::KeyR) {
     //     let ray = Ray3d::new(Vec3::ZERO, Vec3::NEG_Z);

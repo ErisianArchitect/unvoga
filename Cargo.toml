@@ -30,4 +30,5 @@ serde_json = "1.0.121"
 sha2 = "0.10.8"
 splines = { version = "4.3.1", features = ["glam"] }
 thiserror = "1.0.61"
+worldgen = { path = "./crates/worldgen" }
 # uniform-cubic-splines = "0.1.8"
