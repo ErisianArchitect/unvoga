@@ -4367,9 +4367,11 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_egui",
+ "bincode",
  "bytemuck",
  "chrono",
  "flate2",
+ "glam 0.28.0",
  "gltf",
  "hashbrown",
  "image 0.25.2",
