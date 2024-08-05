@@ -4386,7 +4386,6 @@ dependencies = [
  "splines",
  "tap",
  "thiserror",
- "worldgen",
 ]
 
 [[package]]
@@ -5179,21 +5178,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59b5e5f6c299a3c7890b876a2a587f3115162487e704907d9b6cd29473052ba1"
 dependencies = [
  "memchr",
-]
-
-[[package]]
-name = "worldgen"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "glam 0.28.0",
- "image 0.25.2",
- "itertools 0.13.0",
- "noise",
- "rand",
- "serde",
- "sha2",
- "splines",
 ]
 
 [[package]]

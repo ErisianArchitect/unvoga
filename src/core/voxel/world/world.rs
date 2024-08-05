@@ -180,7 +180,7 @@ impl VoxelWorld {
                     chunk.load_id = load_queue.insert((x, z));
                 }))
             })),
-            render_chunks: Lend::new(RollGrid3D::new(render_size, render_height / 16, render_size, (render_x, render_y, render_z))),
+            render_chunks: Lend::new(RollGrid3D::new(render_size, render_height, render_size, (render_x, render_y, render_z))),
             regions: Lend::new(RollGrid2D::new(region_size as usize, region_size as usize, region_min)),
             update_queue: BlockUpdateQueue::default(),
             lock_update_queue: false,
@@ -643,7 +643,12 @@ impl VoxelWorld {
         let padded_distance = self.render_distance + WORLD_SIZE_PAD as i32;
         let padded_size = padded_distance * 2;
         let render_min = self.render_chunks.bounds().min;
-        let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
+        let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, None).section_coord().xyz();
+        let render_y = render_y.max(self.bounds().y_min() >> 4);
+        let render_height = self.render_chunks.bounds().height();
+        let bounds_top = self.bounds().y_max() >> 4;
+        let render_y_max = bounds_top - render_height as i32;
+        let render_y = render_y.min(render_y_max);
         let (chunk_x, chunk_z) = calculate_center_offset(padded_distance, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
         let (region_x, region_z) = calculate_region_min((chunk_x, chunk_z));
         // World hasn't moved
@@ -727,7 +732,7 @@ impl VoxelWorld {
             block_chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
             chunk
         });
-        println!("Render Chunks Top: {}", render_chunks.y_max());
+        println!("Render Chunks Height: {}", render_chunks.height());
         self.render_chunks.give(render_chunks);
 
     }
@@ -821,9 +826,9 @@ impl VoxelWorld {
             let render_y_max = self.render_chunks.bounds().y_max();
             for y in render_y_min..render_y_max {
                 let chunk_bottom = chunk.block_offset.y >> 4;
-                // let diff = render_y_min - chunk_bottom;
-                // let yi = y - render_y_min;
-                let i = (y - chunk_bottom) as usize;
+                let diff = render_y_min - chunk_bottom;
+                let yi = y - render_y_min;
+                let i = (diff + yi) as usize;
                 let section_coord = Coord::new(chunk_x, y, chunk_z);
                 if !self.render_chunks.bounds().contains(section_coord) {
                     continue;

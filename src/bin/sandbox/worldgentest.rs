@@ -1,11 +1,11 @@
 use std::path::Path;
 
 use unvoga::{blockstate, core::voxel::world::VoxelWorld};
-use worldgen::noise::{NoiseGen, Point};
+use unvoga::core::voxel::procgen::noise::*;
 
 
 pub fn import_generator<P: AsRef<Path>, B: AsRef<[u8]>>(path: P, seed: B) -> NoiseGen {
-    NoiseGen::from_config(worldgen::noise::NoiseGenConfig::import(path).expect("Failed to import"), seed)
+    NoiseGen::from_config(NoiseGenConfig::import(path).expect("Failed to import"), seed)
 }
 
 pub fn generate_world(world: &mut VoxelWorld) {
