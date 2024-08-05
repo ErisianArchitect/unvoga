@@ -27,7 +27,6 @@ pub fn calculate_center_offset(chunk_radius: i32, center: Coord, bounds: Option<
         let depth = (chunk_radius as u32 * 32).min(bounds.depth());
         let xmax = (bounds.max.0 as i64 - width as i64) as i32;
         let ymax = (bounds.max.1 as i64 - height as i64) as i32;
-        // println!("ymax: {ymax} {y} {height}");
         let zmax = (bounds.max.2 as i64 - depth as i64) as i32;
         (x, y, z) = (
             x.min(xmax).max(bounds.min.0),
@@ -35,7 +34,7 @@ pub fn calculate_center_offset(chunk_radius: i32, center: Coord, bounds: Option<
             z.min(zmax).max(bounds.min.2),
         );
     }
-    Coord::new(x, y, z)
+    return Coord::new(x, y, z);
 }
 
 

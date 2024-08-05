@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::PrimitiveTopology;
 use bevy::render::render_asset::RenderAssetUsages;
 use itertools::Itertools;
+use tap::Tap;
 use std::path::{Path, PathBuf};
 use std::{collections::VecDeque, iter::Sum};
 
@@ -21,6 +22,7 @@ use crate::core::collections::objectpool::{ObjectPool, PoolId};
 use crate::core::math::aabb::AABB;
 use crate::core::math::grid::{calculate_region_min, calculate_region_requirement};
 use crate::core::util::lend::Lend;
+use crate::core::voxel::procgen::worldgenerator::WorldGenerator;
 use crate::core::voxel::region::regionfile::RegionFile;
 use crate::core::voxel::region::timestamp::Timestamp;
 use crate::core::voxel::rendering::meshbuilder::MeshBuilder;
@@ -65,6 +67,12 @@ pub struct SaveIdMarker;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MoveRenderChunkMarker;
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct WorldGenMarker;
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LoadChunkMarker;
+
+
 #[derive(Debug, Component)]
 pub struct RenderChunkMarker;
 
@@ -72,7 +80,7 @@ pub struct RenderChunkMarker;
 pub struct VoxelWorld {
     pub array_texture: Handle<Image>,
     /// Determines if the render world has been initialized.
-    pub initialized: bool,
+    // pub initialized: bool,
     // pub dirty_sections: Vec<Coord>,
     pub dirty_queue: Lend<ObjectPool<Coord, DirtyIdMarker>>,
     pub save_queue: ObjectPool<ChunkCoord, SaveIdMarker>,
@@ -95,7 +103,10 @@ pub struct VoxelWorld {
     pub world_directory: PathBuf,
     pub subworld_directory: PathBuf,
     pub move_render_chunk_queue: Lend<ObjectPool<Coord, MoveRenderChunkMarker>>,
-    render_distance: i32,
+    pub render_distance: i32,
+    pub worldgen_queue: Lend<ObjectPool<(i32, i32), WorldGenMarker>>,
+    pub load_queue: Lend<ObjectPool<(i32, i32), LoadChunkMarker>>,
+    pub world_generator: Option<Box<dyn WorldGenerator>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -123,7 +134,7 @@ impl VoxelWorld {
         min: (i32::MIN, WORLD_BOTTOM, i32::MIN),
         max: (i32::MAX, WORLD_TOP, i32::MAX)
     };
-    /// Create a new world centered at the specified block coordinate with the (chunk) render distance specified.
+    /// Open or create a world centered at the specified block coordinate with the (chunk) render distance specified.
     /// The resulting width in chunks will be `render_distance * 2`.
     pub fn open<P: AsRef<Path>, C: Into<(i32, i32, i32)>>(
             directory: P,
@@ -133,13 +144,12 @@ impl VoxelWorld {
             commands: &mut Commands,
             meshes: &mut ResMut<Assets<Mesh>>,
             materials: &mut ResMut<Assets<VoxelMaterial>>,
+            generator: Option<Box<dyn WorldGenerator>>,
         ) -> Self {
             
         let center: (i32, i32, i32) = center.into();
         let center: Coord = center.into();
         let mut center = center;
-        // clamp Y to world Y range
-        // center.y = center.y.min(WORLD_TOP).max(WORLD_BOTTOM);
         if render_distance as usize + WORLD_SIZE_PAD > PADDED_WORLD_SIZE_MAX {
             panic!("Size greater than {PADDED_WORLD_SIZE_MAX} (PADDED_WORLD_SIZE_MAX)");
         }
@@ -157,55 +167,29 @@ impl VoxelWorld {
         std::fs::create_dir(&subworlds);
         let main_world = subworlds.join("main");
         std::fs::create_dir(&main_world);
-
+        let mut load_queue = Lend::new(ObjectPool::new());
         Self {
             array_texture: array_texture.clone(),
-            initialized: false,
             subworld_directory: main_world,
             dirty_queue: Lend::new(ObjectPool::new()),
             save_queue: ObjectPool::new(),
             render_distance: render_distance as i32,
             world_directory: directory.to_owned(),
-            // dirty_sections: Vec::new(),
             chunks: Lend::new(RollGrid2D::new_with_init(pad_size, pad_size, (chunk_x, chunk_z), |(x, z): (i32, i32)| {
-                Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)))
+                Some(Chunk::new(Coord::new(x * 16, WORLD_BOTTOM, z * 16)).tap_mut(|chunk| {
+                    chunk.load_id = load_queue.insert((x, z));
+                }))
             })),
-            render_chunks: Lend::new(RollGrid3D::new_with_init(render_size, render_size.min(WORLD_HEIGHT / 16), render_size, (render_x, render_y, render_z), |pos: Coord| {
-                // let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all());
-                // MeshBuilder::build_mesh(&mut mesh, |build| ());
-                // let mesh = meshes.add(mesh);
-                // let material = materials.add(VoxelMaterial::new(array_texture.clone()));
-                // let (x, y, z) = (
-                //     (pos.x * 16) as f32,
-                //     (pos.y * 16) as f32,
-                //     (pos.z * 16) as f32
-                // );
-                // use bevy::render::primitives::Aabb;
-                // let aabb = Aabb::from_min_max(vec3(0.0, 0.0, 0.0), vec3(16.0, 16.0, 16.0));
-                // let entity = commands.spawn((
-                //     MaterialMeshBundle {
-                //         mesh: mesh.clone(),
-                //         transform: Transform::from_xyz(x, y, z),
-                //         material: material.clone(),
-                //         ..Default::default()
-                //     },
-                //     aabb,
-                //     RenderChunkMarker
-                // )).id();
-                // Some(RenderChunk {
-                //     mesh: mesh,
-                //     material: material,
-                //     move_id: PoolId::NULL,
-                //     entity,
-                // })
-                None
-            })),
+            render_chunks: Lend::new(RollGrid3D::new(render_size, render_height / 16, render_size, (render_x, render_y, render_z))),
             regions: Lend::new(RollGrid2D::new(region_size as usize, region_size as usize, region_min)),
             update_queue: BlockUpdateQueue::default(),
             lock_update_queue: false,
             update_modification_queue: Vec::new(),
             update_modification_map: HashMap::new(),
             move_render_chunk_queue: Lend::new(ObjectPool::new()),
+            worldgen_queue: Lend::new(ObjectPool::new()),
+            load_queue,
+            world_generator: generator,
         }.initial_load()
     }
 
@@ -485,6 +469,50 @@ impl VoxelWorld {
         mut materials: ResMut<Assets<VoxelMaterial>>,
         mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
     ) {
+        // let mut load = self.load_queue.lend("loading some chunks in talk_to_bevy");
+        // let start_time = std::time::Instant::now();
+        // // We'll try 5 milliseconds for now. We only have 16 milliseconds of frame time.
+        // while start_time.elapsed().as_millis() < 5 {
+        //     if let Some((chunk_x, chunk_z)) = load.pop() {
+        //         let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was not present");
+        //         chunk.load_id.swap_null();
+        //         chunk.unload(self);
+        //         let region_coord = (chunk_x >> 5, chunk_z >> 5);
+        //         if let Some(mut region) = self.regions.take(region_coord) {
+        //             let result = self.load_chunk(&mut region, &mut chunk, chunk_x, chunk_z);
+        //             match result {
+        //                 Err(Error::ChunkNotFound) => {
+        //                     chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
+        //                 }
+        //                 Err(err) => panic!("{err}"),
+        //                 _ => (),
+        //             }
+        //             chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
+        //             if chunk_x >= self.render_chunks.x_min() &&
+        //             chunk_x < self.render_chunks.x_max() &&
+        //             chunk_z >= self.render_chunks.z_min() &&
+        //             chunk_z < self.render_chunks.z_max() {
+        //                 for y in self.render_chunks.y_min()..self.render_chunks.y_max() {
+        //                     // self.mark_section_dirty(Coord::new(chunk_x, y, chunk_z));
+        //                     let section_index = (y - chunk.section_y()) as usize;
+        //                     if chunk.sections[section_index].dirty_id.null() {
+        //                         chunk.sections[section_index].dirty_id = self.dirty_queue.insert(Coord::new(chunk_x, y, chunk_z));
+        //                     } else {
+        //                         self.dirty_queue.swap_insert(&mut chunk.sections[section_index].dirty_id, Coord::new(chunk_x, y, chunk_z));
+        //                     }
+        //                 }
+        //             }
+        //             self.regions.set(region_coord, region);
+        //         } else {
+        //             // Region was not found, which means the chunk has not been created yet, so generate a new one.
+        //             chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
+        //         }
+        //         self.chunks.set((chunk_x, chunk_z), chunk);
+        //     } else {
+        //         break;
+        //     }
+        // }
+        // self.load_queue.give(load);
         let mut dirty = self.dirty_queue.lend("draining the dirty_queue in talk_to_bevy");
         dirty.drain().for_each(|coord| {
             let (sect_x, sect_y, sect_z) = coord.into();
@@ -592,20 +620,41 @@ impl VoxelWorld {
         self.move_render_chunk_queue.give(move_render_chunk_queue);
     }
 
+    pub fn load_chunk(&mut self, region: &mut RegionFile, chunk: &mut Chunk, x: i32, z: i32) -> crate::core::error::Result<()> {
+        // self.unload_chunk(chunk);
+        chunk.block_offset = Coord::new(x * 16, WORLD_BOTTOM, z * 16);
+        region.read((x & 31, z & 31), |reader| {
+            chunk.read_from(reader, self)
+        })
+        // match result {
+        //     Err(Error::ChunkNotFound) => {
+        //         // If the chunk was not found, generate a new one.
+        //         chunk.world_gen_id = self.worldgen_queue.insert((x, z));
+        //     },
+        //     err => err?,
+        //     Ok(_) => (),
+        // }
+        // Ok(())
+    }
+
     pub fn move_center<C: Into<(i32, i32, i32)>>(&mut self, center: C) {
         let center: (i32, i32, i32) = center.into();
         let center: Coord = center.into();
         let padded_distance = self.render_distance + WORLD_SIZE_PAD as i32;
         let padded_size = padded_distance * 2;
+        let render_min = self.render_chunks.bounds().min;
         let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
         let (chunk_x, chunk_z) = calculate_center_offset(padded_distance, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
         let (region_x, region_z) = calculate_region_min((chunk_x, chunk_z));
-        let chunk_min = self.chunks.bounds().min;
         // World hasn't moved
-        if chunk_min == (chunk_x, chunk_z) {
+        if render_min == (render_x, render_y, render_z) {
             return;
         }
-        self.save_world().expect("Failed to save the world");
+        let chunk_min = self.chunks.bounds().min;
+        // Chunks moved
+        if chunk_min != (chunk_x, chunk_z) {
+            self.save_world().expect("Failed to save the world");
+        }
         // First move regions so that new chunks can be loaded.
         // then move render chunks so that the new chunks can test against the new render bounds
         // then move data chunks
@@ -623,6 +672,12 @@ impl VoxelWorld {
         chunks.reposition((chunk_x, chunk_z), |old_pos, (x, z), chunk| {
             //                   The chunk should never be None. If it is, that's an error.
             let mut chunk = chunk.expect("Chunk was None");
+            // if chunk.load_id.null() {
+            //     chunk.load_id = self.load_queue.insert((x, z));
+            // } else {
+            //     self.load_queue.swap_insert(&mut chunk.load_id, (x, z));
+            // }
+            // self.load_queue.swap_insert(&mut chunk.load_id, (x, z));
             self.unload_chunk(&mut chunk);
             chunk.block_offset = Coord::new(x * 16, WORLD_BOTTOM, z * 16);
             if let Some(region) = regions.get_mut((x >> 5, z >> 5)) {
@@ -672,6 +727,7 @@ impl VoxelWorld {
             block_chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
             chunk
         });
+        println!("Render Chunks Top: {}", render_chunks.y_max());
         self.render_chunks.give(render_chunks);
 
     }
@@ -765,9 +821,9 @@ impl VoxelWorld {
             let render_y_max = self.render_chunks.bounds().y_max();
             for y in render_y_min..render_y_max {
                 let chunk_bottom = chunk.block_offset.y >> 4;
-                let diff = render_y_min - chunk_bottom;
-                let yi = y - render_y_min;
-                let i = (diff + yi) as usize;
+                // let diff = render_y_min - chunk_bottom;
+                // let yi = y - render_y_min;
+                let i = (y - chunk_bottom) as usize;
                 let section_coord = Coord::new(chunk_x, y, chunk_z);
                 if !self.render_chunks.bounds().contains(section_coord) {
                     continue;
@@ -870,7 +926,7 @@ impl VoxelWorld {
     pub fn query<'a, C: Into<(i32, i32, i32)>, T: VoxelQuery<'a>>(&'a self, coord: C) -> T::Output {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
-        if !self.render_bounds().contains(coord) {
+        if !self.bounds().contains(coord) {
             return T::default();
         }
         let chunk_x = coord.x >> 4;
@@ -880,7 +936,7 @@ impl VoxelWorld {
     }
 
     fn set_update_ref(&mut self, coord: Coord, value: UpdateRef) -> UpdateRef {
-        if !self.render_bounds().contains(coord) {
+        if !self.bounds().contains(coord) {
             return UpdateRef::NULL;
         }
         let chunk_x = coord.x >> 4;
@@ -890,7 +946,7 @@ impl VoxelWorld {
     }
 
     fn get_update_ref(&self, coord: Coord) -> UpdateRef {
-        if !self.render_bounds().contains(coord) {
+        if !self.bounds().contains(coord) {
             return UpdateRef::NULL;
         }
         let chunk_x = coord.x >> 4;
@@ -921,7 +977,7 @@ impl VoxelWorld {
         // the render bounds.
         // The problem is that darkness propagation might cause light to repropagation to overflow out of bounds
         // and we don't want that because it would invalidate the lightmap.
-        if !self.render_bounds().contains(coord) {
+        if !self.bounds().contains(coord) {
             return Id::AIR;
         }
         let old = self.get_block(coord);
@@ -1300,6 +1356,9 @@ impl VoxelWorld {
     pub fn enabled<C: Into<(i32, i32, i32)>>(&self, coord: C) -> bool {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return false;
+        }
         if self.lock_update_queue {
             if let Some(index) = self.update_modification_map.get(&coord) {
                 return self.update_modification_queue[*index as usize].1;
@@ -1311,6 +1370,9 @@ impl VoxelWorld {
     pub fn set_enabled<C: Into<(i32, i32, i32)>>(&mut self, coord: C, enabled: bool) -> bool {
         let coord: (i32, i32, i32) = coord.into();
         let coord: Coord = coord.into();
+        if !self.bounds().contains(coord) {
+            return false;
+        }
         if self.lock_update_queue {
             let index = self.update_modification_queue.len() as u32;
             let current = self.update_modification_map.entry(coord).or_insert(index);
@@ -1320,9 +1382,6 @@ impl VoxelWorld {
             } else {
                 return self.update_modification_queue[*current as usize].1.swap(enabled);
             }
-        }
-        if !self.bounds().contains(coord) {
-            return false;
         }
         let state = self.get_block(coord);
         if state.is_air() {
@@ -1393,7 +1452,6 @@ impl VoxelWorld {
         if let Some(chunk) = self.chunks.get((chunk_x, chunk_z)) {
             chunk.height(x, z)
         } else {
-            println!("Chunk not found");
             WORLD_BOTTOM
         }
     }

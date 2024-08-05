@@ -5,7 +5,7 @@ use bevy::{asset::Assets, prelude::{state_changed, ResMut}, render::mesh::Mesh, 
 
 use crate::{core::{collections::objectpool::PoolId, voxel::{blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, region::timestamp::Timestamp, rendering::voxelmaterial::VoxelMaterial, tag::Tag}}, prelude::SwapVal};
 
-use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::VoxelQuery, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, MemoryUsage, SaveIdMarker, VoxelWorld, WORLD_BOTTOM, WORLD_HEIGHT};
+use super::{dirty::Dirty, heightmap::Heightmap, occlusion::Occlusion, query::VoxelQuery, section::{LightChange, Section, SectionUpdate, StateChange}, update::UpdateRef, LoadChunkMarker, MemoryUsage, SaveIdMarker, VoxelWorld, WorldGenMarker, WORLD_BOTTOM, WORLD_HEIGHT};
 use crate::core::error::*;
 
 pub struct Chunk {
@@ -16,6 +16,8 @@ pub struct Chunk {
     pub edit_time: Timestamp,
     pub used_count: u16,
     pub save_id: PoolId<SaveIdMarker>,
+    pub world_gen_id: PoolId<WorldGenMarker>,
+    pub load_id: PoolId<LoadChunkMarker>,
 }
 
 impl Chunk {
@@ -29,6 +31,8 @@ impl Chunk {
             edit_time: Timestamp::utc_now(),
             used_count: 0,
             save_id: PoolId::NULL,
+            world_gen_id: PoolId::NULL,
+            load_id: PoolId::NULL,
         }
     }
 
@@ -308,6 +312,8 @@ impl Chunk {
         }
         let save_id = self.save_id.swap_null();
         world.save_queue.remove(save_id);
+        let gen_id = self.world_gen_id.swap_null();
+        world.worldgen_queue.remove(gen_id);
     }
 
 }

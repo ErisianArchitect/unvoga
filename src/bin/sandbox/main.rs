@@ -67,14 +67,8 @@ pub fn main() {
         .add_plugins(EguiPlugin)
         .add_plugins(MaterialPlugin::<VoxelMaterial>::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, (update_input, update).chain())
-        // .add_systems(Update, update_input.before(update))SSSSSSSnu.run_if(in_state(GameState::MainMenu)))
-        // .add_systems(OnEnter(GameState::LoadingScreen), enter_loading_screen)
-        // .add_systems(OnExit(GameState::LoadingScreen), cleanup_system::<cleanup::LoadingScreen>)
-        // .add_systems(OnEnter(GameState::MainMenu), on_enter_main_menu)
-        // .add_systems(OnExit(GameState::MainMenu), cleanup_system::<cleanup::Menu>)
-        // .add_systems(OnEnter(GameState::SinglePlayer), on_enter_singleplayer)
-        // .add_systems(OnExit(GameState::SinglePlayer), cleanup_system::<cleanup::SinglePlayer>)
+        .add_systems(Update, update_input)
+        .add_systems(PostUpdate, update_bevy)
         .insert_resource(Assets::<VoxelMaterial>::default())
         .insert_resource(Assets::<Mesh>::default())
         // .insert_resource(Assets::<Image>::default())
@@ -318,15 +312,16 @@ fn setup(
     blocks::register_block(MiddleWedge::new());
     let texture_array = images.add(texreg::build_texture_array(256, 256).expect("Failed to build texture array"));
     // blocks::register_block(RotatedBlock);
-    std::fs::remove_dir_all("ignore/worldgen");
+    // std::fs::remove_dir_all("ignore/worldgen");
     let mut world = VoxelWorld::open(
         "ignore/worldgen",
-        32,
+        12,
         (0, 0, 0),
         texture_array.clone(),
         &mut commands,
         &mut meshes,
-        &mut materials
+        &mut materials,
+        None,
     );
     // let dirt = blockstate!(dirt).register();
     // let bricks = blockstate!(stone_bricks).register();
@@ -556,7 +551,7 @@ struct CameraLocation {
     position: Vec3
 }
 
-fn update(
+fn update_bevy(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
@@ -566,11 +561,11 @@ fn update(
 ) {
     // I for Ingage (lol, yes I know it's spelled wrong)
     
-    let now = Instant::now();
+    // let now = Instant::now();
     // let state = world.world.get_block((0,0,0));
     // world.world.set_block((0, 0, 0), if state.is_air() { blockstate!(dirt).register() } else { Id::AIR });
     world.talk_to_bevy(commands, meshes, materials, render_chunks);
-    let elapsed = now.elapsed();
+    // let elapsed = now.elapsed();
     // println!("Frame time: {}", elapsed.as_secs_f64());
 }
 

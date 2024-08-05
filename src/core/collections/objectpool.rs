@@ -78,6 +78,13 @@ impl<T,M: Copy> ObjectPool<T,M> {
         self.unused.push(id);
     }
 
+    /// Removes the old id and then inserts the new value and replaces the id with the new id.
+    pub fn swap_insert(&mut self, id: &mut PoolId<M>, insert: T) {
+        let old = id.swap_null();
+        self.remove(old);
+        *id = self.insert(insert);
+    }
+
     pub fn pop(&mut self) -> Option<T> {
         let (id, value) = self.pool.pop()?;
         self.unused.push(id);
