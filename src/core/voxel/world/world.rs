@@ -156,7 +156,8 @@ impl VoxelWorld {
         let pad_distance = (render_distance as usize + WORLD_SIZE_PAD);
         let pad_size = pad_distance * 2;
         let render_size = render_distance as usize * 2;
-        let render_height = render_size.min(WORLD_HEIGHT);
+        let render_height = render_size.min(WORLD_HEIGHT >> 4);
+        println!("Render Height: {render_height}");
         let (chunk_x, chunk_z) = calculate_center_offset(pad_distance as i32, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
         let region_size = calculate_region_requirement(pad_size as i32);
         let region_min = calculate_region_min((chunk_x, chunk_z));
@@ -469,143 +470,154 @@ impl VoxelWorld {
         mut materials: ResMut<Assets<VoxelMaterial>>,
         mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
     ) {
-        // let mut load = self.load_queue.lend("loading some chunks in talk_to_bevy");
-        // let start_time = std::time::Instant::now();
-        // // We'll try 5 milliseconds for now. We only have 16 milliseconds of frame time.
-        // while start_time.elapsed().as_millis() < 5 {
-        //     if let Some((chunk_x, chunk_z)) = load.pop() {
-        //         let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was not present");
-        //         chunk.load_id.swap_null();
-        //         chunk.unload(self);
-        //         let region_coord = (chunk_x >> 5, chunk_z >> 5);
-        //         if let Some(mut region) = self.regions.take(region_coord) {
-        //             let result = self.load_chunk(&mut region, &mut chunk, chunk_x, chunk_z);
-        //             match result {
-        //                 Err(Error::ChunkNotFound) => {
-        //                     chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
-        //                 }
-        //                 Err(err) => panic!("{err}"),
-        //                 _ => (),
-        //             }
-        //             chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
-        //             if chunk_x >= self.render_chunks.x_min() &&
-        //             chunk_x < self.render_chunks.x_max() &&
-        //             chunk_z >= self.render_chunks.z_min() &&
-        //             chunk_z < self.render_chunks.z_max() {
-        //                 for y in self.render_chunks.y_min()..self.render_chunks.y_max() {
-        //                     // self.mark_section_dirty(Coord::new(chunk_x, y, chunk_z));
-        //                     let section_index = (y - chunk.section_y()) as usize;
-        //                     if chunk.sections[section_index].dirty_id.null() {
-        //                         chunk.sections[section_index].dirty_id = self.dirty_queue.insert(Coord::new(chunk_x, y, chunk_z));
-        //                     } else {
-        //                         self.dirty_queue.swap_insert(&mut chunk.sections[section_index].dirty_id, Coord::new(chunk_x, y, chunk_z));
-        //                     }
-        //                 }
-        //             }
-        //             self.regions.set(region_coord, region);
-        //         } else {
-        //             // Region was not found, which means the chunk has not been created yet, so generate a new one.
-        //             chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
-        //         }
-        //         self.chunks.set((chunk_x, chunk_z), chunk);
-        //     } else {
-        //         break;
-        //     }
-        // }
-        // self.load_queue.give(load);
-        let mut dirty = self.dirty_queue.lend("draining the dirty_queue in talk_to_bevy");
-        dirty.drain().for_each(|coord| {
-            let (sect_x, sect_y, sect_z) = coord.into();
-            // Let's build the mesh
-            let (blocks_dirty, light_map_dirty) = {
-                if let Some(sect) = self.get_section(coord) {
-                    (sect.blocks_dirty.dirty(), sect.light_dirty.dirty())
-                } else {
-                    (false, false)
-                }
-            };
-            let make_render_chunk = if let Some(sect) = self.get_section_mut(coord) {
-                sect.blocks_dirty.mark_clean();
-                sect.light_dirty.mark_clean();
-                sect.section_dirty.mark_clean();
-                sect.dirty_id = PoolId::NULL;
-                sect.blocks.is_some()
-            } else {
-                panic!("Section not found.");
-            };
-            // let Some(render_chunk) = self.render_chunks.get_opt_mut(coord) else {
-            //     panic!("Render chunk out of bounds");
-            // };
-            let mut render_chunk = self.render_chunks.take(coord);
-            if make_render_chunk {
-                if render_chunk.is_none() {
-                    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all());
-                    MeshBuilder::build_mesh(&mut mesh, |build| ());
-                    let mesh = meshes.add(mesh);
-                    let material = materials.add(VoxelMaterial::new(self.array_texture.clone()));
-                    let (x, y, z) = (
-                        (coord.x * 16) as f32,
-                        (coord.y * 16) as f32,
-                        (coord.z * 16) as f32
-                    );
-                    use bevy::render::primitives::Aabb;
-                    let aabb = Aabb::from_min_max(vec3(0.0, 0.0, 0.0), vec3(16.0, 16.0, 16.0));
-                    let entity = commands.spawn((
-                        MaterialMeshBundle {
-                            mesh: mesh.clone(),
-                            transform: Transform::from_xyz(x, y, z),
-                            material: material.clone(),
-                            ..Default::default()
-                        },
-                        aabb,
-                        RenderChunkMarker
-                    )).id();
-                    render_chunk.replace(RenderChunk {
-                        mesh: mesh,
-                        material: material,
-                        move_id: PoolId::NULL,
-                        entity,
-                    });
-                    // Some()
-                    // let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
-                }
-            } else {
-                if let Some(unload_chunk) = render_chunk.take() {
-                    self.move_render_chunk_queue.remove(unload_chunk.move_id);
-                    commands.entity(unload_chunk.entity).despawn_recursive();
-                }
-            }
-            let Some(render_chunk_mut) = render_chunk.as_mut() else {
-                self.render_chunks.set_opt(coord, render_chunk);
-                return;
-            };
-            if blocks_dirty {
-                let mesh = meshes.get_mut(render_chunk_mut.mesh.id()).expect("Failed to get the mesh");
-                MeshBuilder::build_mesh(mesh, |build| {
-                    for y in 0..16 {
-                        for z in 0..16 {
-                            for x in 0..16 {
-                                let block_coord = (sect_x * 16 + x, sect_y * 16 + y, sect_z * 16 + z);
-                                let offset = vec3(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
-                                let state = self.get_block(block_coord);
-                                if state == Id::AIR {
-                                    continue;
-                                }
-                                let orientation = state.block().orientation(self, block_coord.into(), state);
-                                let occlusion = self.get_occlusion(block_coord);
-                                build.set_offset(offset);
-                                build.set_orientation(orientation);
-                                state.block().push_mesh(build, self, block_coord.into(), state, occlusion, orientation);
+        let mut load = self.load_queue.lend("loading some chunks in talk_to_bevy");
+        let start_time = std::time::Instant::now();
+        // We'll try 5 milliseconds for now. We only have 16 milliseconds of frame time.
+        while start_time.elapsed().as_millis() < 5 {
+            if let Some((chunk_x, chunk_z)) = load.pop() {
+                let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was not present");
+                chunk.load_id.swap_null();
+                chunk.unload(self);
+                chunk.block_offset = Coord::new(chunk_x * 16, WORLD_BOTTOM, chunk_z * 16);
+                let region_coord = (chunk_x >> 5, chunk_z >> 5);
+                if let Some(mut region) = self.regions.take(region_coord) {
+                    let result = self.load_chunk(&mut region, &mut chunk, chunk_x, chunk_z);
+                    match result {
+                        Err(Error::ChunkNotFound) => {
+                            chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
+                        }
+                        Err(err) => panic!("{err}"),
+                        _ => (),
+                    }
+                    chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
+                    if chunk_x >= self.render_chunks.x_min() &&
+                    chunk_x < self.render_chunks.x_max() &&
+                    chunk_z >= self.render_chunks.z_min() &&
+                    chunk_z < self.render_chunks.z_max() {
+                        for y in self.render_chunks.y_min()..self.render_chunks.y_max() {
+                            // self.mark_section_dirty(Coord::new(chunk_x, y, chunk_z));
+                            let section_index = (y - chunk.section_y()) as usize;
+                            let section = &mut chunk.sections[section_index];
+                            section.light_dirty.mark();
+                            section.blocks_dirty.mark();
+                            section.section_dirty.mark();
+                            if section.dirty_id.null() {
+                                section.dirty_id = self.dirty_queue.insert(Coord::new(chunk_x, y, chunk_z));
+                            } else {
+                                self.dirty_queue.swap_insert(&mut section.dirty_id, Coord::new(chunk_x, y, chunk_z));
                             }
                         }
                     }
-                });
+                    self.regions.set(region_coord, region);
+                } else {
+                    // Region was not found, which means the chunk has not been created yet, so generate a new one.
+                    chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
+                }
+                self.chunks.set((chunk_x, chunk_z), chunk);
+            } else {
+                break;
             }
-            if light_map_dirty {
-                // TODO: Rebuild lightmap
+        }
+        self.load_queue.give(load);
+        let mut dirty = self.dirty_queue.lend("draining the dirty_queue in talk_to_bevy");
+        let start_time = std::time::Instant::now();
+        while start_time.elapsed().as_millis() < 5 {
+            if let Some(coord) = dirty.pop() {
+                let (sect_x, sect_y, sect_z) = coord.into();
+                // Let's build the mesh
+                let (blocks_dirty, light_map_dirty) = {
+                    if let Some(sect) = self.get_section(coord) {
+                        (sect.blocks_dirty.dirty(), sect.light_dirty.dirty())
+                    } else {
+                        (false, false)
+                    }
+                };
+                let make_render_chunk = if let Some(sect) = self.get_section_mut(coord) {
+                    sect.blocks_dirty.mark_clean();
+                    sect.light_dirty.mark_clean();
+                    sect.section_dirty.mark_clean();
+                    sect.dirty_id = PoolId::NULL;
+                    sect.blocks.is_some()
+                } else {
+                    panic!("Section not found.");
+                };
+                // let Some(render_chunk) = self.render_chunks.get_opt_mut(coord) else {
+                //     panic!("Render chunk out of bounds");
+                // };
+                let mut render_chunk = self.render_chunks.take(coord);
+                if make_render_chunk {
+                    if render_chunk.is_none() {
+                        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all());
+                        MeshBuilder::build_mesh(&mut mesh, |build| ());
+                        let mesh = meshes.add(mesh);
+                        let material = materials.add(VoxelMaterial::new(self.array_texture.clone()));
+                        let (x, y, z) = (
+                            (coord.x * 16) as f32,
+                            (coord.y * 16) as f32,
+                            (coord.z * 16) as f32
+                        );
+                        use bevy::render::primitives::Aabb;
+                        let aabb = Aabb::from_min_max(vec3(0.0, 0.0, 0.0), vec3(16.0, 16.0, 16.0));
+                        let entity = commands.spawn((
+                            MaterialMeshBundle {
+                                mesh: mesh.clone(),
+                                transform: Transform::from_xyz(x, y, z),
+                                material: material.clone(),
+                                ..Default::default()
+                            },
+                            aabb,
+                            RenderChunkMarker
+                        )).id();
+                        render_chunk.replace(RenderChunk {
+                            mesh: mesh,
+                            material: material,
+                            move_id: PoolId::NULL,
+                            entity,
+                        });
+                        // Some()
+                        // let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
+                    }
+                } else {
+                    if let Some(unload_chunk) = render_chunk.take() {
+                        self.move_render_chunk_queue.remove(unload_chunk.move_id);
+                        commands.entity(unload_chunk.entity).despawn_recursive();
+                    }
+                }
+                let Some(render_chunk_mut) = render_chunk.as_mut() else {
+
+                    self.render_chunks.set_opt(coord, render_chunk);
+                    continue;
+                };
+                if blocks_dirty {
+                    let mesh = meshes.get_mut(render_chunk_mut.mesh.id()).expect("Failed to get the mesh");
+                    MeshBuilder::build_mesh(mesh, |build| {
+                        for y in 0..16 {
+                            for z in 0..16 {
+                                'xloop: for x in 0..16 {
+                                    let block_coord = (sect_x * 16 + x, sect_y * 16 + y, sect_z * 16 + z);
+                                    let offset = vec3(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
+                                    let state = self.get_block(block_coord);
+                                    if state == Id::AIR {
+                                        continue 'xloop;
+                                    }
+                                    let orientation = state.block().orientation(self, block_coord.into(), state);
+                                    let occlusion = self.get_occlusion(block_coord);
+                                    build.set_offset(offset);
+                                    build.set_orientation(orientation);
+                                    state.block().push_mesh(build, self, block_coord.into(), state, occlusion, orientation);
+                                }
+                            }
+                        }
+                    });
+                }
+                if light_map_dirty {
+                    // TODO: Rebuild lightmap
+                }
+                self.render_chunks.set_opt(coord, render_chunk);
+            } else {
+                break;
             }
-            self.render_chunks.set_opt(coord, render_chunk);
-        });
+        }
         self.dirty_queue.give(dirty);
         let mut move_render_chunk_queue = self.move_render_chunk_queue.lend("Moving chunk entities");
         move_render_chunk_queue.drain().for_each(|coord| {
@@ -643,12 +655,12 @@ impl VoxelWorld {
         let padded_distance = self.render_distance + WORLD_SIZE_PAD as i32;
         let padded_size = padded_distance * 2;
         let render_min = self.render_chunks.bounds().min;
-        let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, None).section_coord().xyz();
-        let render_y = render_y.max(self.bounds().y_min() >> 4);
-        let render_height = self.render_chunks.bounds().height();
-        let bounds_top = self.bounds().y_max() >> 4;
-        let render_y_max = bounds_top - render_height as i32;
-        let render_y = render_y.min(render_y_max);
+        let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
+        // let render_y = render_y.max(self.bounds().y_min() >> 4);
+        // let render_height = self.render_chunks.bounds().height();
+        // let bounds_top = self.bounds().y_max() >> 4;
+        // let render_y_max = bounds_top - render_height as i32;
+        // let render_y = render_y.min(render_y_max);
         let (chunk_x, chunk_z) = calculate_center_offset(padded_distance, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
         let (region_x, region_z) = calculate_region_min((chunk_x, chunk_z));
         // World hasn't moved
@@ -677,31 +689,30 @@ impl VoxelWorld {
         chunks.reposition((chunk_x, chunk_z), |old_pos, (x, z), chunk| {
             //                   The chunk should never be None. If it is, that's an error.
             let mut chunk = chunk.expect("Chunk was None");
-            // if chunk.load_id.null() {
-            //     chunk.load_id = self.load_queue.insert((x, z));
-            // } else {
-            //     self.load_queue.swap_insert(&mut chunk.load_id, (x, z));
-            // }
-            // self.load_queue.swap_insert(&mut chunk.load_id, (x, z));
-            self.unload_chunk(&mut chunk);
-            chunk.block_offset = Coord::new(x * 16, WORLD_BOTTOM, z * 16);
-            if let Some(region) = regions.get_mut((x >> 5, z >> 5)) {
-                let result = region.read((x & 31, z & 31), |reader| {
-                    chunk.read_from(reader, self)
-                });
-                match result {
-                    Err(Error::ChunkNotFound) => {
-                        
-                    },
-                    Err(err) => {
-                        panic!("Error: {err}");
-                    }
-                    _ => (),
-                }
-                chunk.edit_time = region.get_timestamp((x & 31, z & 31));
+            if chunk.load_id.null() {
+                chunk.load_id = self.load_queue.insert((x, z));
+            } else {
+                self.load_queue.swap_insert(&mut chunk.load_id, (x, z));
             }
-            chunk.block_offset.x = x * 16;
-            chunk.block_offset.z = z * 16;
+            // self.unload_chunk(&mut chunk);
+            // chunk.block_offset = Coord::new(x * 16, WORLD_BOTTOM, z * 16);
+            // if let Some(region) = regions.get_mut((x >> 5, z >> 5)) {
+            //     let result = region.read((x & 31, z & 31), |reader| {
+            //         chunk.read_from(reader, self)
+            //     });
+            //     match result {
+            //         Err(Error::ChunkNotFound) => {
+                        
+            //         },
+            //         Err(err) => {
+            //             panic!("Error: {err}");
+            //         }
+            //         _ => (),
+            //     }
+            //     chunk.edit_time = region.get_timestamp((x & 31, z & 31));
+            // }
+            // chunk.block_offset.x = x * 16;
+            // chunk.block_offset.z = z * 16;
             Some(chunk)
         });
         self.chunks.give(chunks);
@@ -732,7 +743,6 @@ impl VoxelWorld {
             block_chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
             chunk
         });
-        println!("Render Chunks Height: {}", render_chunks.height());
         self.render_chunks.give(render_chunks);
 
     }
@@ -828,7 +838,7 @@ impl VoxelWorld {
                 let chunk_bottom = chunk.block_offset.y >> 4;
                 let diff = render_y_min - chunk_bottom;
                 let yi = y - render_y_min;
-                let i = (diff + yi) as usize;
+                let i = (y - chunk_bottom) as usize;
                 let section_coord = Coord::new(chunk_x, y, chunk_z);
                 if !self.render_chunks.bounds().contains(section_coord) {
                     continue;
