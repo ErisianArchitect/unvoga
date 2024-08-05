@@ -542,7 +542,9 @@ fn update_input(
         campos.position.y.floor() as i32,
         campos.position.z.floor() as i32,
     );
-    world.move_center((x, y, z));
+    if !keys.pressed(KeyCode::Backspace) {
+        world.move_center((x, y, z));
+    }
     
 }
 

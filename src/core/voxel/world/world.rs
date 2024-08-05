@@ -157,7 +157,6 @@ impl VoxelWorld {
         let pad_size = pad_distance * 2;
         let render_size = render_distance as usize * 2;
         let render_height = render_size.min(WORLD_HEIGHT >> 4);
-        println!("Render Height: {render_height}");
         let (chunk_x, chunk_z) = calculate_center_offset(pad_distance as i32, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
         let region_size = calculate_region_requirement(pad_size as i32);
         let region_min = calculate_region_min((chunk_x, chunk_z));
@@ -191,7 +190,68 @@ impl VoxelWorld {
             worldgen_queue: Lend::new(ObjectPool::new()),
             load_queue,
             world_generator: generator,
-        }.initial_load()
+        }
+        // .initial_load()
+    }
+    
+    fn initial_load(mut self) -> Self {
+        self.chunks.bounds().iter().try_for_each(|(chunk_x, chunk_z)| {
+            let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
+            let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
+            chunk.unload(&mut self);
+            let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
+                region
+            } else {
+                let region_path = self.get_region_path(region_x, region_z);
+                if region_path.is_file() {
+                    RegionFile::open_or_create(region_path)?
+                } else {
+                    chunk.edit_time = Timestamp::new(0);
+                    self.chunks.set((chunk_x, chunk_z), chunk);
+                    return Result::Ok(());
+                }
+            };
+            let result = region.read((chunk_x & 31, chunk_z & 31), |reader| {
+                chunk.read_from(reader, &mut self)
+            });
+            match result {
+                Err(Error::ChunkNotFound) => {
+                    /* chunk.unload() */
+                    // chunk.unload(self);
+                },
+                other => {
+                    other?;
+                },
+                _ => (),
+            }
+            let chunk_y = chunk.section_y();
+            // TODO: There's a better way to do this, lol
+            let render_y_min = self.render_chunks.bounds().y_min();
+            let render_y_max = self.render_chunks.bounds().y_max();
+            for y in render_y_min..render_y_max {
+                let chunk_bottom = chunk.block_offset.y >> 4;
+                let diff = render_y_min - chunk_bottom;
+                let yi = y - render_y_min;
+                let i = (y - chunk_bottom) as usize;
+                let section_coord = Coord::new(chunk_x, y, chunk_z);
+                if !self.render_chunks.bounds().contains(section_coord) {
+                    continue;
+                }
+                // this probably isn't necessary.
+                // self.dirty_queue.remove(chunk.sections[i].dirty_id.swap_null());
+                if chunk.sections[i].blocks.is_some() {
+                    chunk.sections[i].dirty_id = self.dirty_queue.insert(section_coord);
+                    chunk.sections[i].light_dirty.mark();
+                    chunk.sections[i].blocks_dirty.mark();
+                    chunk.sections[i].section_dirty.mark();
+                }
+            }
+            chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
+            self.chunks.set((chunk_x, chunk_z), chunk);
+            self.regions.set((region_x, region_z), region);
+            Ok(())
+        });
+        self
     }
 
     pub fn render_bounds_aabb(&self) -> AABB {
@@ -473,46 +533,59 @@ impl VoxelWorld {
         let mut load = self.load_queue.lend("loading some chunks in talk_to_bevy");
         let start_time = std::time::Instant::now();
         // We'll try 5 milliseconds for now. We only have 16 milliseconds of frame time.
-        while start_time.elapsed().as_millis() < 5 {
+        while start_time.elapsed().as_millis() < 2 {
             if let Some((chunk_x, chunk_z)) = load.pop() {
                 let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was not present");
                 chunk.load_id.swap_null();
                 chunk.unload(self);
                 chunk.block_offset = Coord::new(chunk_x * 16, WORLD_BOTTOM, chunk_z * 16);
-                let region_coord = (chunk_x >> 5, chunk_z >> 5);
-                if let Some(mut region) = self.regions.take(region_coord) {
-                    let result = self.load_chunk(&mut region, &mut chunk, chunk_x, chunk_z);
-                    match result {
-                        Err(Error::ChunkNotFound) => {
-                            chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
-                        }
-                        Err(err) => panic!("{err}"),
-                        _ => (),
-                    }
-                    chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
-                    if chunk_x >= self.render_chunks.x_min() &&
-                    chunk_x < self.render_chunks.x_max() &&
-                    chunk_z >= self.render_chunks.z_min() &&
-                    chunk_z < self.render_chunks.z_max() {
-                        for y in self.render_chunks.y_min()..self.render_chunks.y_max() {
-                            // self.mark_section_dirty(Coord::new(chunk_x, y, chunk_z));
-                            let section_index = (y - chunk.section_y()) as usize;
-                            let section = &mut chunk.sections[section_index];
-                            section.light_dirty.mark();
-                            section.blocks_dirty.mark();
-                            section.section_dirty.mark();
-                            if section.dirty_id.null() {
-                                section.dirty_id = self.dirty_queue.insert(Coord::new(chunk_x, y, chunk_z));
-                            } else {
-                                self.dirty_queue.swap_insert(&mut section.dirty_id, Coord::new(chunk_x, y, chunk_z));
-                            }
-                        }
-                    }
-                    self.regions.set(region_coord, region);
+                let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
+                let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
+                    region
                 } else {
-                    // Region was not found, which means the chunk has not been created yet, so generate a new one.
-                    chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
+                    let region_path = self.get_region_path(region_x, region_z);
+                    if region_path.is_file() {
+                        RegionFile::open_or_create(region_path).expect("Failed to open or create region file.")
+                    } else {
+                        chunk.edit_time = Timestamp::new(0);
+                        chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
+                        self.chunks.set((chunk_x, chunk_z), chunk);
+                        continue;
+                    }
+                };
+                let result = self.load_chunk(&mut region, &mut chunk, chunk_x, chunk_z);
+                match result {
+                    Err(Error::ChunkNotFound) => {
+                        chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
+                    }
+                    Err(err) => panic!("{err}"),
+                    _ => (),
                 }
+                chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
+                if chunk_x >= self.render_chunks.x_min() &&
+                chunk_x < self.render_chunks.x_max() &&
+                chunk_z >= self.render_chunks.z_min() &&
+                chunk_z < self.render_chunks.z_max() {
+                    for y in self.render_chunks.y_min()..self.render_chunks.y_max() {
+                        // self.mark_section_dirty(Coord::new(chunk_x, y, chunk_z));
+                        let section_index = (y - chunk.section_y()) as usize;
+                        let section = &mut chunk.sections[section_index];
+                        section.light_dirty.mark();
+                        section.blocks_dirty.mark();
+                        section.section_dirty.mark();
+                        if section.dirty_id.null() {
+                            section.dirty_id = self.dirty_queue.insert(Coord::new(chunk_x, y, chunk_z));
+                        } else {
+                            self.dirty_queue.swap_insert(&mut section.dirty_id, Coord::new(chunk_x, y, chunk_z));
+                        }
+                    }
+                }
+                self.regions.set((region_x, region_z), region);
+                // if let Some(mut region) = self.regions.take(region_coord) {
+                // } else {
+                //     // Region was not found, which means the chunk has not been created yet, so generate a new one.
+                //     chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
+                // }
                 self.chunks.set((chunk_x, chunk_z), chunk);
             } else {
                 break;
@@ -521,7 +594,8 @@ impl VoxelWorld {
         self.load_queue.give(load);
         let mut dirty = self.dirty_queue.lend("draining the dirty_queue in talk_to_bevy");
         let start_time = std::time::Instant::now();
-        while start_time.elapsed().as_millis() < 5 {
+        // TODO: Right now, despawning is broken under certain move condition.s
+        while start_time.elapsed().as_millis() < 50 {
             if let Some(coord) = dirty.pop() {
                 let (sect_x, sect_y, sect_z) = coord.into();
                 // Let's build the mesh
@@ -584,7 +658,6 @@ impl VoxelWorld {
                     }
                 }
                 let Some(render_chunk_mut) = render_chunk.as_mut() else {
-
                     self.render_chunks.set_opt(coord, render_chunk);
                     continue;
                 };
@@ -677,14 +750,17 @@ impl VoxelWorld {
         // then move data chunks
         // 
         let mut regions = self.regions.lend("regions in move_center");
-        regions.reposition((region_x, region_z), |old_pos, (x, z), region| {
+        let result = regions.try_reposition((region_x, region_z), |old_pos, (x, z), region| {
             let rg_path = self.get_region_path(x, z);
             if rg_path.is_file() {
-                return Some(RegionFile::open(rg_path).expect("Failed to open region file"));
+                return crate::core::error::Result::Ok(Some(RegionFile::open(rg_path)?));
             }
             // There's no region file, so just return None. We're not reusing RegionFile instances.
-            None
+            Ok(None)
         });
+        if let Err(err) = result {
+            panic!("Error from regions.try_reposition: {err}");
+        }
         let mut chunks = self.chunks.lend("chunks in move_center");
         chunks.reposition((chunk_x, chunk_z), |old_pos, (x, z), chunk| {
             //                   The chunk should never be None. If it is, that's an error.
@@ -798,66 +874,6 @@ impl VoxelWorld {
     /// This does not save the chunk!
     fn unload_chunk(&mut self, chunk: &mut Chunk) {
         chunk.unload(self);
-    }
-    
-    fn initial_load(mut self) -> Self {
-        self.chunks.bounds().iter().try_for_each(|(chunk_x, chunk_z)| {
-            let (region_x, region_z) = (chunk_x >> 5, chunk_z >> 5);
-            let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was None");
-            chunk.unload(&mut self);
-            let mut region = if let Some(region) = self.regions.take((region_x, region_z)) {
-                region
-            } else {
-                let region_path = self.get_region_path(region_x, region_z);
-                if region_path.is_file() {
-                    RegionFile::open_or_create(region_path)?
-                } else {
-                    chunk.edit_time = Timestamp::new(0);
-                    self.chunks.set((chunk_x, chunk_z), chunk);
-                    return Result::Ok(());
-                }
-            };
-            let result = region.read((chunk_x & 31, chunk_z & 31), |reader| {
-                chunk.read_from(reader, &mut self)
-            });
-            match result {
-                Err(Error::ChunkNotFound) => {
-                    /* chunk.unload() */
-                    // chunk.unload(self);
-                },
-                other => {
-                    other?;
-                },
-                _ => (),
-            }
-            let chunk_y = chunk.section_y();
-            // TODO: There's a better way to do this, lol
-            let render_y_min = self.render_chunks.bounds().y_min();
-            let render_y_max = self.render_chunks.bounds().y_max();
-            for y in render_y_min..render_y_max {
-                let chunk_bottom = chunk.block_offset.y >> 4;
-                let diff = render_y_min - chunk_bottom;
-                let yi = y - render_y_min;
-                let i = (y - chunk_bottom) as usize;
-                let section_coord = Coord::new(chunk_x, y, chunk_z);
-                if !self.render_chunks.bounds().contains(section_coord) {
-                    continue;
-                }
-                // this probably isn't necessary.
-                // self.dirty_queue.remove(chunk.sections[i].dirty_id.swap_null());
-                if chunk.sections[i].blocks.is_some() {
-                    chunk.sections[i].dirty_id = self.dirty_queue.insert(section_coord);
-                    chunk.sections[i].light_dirty.mark();
-                    chunk.sections[i].blocks_dirty.mark();
-                    chunk.sections[i].section_dirty.mark();
-                }
-            }
-            chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
-            self.chunks.set((chunk_x, chunk_z), chunk);
-            self.regions.set((region_x, region_z), region);
-            Ok(())
-        });
-        self
     }
 
     pub fn mark_section_dirty(&mut self, section_coord: Coord) {
