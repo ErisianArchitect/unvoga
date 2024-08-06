@@ -142,6 +142,7 @@ impl AABB {
     
 }
 
+
 #[inline(always)]
 fn inv_d(d: f32) -> f32 {
     if d != 0.0 {

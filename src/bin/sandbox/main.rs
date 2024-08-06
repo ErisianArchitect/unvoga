@@ -315,7 +315,7 @@ fn setup(
     // std::fs::remove_dir_all("ignore/worldgen");
     let mut world = VoxelWorld::open(
         "ignore/worldgen",
-        24,
+        12,
         (0, 0, 0),
         texture_array.clone(),
         &mut commands,

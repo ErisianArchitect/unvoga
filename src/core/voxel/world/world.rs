@@ -595,7 +595,7 @@ impl VoxelWorld {
         let mut dirty = self.dirty_queue.lend("draining the dirty_queue in talk_to_bevy");
         let start_time = std::time::Instant::now();
         // TODO: Right now, despawning is broken under certain move condition.s
-        while start_time.elapsed().as_millis() < 50 {
+        while !dirty.is_empty() {
             if let Some(coord) = dirty.pop() {
                 
                 let (sect_x, sect_y, sect_z) = coord.into();
