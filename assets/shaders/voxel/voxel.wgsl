@@ -17,7 +17,7 @@
 const MIN_LIGHT: f32 = 0.025;
 
 const LIGHT_DIR: vec3f = vec3f(
-    -0.23570228, -0.9428091, 0.23570228
+    -0.37139067, -0.74278134, -0.557086
 );
 const LIGHT_COLOR: vec3f = vec3f(
     1.0,
