@@ -8,19 +8,6 @@ pub fn import_generator<P: AsRef<Path>, B: AsRef<[u8]>>(path: P, seed: B) -> Noi
     NoiseGen::from_config(NoiseGenConfig::import(path).expect("Failed to import"), seed)
 }
 
-#[cfg(test)]
-mod testing_sandbox {
-    use bevy::math::vec3;
-
-    // TODO: Remove this sandbox when it is no longer in use.
-    use super::*;
-    #[test]
-    fn sandbox() {
-        let dir = vec3(-2.0, -4.0, -3.0).normalize();
-        println!("{dir}");
-    }
-}
-
 pub fn generate_world(world: &mut VoxelWorld) {
     // let mesas = import_generator("./assets/debug/generators/test.simp", "mesas");
     let mountains = import_generator("./assets/debug/generators/mountains.simp", "mountains");
