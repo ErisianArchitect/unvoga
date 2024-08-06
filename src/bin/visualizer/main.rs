@@ -323,8 +323,10 @@ fn menu(
         let y_n = i32::from_str_radix(&menu_info.remap_xy_txt.1, 10);
         match (x_n, y_n) {
             (Ok(x), Ok(y)) => {
-                let (x, y) = edit.source_face_coord(menu_info.remap_face, (x, y));
-                ui.label(format!("({x}, {y})"));
+                let (src_x, src_y) = edit.source_face_coord(menu_info.remap_face, (x, y));
+                let (map_x, map_y) = edit.map_face_coord(menu_info.remap_face, (x, y));
+                ui.label(format!("Source Coord: ({src_x}, {src_y})"));
+                ui.label(format!("Mapped Coord: ({map_x}, {map_y})"));
             }
             _ => {
                 ui.label("Error");

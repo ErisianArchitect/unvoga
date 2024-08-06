@@ -6,3 +6,4 @@ pub mod extensions;
 pub mod lend;
 pub mod modelimporter;
 pub mod textureregistry;
+pub mod functional;

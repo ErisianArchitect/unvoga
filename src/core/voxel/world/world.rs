@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::PrimitiveTopology;
 use bevy::render::render_asset::RenderAssetUsages;
 use itertools::Itertools;
-use tap::Tap;
+use tap::{Tap, TapFallible};
 use std::path::{Path, PathBuf};
 use std::{collections::VecDeque, iter::Sum};
 
@@ -729,11 +729,6 @@ impl VoxelWorld {
         let padded_size = padded_distance * 2;
         let render_min = self.render_chunks.bounds().min;
         let (render_x, render_y, render_z) = calculate_center_offset(self.render_distance, center, Some(Self::WORLD_BOUNDS)).section_coord().xyz();
-        // let render_y = render_y.max(self.bounds().y_min() >> 4);
-        // let render_height = self.render_chunks.bounds().height();
-        // let bounds_top = self.bounds().y_max() >> 4;
-        // let render_y_max = bounds_top - render_height as i32;
-        // let render_y = render_y.min(render_y_max);
         let (chunk_x, chunk_z) = calculate_center_offset(padded_distance, center, Some(Self::WORLD_BOUNDS)).chunk_coord().xz();
         let (region_x, region_z) = calculate_region_min((chunk_x, chunk_z));
         // World hasn't moved
@@ -743,24 +738,23 @@ impl VoxelWorld {
         let chunk_min = self.chunks.bounds().min;
         // Chunks moved
         if chunk_min != (chunk_x, chunk_z) {
+            // This operation will be kinda slow if a lot of chunks need to be saved.
+            // Thankfully that shouldn't be too much of a problem since you can expect that only the nearest 4 chunks might be edited before the world moves.
             self.save_world().expect("Failed to save the world");
         }
-        // First move regions so that new chunks can be loaded.
-        // then move render chunks so that the new chunks can test against the new render bounds
-        // then move data chunks
-        // 
+        // take temporary ownership of 
         let mut regions = self.regions.lend("regions in move_center");
         let result = regions.try_reposition((region_x, region_z), |old_pos, (x, z), region| {
             let rg_path = self.get_region_path(x, z);
             if rg_path.is_file() {
-                return crate::core::error::Result::Ok(Some(RegionFile::open(rg_path)?));
+                Result::Ok(Some(RegionFile::open(rg_path)?))
+            } else {
+                // There's no region file, so just return None. We're not reusing RegionFile instances.
+                Ok(None)
             }
-            // There's no region file, so just return None. We're not reusing RegionFile instances.
-            Ok(None)
-        });
-        if let Err(err) = result {
+        }).tap_err(|err| {
             panic!("Error from regions.try_reposition: {err}");
-        }
+        });
         let mut chunks = self.chunks.lend("chunks in move_center");
         chunks.reposition((chunk_x, chunk_z), |old_pos, (x, z), chunk| {
             //                   The chunk should never be None. If it is, that's an error.

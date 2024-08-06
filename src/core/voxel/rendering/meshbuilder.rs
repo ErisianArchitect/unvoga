@@ -67,20 +67,109 @@ impl MeshBuilder {
 
     /// Push transformed mesh data.
     pub fn push_mesh_data(&mut self, mesh_data: &MeshData) {
-        let offset = self.offset.unwrap_or_default();
-        let orientation = self.orientation.unwrap_or_default();
         let start_index = self.vertices.len() as u32;
+        let mut invert_indices = false;
+        match (self.offset, self.orientation) {
+            (None, Some(orientation)) if orientation != Orientation::UNORIENTED => {
+                self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| orientation.transform(vert)));
+                self.normals.extend(mesh_data.normals.iter().cloned().map(|norm| orientation.transform(norm)));
+                invert_indices = orientation.flip.x() ^ orientation.flip.y() ^ orientation.flip.z();
+            }
+            (Some(offset), Some(orientation)) if orientation != Orientation::UNORIENTED => {
+                self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| orientation.transform(vert) + offset));
+                self.normals.extend(mesh_data.normals.iter().cloned().map(|norm| orientation.transform(norm)));
+                invert_indices = orientation.flip.x() ^ orientation.flip.y() ^ orientation.flip.z();
+            }
+            (Some(offset), _) => {
+                self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| offset));
+                self.normals.extend(mesh_data.normals.iter().cloned());
+            }
+            (None, _) => {
+                self.vertices.extend(mesh_data.vertices.iter().cloned());
+                self.normals.extend(mesh_data.normals.iter().cloned());
+            }
+        }
         self.uvs.extend(mesh_data.uvs.iter().cloned());
         self.texindices.extend(mesh_data.texindices.iter().cloned());
-        self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| orientation.transform(vert) + offset));
-        self.normals.extend(mesh_data.normals.iter().cloned().map(|norm| orientation.transform(norm)));
-        let invert_indices = orientation.flip.x() ^ orientation.flip.y() ^ orientation.flip.z();
         if invert_indices {
             self.indices.extend(mesh_data.indices.iter().rev().map(|&i| start_index + i));
         } else {
             self.indices.extend(mesh_data.indices.iter().map(|&i| start_index + i));
         }
     }
+
+    pub fn push_iter<V, Vert, N, Norm, U, Uvs, T, Texi>(
+        &mut self,
+        vertices: Vert,
+        normals: Norm,
+        uvs: Uvs,
+        texture_indices: Texi,
+        indices: &[u32],
+    )
+    where
+        V: Into<Vec3>,
+        N: Into<Vec3>,
+        U: Into<Vec2>,
+        T: Into<u32>,
+        Vert: IntoIterator<Item = V>,
+        Norm: IntoIterator<Item = N>,
+        Texi: IntoIterator<Item = T>,
+        Uvs: IntoIterator<Item = U> {
+            let start_index = self.vertices.len() as u32;
+            let mut invert_indices = false;
+            match (self.offset, self.orientation) {
+                (None, Some(orientation)) if orientation != Orientation::UNORIENTED => {
+                    self.vertices.extend(vertices.into_iter().map(V::into).map(|vert| orientation.transform(vert)));
+                    self.normals.extend(normals.into_iter().map(N::into).map(|norm| orientation.transform(norm)));
+                    invert_indices = orientation.flip.x() ^ orientation.flip.y() ^ orientation.flip.z();
+                }
+                (Some(offset), Some(orientation)) if orientation != Orientation::UNORIENTED => {
+                    self.vertices.extend(vertices.into_iter().map(V::into).map(|vert| orientation.transform(vert) + offset));
+                    self.normals.extend(normals.into_iter().map(N::into).map(|norm| orientation.transform(norm)));
+                    invert_indices = orientation.flip.x() ^ orientation.flip.y() ^ orientation.flip.z();
+                }
+                (Some(offset), _) => {
+                    self.vertices.extend(vertices.into_iter().map(V::into).map(|vert| offset));
+                    self.normals.extend(normals.into_iter().map(N::into));
+                }
+                (None, _) => {
+                    self.vertices.extend(vertices.into_iter().map(V::into));
+                    self.normals.extend(normals.into_iter().map(N::into));
+                }
+            }
+            self.uvs.extend(uvs.into_iter().map(U::into));
+            self.texindices.extend(texture_indices.into_iter().map(T::into));
+            if invert_indices {
+                self.indices.extend(indices.iter().cloned().rev().map(|i| start_index + i));
+            } else {
+                self.indices.extend(indices.iter().cloned().map(|i| start_index + i));
+            }
+        }
+
+    pub fn push_exact_iter<V, Vert, N, Norm, U, Uvs, T, Texi>(
+        &mut self,
+        vertices: Vert,
+        normals: Norm,
+        uvs: Uvs,
+        texture_indices: Texi,
+        indices: &[u32],
+    )
+    where
+        V: Into<Vec3>,
+        N: Into<Vec3>,
+        U: Into<Vec2>,
+        T: Into<u32>,
+        Vert: IntoIterator<Item = V>,
+        Norm: IntoIterator<Item = N>,
+        Texi: IntoIterator<Item = T>,
+        Uvs: IntoIterator<Item = U> {
+            let start_index = self.vertices.len() as u32;
+            self.vertices.extend(vertices.into_iter().map(V::into));
+            self.normals.extend(normals.into_iter().map(N::into));
+            self.uvs.extend(uvs.into_iter().map(U::into));
+            self.texindices.extend(texture_indices.into_iter().map(T::into));
+            self.indices.extend(indices.iter().cloned().map(|i| start_index + i));
+        }
 
     pub fn push_to_mesh(self, mesh: &mut Mesh) {
         use super::voxelmesh::*;
