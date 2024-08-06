@@ -9,7 +9,7 @@ pub fn import_generator<P: AsRef<Path>, B: AsRef<[u8]>>(path: P, seed: B) -> Noi
 }
 
 pub fn generate_world(world: &mut VoxelWorld) {
-    let mesas = import_generator("./assets/debug/generators/mesas.simp", "mesas");
+    let mesas = import_generator("./assets/debug/generators/test.simp", "mesas");
     let mountains = import_generator("./assets/debug/generators/mountains.simp", "mountains");
     let stones = import_generator("./assets/debug/generators/stone.simp", "stone");
     // let config = worldgen::noise::NoiseGenConfig::import("./assets/debug/generators/mesas.simp").expect("Failed to import config");

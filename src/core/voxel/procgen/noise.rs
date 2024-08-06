@@ -126,6 +126,8 @@ pub enum OctaveBlend {
     Scale = 0,
     Multiply = 1,
     Average = 2,
+    Min = 3,
+    Max = 4,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -248,6 +250,36 @@ impl OctaveGen {
                 });
                 result.noise / result.total_amplitude
             }
+            OctaveBlend::Min => {
+                let init = NoiseLayer::new(
+                    self.initial_amplitude,
+                    self.scale,
+                    1.0,  
+                );
+                let result = layers.into_iter().enumerate().fold(init, |mut accum, (i, noise)| {
+                    accum.noise = accum.noise.min(noise.sample_noise(Point::new(point.x * accum.frequency, point.y * accum.frequency)) * accum.amplitude * weights[i]);
+                    accum.total_amplitude += accum.amplitude;
+                    accum.amplitude *= self.persistence;
+                    accum.frequency *= self.lacunarity;
+                    accum
+                });
+                result.noise
+            }
+            OctaveBlend::Max => {
+                let init = NoiseLayer::new(
+                    self.initial_amplitude,
+                    self.scale,
+                    0.0,  
+                );
+                let result = layers.into_iter().enumerate().fold(init, |mut accum, (i, noise)| {
+                    accum.noise = accum.noise.max(noise.sample_noise(Point::new(point.x * accum.frequency, point.y * accum.frequency)) * accum.amplitude * weights[i]);
+                    accum.total_amplitude += accum.amplitude;
+                    accum.amplitude *= self.persistence;
+                    accum.frequency *= self.lacunarity;
+                    accum
+                });
+                result.noise
+            }
         }
     }
     
@@ -274,7 +306,6 @@ impl OctaveGen {
                 layers.into_iter().fold(init, |mut accum, noise| {
                     accum.noise += scale * noise.sample_noise(Point::new(point.x * accum.frequency, point.y * accum.frequency)) * accum.amplitude;
                     scale *= 0.5;
-                    // accum.total_amplitude += accum.amplitude;
                     accum.amplitude *= self.persistence;
                     accum.frequency *= self.lacunarity;
                     accum
@@ -288,8 +319,6 @@ impl OctaveGen {
                 );
                 layers.into_iter().fold(init, |mut accum, noise| {
                     accum.noise *= noise.sample_noise(Point::new(point.x * accum.frequency, point.y * accum.frequency)) * accum.amplitude;
-                    // scale *= 0.5;
-                    // accum.total_amplitude += accum.amplitude;
                     accum.amplitude *= self.persistence;
                     accum.frequency *= self.lacunarity;
                     accum
@@ -309,6 +338,34 @@ impl OctaveGen {
                     accum
                 });
                 result.noise / result.total_amplitude
+            }
+            OctaveBlend::Min => {
+                let init = NoiseLayer::new(
+                    self.initial_amplitude,
+                    self.scale,
+                    1.0,  
+                );
+                let result = layers.into_iter().fold(init, |mut accum, noise| {
+                    accum.noise = accum.noise.min(noise.sample_noise(Point::new(point.x * accum.frequency, point.y * accum.frequency)) * accum.amplitude);
+                    accum.amplitude *= self.persistence;
+                    accum.frequency *= self.lacunarity;
+                    accum
+                });
+                result.noise
+            }
+            OctaveBlend::Max => {
+                let init = NoiseLayer::new(
+                    self.initial_amplitude,
+                    self.scale,
+                    0.0,  
+                );
+                let result = layers.into_iter().fold(init, |mut accum, noise| {
+                    accum.noise = accum.noise.max(noise.sample_noise(Point::new(point.x * accum.frequency, point.y * accum.frequency)) * accum.amplitude);
+                    accum.amplitude *= self.persistence;
+                    accum.frequency *= self.lacunarity;
+                    accum
+                });
+                result.noise
             }
         }
     }

@@ -81,7 +81,7 @@ impl MeshBuilder {
                 invert_indices = orientation.flip.x() ^ orientation.flip.y() ^ orientation.flip.z();
             }
             (Some(offset), _) => {
-                self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| offset));
+                self.vertices.extend(mesh_data.vertices.iter().cloned().map(|vert| vert + offset));
                 self.normals.extend(mesh_data.normals.iter().cloned());
             }
             (None, _) => {
@@ -113,8 +113,8 @@ impl MeshBuilder {
         T: Into<u32>,
         Vert: IntoIterator<Item = V>,
         Norm: IntoIterator<Item = N>,
-        Texi: IntoIterator<Item = T>,
-        Uvs: IntoIterator<Item = U> {
+        Uvs: IntoIterator<Item = U>,
+        Texi: IntoIterator<Item = T> {
             let start_index = self.vertices.len() as u32;
             let mut invert_indices = false;
             match (self.offset, self.orientation) {
@@ -129,7 +129,7 @@ impl MeshBuilder {
                     invert_indices = orientation.flip.x() ^ orientation.flip.y() ^ orientation.flip.z();
                 }
                 (Some(offset), _) => {
-                    self.vertices.extend(vertices.into_iter().map(V::into).map(|vert| offset));
+                    self.vertices.extend(vertices.into_iter().map(V::into).map(|vert| vert + offset));
                     self.normals.extend(normals.into_iter().map(N::into));
                 }
                 (None, _) => {

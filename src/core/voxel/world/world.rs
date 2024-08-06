@@ -27,7 +27,7 @@ use crate::core::voxel::region::regionfile::RegionFile;
 use crate::core::voxel::region::timestamp::Timestamp;
 use crate::core::voxel::rendering::meshbuilder::MeshBuilder;
 use crate::core::{math::grid::calculate_center_offset, voxel::{blocks::Id, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, rendering::voxelmaterial::VoxelMaterial}};
-use crate::prelude::{f32_not_zero, SwapVal};
+use crate::prelude::{f32_not_zero, ResultExtension, SwapVal};
 
 use super::chunk::Chunk;
 
@@ -597,6 +597,7 @@ impl VoxelWorld {
         // TODO: Right now, despawning is broken under certain move condition.s
         while start_time.elapsed().as_millis() < 50 {
             if let Some(coord) = dirty.pop() {
+                
                 let (sect_x, sect_y, sect_z) = coord.into();
                 // Let's build the mesh
                 let (blocks_dirty, light_map_dirty) = {
@@ -752,7 +753,7 @@ impl VoxelWorld {
                 // There's no region file, so just return None. We're not reusing RegionFile instances.
                 Ok(None)
             }
-        }).tap_err(|err| {
+        }).handle_err(|err| {
             panic!("Error from regions.try_reposition: {err}");
         });
         let mut chunks = self.chunks.lend("chunks in move_center");

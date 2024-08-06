@@ -1,11 +1,12 @@
 #![allow(unused)]
 use std::path::{PathBuf, Path};
 
-use bevy::render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, ShaderType, TextureDimension, TextureFormat}, texture::Image};
+use bevy::render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, ShaderType, TextureDimension, TextureFormat}, texture::{Image, ImageSampler}};
 use image::{
     buffer::ConvertBuffer, DynamicImage, GenericImageView, ImageBuffer, ImageError, Pixel, RgbImage, Rgba, RgbaImage
 };
 
+use tap::Tap;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -52,7 +53,7 @@ pub fn create_texture_array<I: Into<DynamicImage>, It: Iterator<Item = I>>(width
         buffer,
         TextureFormat::Rgba32Float,
         RenderAssetUsages::all(),
-    ))
+    ).tap_mut(|image| image.sampler = ImageSampler::linear()))
 }
 
 pub fn create_texture_array_from_paths<P: AsRef<Path>>(width: u32, height: u32, paths: Vec<P>) -> Result<Image, BuildTextureArrayError> {
