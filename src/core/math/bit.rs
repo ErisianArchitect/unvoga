@@ -298,16 +298,24 @@ pub trait InvertBit {
     fn invert_bit<I: ShiftIndex>(self, index: I) -> Self;
 }
 
-impl<T: GetBit + SetBit + Copy> InvertBit for T {
-    #[must_use]
-    fn invert_bit<I: ShiftIndex>(self, index: I) -> Self {
-        let bit = self.get_bit(index);
-        self.set_bit(index, !bit)
-    }
-}
+// impl<T: GetBit + SetBit + Copy> InvertBit for T {
+//     #[must_use]
+//     fn invert_bit<I: ShiftIndex>(self, index: I) -> Self {
+//         let bit = self.get_bit(index);
+//         self.set_bit(index, !bit)
+//     }
+// }
 
-macro_rules! __get_set_impl {
+macro_rules! __get_set_invert_impl {
     ($type:ty) => {
+
+        impl InvertBit for $type {
+            #[must_use]
+            fn invert_bit<I: ShiftIndex>(self, index: I) -> Self {
+                let mask = (1 as Self).overflowing_shl(index.shift_index()).0;
+                self ^ mask
+            }
+        }
 
         impl SetBit for $type {
             #[must_use]
@@ -399,7 +407,7 @@ macro_rules! __get_set_impl {
     };
 }
 
-crate::for_each_int_type!(__get_set_impl);
+crate::for_each_int_type!(__get_set_invert_impl);
 
 /// To allow polymorphism for iterators of different integer types or references to integer types.
 pub trait MoveBitsIteratorItem {
@@ -464,5 +472,11 @@ mod tests {
 
         let value = 0u32.set_bitmask(0..32, u32::MAX);
         assert_eq!(value, u32::MAX);
+
+        let bits = 0b111u8;
+        let bits = bits ^ 0b010;
+        assert_eq!(bits, 0b101);
+        let bits = bits ^ 0b010;
+        assert_eq!(bits, 0b111);
     }
 }
