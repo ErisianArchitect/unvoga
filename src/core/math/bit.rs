@@ -219,7 +219,7 @@ impl std::fmt::Display for BitFlags128 {
 }
 
 pub trait BitSize {
-    const BITSIZE: usize;
+    const BITSIZE: u32;
 }
 
 pub trait BitLength {
@@ -263,7 +263,7 @@ for_each_int_type!(__shiftindex_impls);
 macro_rules! __bitsize_impls {
     ($type:ty) => {
         impl BitSize for $type {
-            const BITSIZE: usize = std::mem::size_of::<$type>() * 8;
+            const BITSIZE: u32 = std::mem::size_of::<$type>() as u32 * 8;
         }
     };
 }
@@ -274,16 +274,23 @@ pub trait SetBit {
     #[must_use]
     fn set_bit<I: ShiftIndex>(self, index: I, on: bool) -> Self;
     #[must_use]
+    fn add_bit<I: ShiftIndex>(self, index: I) -> Self;
+    #[must_use]
+    fn remove_bit<I: ShiftIndex>(self, index: I) -> Self;
+    #[must_use]
     fn set_bitmask(self, mask: Range<u32>, value: Self) -> Self;
-    
-    fn bitmask_range(mask: Range<u32>) -> Self;
 }
 
 pub trait GetBit {
     
+    #[must_use]
     fn get_bit<I: ShiftIndex>(self, index: I) -> bool;
     
+    #[must_use]
     fn get_bitmask(self, mask: Range<u32>) -> Self;
+
+    #[must_use]
+    fn bitmask_range(mask: Range<u32>) -> Self;
 }
 
 pub trait InvertBit {
@@ -317,22 +324,58 @@ macro_rules! __get_set_impl {
             }
 
             #[must_use]
+            fn add_bit<I: ShiftIndex>(self, index: I) -> Self {
+                if let (mask, false) = (1 as $type).overflowing_shl(index.shift_index()) {
+                    self | mask
+                } else {
+                    self
+                }
+            }
+
+            #[must_use]
+            fn remove_bit<I: ShiftIndex>(self, index: I) -> Self {
+                if let (mask, false) = (1 as $type).overflowing_shl(index.shift_index()) {
+                    self & !mask
+                } else {
+                    self
+                }
+            }
+
+            #[must_use]
             fn set_bitmask(self, mask: Range<u32>, value: Self) -> Self {
-                let size_mask = ((1 as Self) << mask.len())-1;
-                let bitmask = size_mask << mask.start;
+                let mask_len = mask.len();
+                let (bitmask, size_mask) = if mask_len as u32 >= Self::BITSIZE {
+                    (
+                        Self::MAX.overflowing_shl(mask.start).0,
+                        Self::MAX
+                    )
+                } else {
+                    (
+                        ((1 as Self).overflowing_shl(mask_len as u32).0 - 1).overflowing_shl(mask.start).0,
+                        (1 as Self).overflowing_shl(mask_len as u32).0 - 1
+                    )
+                };
                 let delete = self & !bitmask;
                 let value = value & size_mask;
                 delete | value << mask.start
             }
 
-            
-            fn bitmask_range(range: Range<u32>) -> Self {
-                (((1 as $type) << range.len()) - 1) << range.start
-            }
+        
         }
 
         impl GetBit for $type {
-            
+
+            #[must_use]
+            fn bitmask_range(range: Range<u32>) -> Self {
+                let range_len = range.len() as u32;
+                if range_len == Self::BITSIZE {
+                    Self::MAX.overflowing_shl(range.start).0
+                } else {
+                    ((1 as Self).overflowing_shl(range_len).0 - 1).overflowing_shl(range.start).0
+                }
+            }
+
+            #[must_use]
             fn get_bit<I: ShiftIndex>(self, index: I) -> bool {
                 if let (mask, false) = (1 as $type).overflowing_shl(index.shift_index()) {
                     (self & mask) != 0
@@ -341,11 +384,15 @@ macro_rules! __get_set_impl {
                 }
             }
 
-            
+            #[must_use]
             fn get_bitmask(self, mask: Range<u32>) -> Self {
                 let mask_len = mask.len();
-                let bitmask = (((1 as Self) << mask_len)-1) << mask.start;
-                (self & bitmask) >> mask.start
+                let bitmask = if mask_len as u32 == Self::BITSIZE {
+                    Self::MAX.overflowing_shl(mask.start).0
+                } else {
+                    ((1 as Self).overflowing_shl(mask_len as u32).0 - 1).overflowing_shl(mask.start).0
+                };
+                (self & bitmask).overflowing_shr(mask.start as u32).0
             }
         }
 
@@ -392,7 +439,7 @@ impl<T: BitSize + GetBit + SetBit + Copy> MoveBits for T {
         source_indices.into_iter()
             .map(I::translate)
             .enumerate()
-            .take(Self::BITSIZE)
+            .take(Self::BITSIZE as usize)
             .fold(self, |value, (index, swap_index)| {
                 let on = value.get_bit(swap_index);
                 value.set_bit(index, on)
@@ -414,5 +461,8 @@ mod tests {
         let mut flags = !BitFlags8::default();
         flags.set(0, false);
         let flags = flags ^ BitFlags8(0b10101);
+
+        let value = 0u32.set_bitmask(0..32, u32::MAX);
+        assert_eq!(value, u32::MAX);
     }
 }
