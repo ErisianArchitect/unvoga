@@ -97,12 +97,8 @@ impl BlockSize {
     ];
     
     pub const fn new(multiplier: u8, exponent: u8) -> Self {
-        if multiplier > 0b11111 {
-            panic!("Multiplier greater than 31.");
-        }
-        if exponent > 0b111 {
-            panic!("Exponent greater than 7");
-        }
+        assert!(multiplier <= 0b11111, "Multiplier greater than 31");
+        assert!(exponent <= 0b111, "Exponent greater than 7");
         Self(multiplier | exponent << 5)
     }
 
@@ -128,9 +124,7 @@ impl BlockSize {
     }
 
     pub fn reverse(size: u16) -> Option<Self> {
-        if size > Self::MAX_BLOCK_COUNT {
-            panic!("Size greater than {}", Self::MAX_BLOCK_COUNT);
-        }
+        assert!(size <= Self::MAX_BLOCK_COUNT, "Size greater than {}", Self::MAX_BLOCK_COUNT);
         let mut low = 0;
         let mut hi = 256;
         while low < hi {
@@ -146,9 +140,7 @@ impl BlockSize {
     }
 
     pub fn required(size: u16) -> Self {
-        if size > Self::MAX_BLOCK_COUNT {
-            panic!("Size greater than {}", Self::MAX_BLOCK_COUNT);
-        }
+        assert!(size <= Self::MAX_BLOCK_COUNT, "Size greater than {}", Self::MAX_BLOCK_COUNT);
         let mut low = 0;
         let mut hi = 256;
         while low < hi {
@@ -197,41 +189,41 @@ mod tests {
         });
     }
     
-    #[test]
-    fn bsn_test() {
-        let block_size = BlockSize::new(31, 7);
-        println!("Block Count: {}", block_size.block_count());
-        let mut bsn_table = String::new();
-        use std::fmt::Write as FmtWrite;
-        use std::io::Write as IoWrite;
-        writeln!(bsn_table, "const BLOCK_SIZE_TABLE: [u16; 256] = [");
-        write!(bsn_table, "//                  ");
-        //                   00   01   02
-        //                  0000,0001,0002
-        for i in 0..32 {
-            write!(bsn_table, " {i:2}  ");
-        }
-        writeln!(bsn_table);
-        let mut counter = Counter::default();
-        itertools::iproduct!(0..8, 0..32).for_each(|(exp, bs)| {
-            let bsn = BlockSize::new(bs, exp);
-            println!("bsn({bs:2}, {exp}) = {} (rev = {})", bsn.block_count(), BlockSize::reverse(bsn.block_count()).unwrap().block_count());
-            let count = counter.increment();
-            if bs == 0 {
-                write!(bsn_table, "    /* {exp} */ ");
-            }
-            write!(bsn_table, "{:04},", bsn.block_count());
-            if bs == 31 {
-                counter.reset();
-                writeln!(bsn_table);
-            }
-        });
-        write!(bsn_table, "];");
-        use std::fs::File;
-        use std::io::BufWriter;
-        let mut file = BufWriter::new(File::create("ignore/bsn_table.rs").unwrap());
-        write!(file, "{}", bsn_table).unwrap();
-    }
+    // #[test]
+    // fn bsn_test() {
+    //     let block_size = BlockSize::new(31, 7);
+    //     println!("Block Count: {}", block_size.block_count());
+    //     let mut bsn_table = String::new();
+    //     use std::fmt::Write as FmtWrite;
+    //     use std::io::Write as IoWrite;
+    //     writeln!(bsn_table, "const BLOCK_SIZE_TABLE: [u16; 256] = [");
+    //     write!(bsn_table, "//                  ");
+    //     //                   00   01   02
+    //     //                  0000,0001,0002
+    //     for i in 0..32 {
+    //         write!(bsn_table, " {i:2}  ");
+    //     }
+    //     writeln!(bsn_table);
+    //     let mut counter = Counter::default();
+    //     itertools::iproduct!(0..8, 0..32).for_each(|(exp, bs)| {
+    //         let bsn = BlockSize::new(bs, exp);
+    //         println!("bsn({bs:2}, {exp}) = {} (rev = {})", bsn.block_count(), BlockSize::reverse(bsn.block_count()).unwrap().block_count());
+    //         let count = counter.increment();
+    //         if bs == 0 {
+    //             write!(bsn_table, "    /* {exp} */ ");
+    //         }
+    //         write!(bsn_table, "{:04},", bsn.block_count());
+    //         if bs == 31 {
+    //             counter.reset();
+    //             writeln!(bsn_table);
+    //         }
+    //     });
+    //     write!(bsn_table, "];");
+    //     use std::fs::File;
+    //     use std::io::BufWriter;
+    //     let mut file = BufWriter::new(File::create("ignore/bsn_table.rs").unwrap());
+    //     write!(file, "{}", bsn_table).unwrap();
+    // }
 }
 
 

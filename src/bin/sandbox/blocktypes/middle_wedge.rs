@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use unvoga::{blockstate, core::util::modelimporter::{read_model_data, ModelData}, prelude::{Block, Direction, Occluder, OcclusionRect, OcclusionShape, OcclusionShape2x2, OcclusionShape4x4, Orientation, StateValue}};
+use unvoga::{blockstate, core::{util::modelimporter::{read_model_data, ModelData}, voxel::{level_of_detail::{self, LOD}, rendering::meshbuilder::MeshBuilder, world::VoxelWorld}}, prelude::{Block, Coord, Direction, Occluder, OcclusionRect, OcclusionShape, OcclusionShape2x2, OcclusionShape4x4, Orientation, StateValue}};
 
 pub struct MiddleWedge {
     mesh_data: ModelData,
@@ -23,7 +23,7 @@ impl Block for MiddleWedge {
         blockstate!(middle_wedge)
     }
 
-    fn occluder(&self, world: &unvoga::core::voxel::world::VoxelWorld, state: unvoga::prelude::Id) -> &unvoga::prelude::Occluder {
+    fn occluder(&self, world: &VoxelWorld, state: unvoga::prelude::Id) -> &unvoga::prelude::Occluder {
         const OCCLUDER: Occluder = Occluder {
             neg_x: OcclusionShape::S2x2(OcclusionShape2x2::from_matrix([
                 [0, 0],
@@ -51,7 +51,7 @@ impl Block for MiddleWedge {
         &OCCLUDER
     }
 
-    fn occludee(&self, world: &unvoga::core::voxel::world::VoxelWorld, state: unvoga::prelude::Id) -> &Occluder {
+    fn occludee(&self, world: &VoxelWorld, state: unvoga::prelude::Id) -> &Occluder {
         const OCCLUDEE: Occluder = Occluder {
             neg_x: OcclusionShape::S4x4(OcclusionShape4x4::from_matrix([
                 [0, 0, 0, 0],
@@ -83,7 +83,7 @@ impl Block for MiddleWedge {
         &OCCLUDEE
     }
 
-    fn orientation(&self, world: &unvoga::core::voxel::world::VoxelWorld, coord: unvoga::prelude::Coord, state: unvoga::prelude::Id) -> unvoga::prelude::Orientation {
+    fn orientation(&self, world: &VoxelWorld, coord: Coord, state: unvoga::prelude::Id) -> unvoga::prelude::Orientation {
         if let StateValue::Orientation(orientation) = state["orientation"] {
             orientation
         } else {
@@ -91,11 +91,11 @@ impl Block for MiddleWedge {
         }
     }
 
-    fn reorient(&self, world: &unvoga::core::voxel::world::VoxelWorld, coord: unvoga::prelude::Coord, state: unvoga::prelude::Id, orientation: Orientation) -> unvoga::prelude::Id {
+    fn reorient(&self, world: &VoxelWorld, coord: Coord, state: unvoga::prelude::Id, orientation: Orientation) -> unvoga::prelude::Id {
         blockstate!(middle_wedge, orientation=orientation).register()
     }
 
-    fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &unvoga::core::voxel::world::VoxelWorld, coord: unvoga::prelude::Coord, state: unvoga::prelude::Id, occlusion: unvoga::prelude::Occlusion, orientation: Orientation) {
+    fn push_mesh(&self, mesh_builder: &mut MeshBuilder, level_of_detail: LOD, world: &VoxelWorld, coord: unvoga::prelude::Coord, state: unvoga::prelude::Id, occlusion: unvoga::prelude::Occlusion, orientation: Orientation) {
         // static MODEL: LazyLock<ModelData> = LazyLock::new(|| {
         //     read_model_data("./assets/debug/models/middle_wedge.json", None).expect("Failed to read model for middle_wedge.")
         // });

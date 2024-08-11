@@ -22,6 +22,7 @@ use crate::core::collections::objectpool::{ObjectPool, PoolId};
 use crate::core::math::aabb::AABB;
 use crate::core::math::grid::{calculate_region_min, calculate_region_requirement};
 use crate::core::util::lend::Lend;
+use crate::core::voxel::level_of_detail::LOD;
 use crate::core::voxel::procgen::worldgenerator::WorldGenerator;
 use crate::core::voxel::region::regionfile::RegionFile;
 use crate::core::voxel::region::timestamp::Timestamp;
@@ -678,7 +679,9 @@ impl VoxelWorld {
                                     let occlusion = self.get_occlusion(block_coord);
                                     build.set_offset(offset);
                                     build.set_orientation(orientation);
-                                    state.block().push_mesh(build, self, block_coord.into(), state, occlusion, orientation);
+                                    // TODO: Determine distance of chunk to determine LOD
+                                    //       Add queue for updating LOD
+                                    state.block().push_mesh(build, LOD::Level0, self, block_coord.into(), state, occlusion, orientation);
                                 }
                             }
                         }
@@ -792,9 +795,7 @@ impl VoxelWorld {
         render_chunks.reposition((render_x, render_y, render_z), |old_pos, new_pos, mut chunk| {
             if let Some(rendchunk) = &mut chunk {
                 let old_id = rendchunk.move_id.swap(PoolId::NULL);
-                if !old_id.null() {
-                    self.move_render_chunk_queue.remove(old_id);
-                }
+                self.move_render_chunk_queue.remove(old_id);
                 rendchunk.move_id = self.move_render_chunk_queue.insert(Coord::from(new_pos));
             }
             let section_coord: Coord = new_pos.into();
@@ -807,10 +808,7 @@ impl VoxelWorld {
             };
             let section_index = (section_coord.y - block_chunk.section_y()) as usize;
             let dirty_id = block_chunk.sections[section_index].dirty_id.swap_null();
-            if dirty_id.non_null() {
-                // Gotta remove the old one
-                self.dirty_queue.remove(dirty_id);
-            }
+            self.dirty_queue.remove(dirty_id);
             block_chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
             chunk
         });

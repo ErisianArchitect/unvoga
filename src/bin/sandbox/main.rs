@@ -4,6 +4,9 @@ mod blocktypes;
 mod worldgentest;
 
 use blocktypes::middle_wedge::MiddleWedge;
+use bevy_egui::egui::epaint::Shadow;
+use unvoga::core::voxel::level_of_detail::{self, LOD};
+use unvoga::core::voxel::rendering::meshbuilder::MeshBuilder;
 
 // mod textureregistry;
 use std::cell::LazyCell;
@@ -18,7 +21,7 @@ use bevy::prelude::*;
 use bevy::app::DynEq;
 use bevy::math::{vec2, vec3, IVec2};
 use bevy::window::{CursorGrabMode, PresentMode, PrimaryWindow};
-use bevy_egui::EguiPlugin;
+use bevy_egui::{EguiContext, EguiContexts, EguiPlugin};
 use hashbrown::HashMap;
 use rollgrid::rollgrid3d::Bounds3D;
 use unvoga::core::voxel::blocklayer::BlockLayer;
@@ -315,7 +318,7 @@ fn setup(
     // std::fs::remove_dir_all("ignore/worldgen");
     let mut world = VoxelWorld::open(
         "ignore/worldgen",
-        12,
+        32,
         (0, 0, 0),
         texture_array.clone(),
         &mut commands,
@@ -371,10 +374,35 @@ fn setup(
     commands.insert_resource(world);
     commands.insert_resource(CameraLocation { position: Vec3::ZERO });
     commands.insert_resource(SelectedBlock(blockstate!(dirt).register()));
+    commands.insert_resource(DebugStuff::default())
 }
 
 #[derive(Resource)]
 struct SelectedBlock(Id);
+
+#[derive(Resource, Default)]
+struct DebugStuff {
+    commands: Vec<()>,
+    draw_chunk_bounds: bool,
+    auto_generate_chunks: bool,
+}
+
+fn debug_menu(
+    mut contexts: EguiContexts,
+) {
+    use bevy_egui::egui::{self, *};
+    egui::Window::new("Debug")
+        .constrain(true)
+        .frame(Frame::default()
+            .fill(Color32::DARK_GRAY)
+            .rounding(Rounding::ZERO)
+            .shadow(Shadow::NONE)
+        )
+        .vscroll(true)
+        .show(contexts.ctx_mut(), |ui| {
+
+        });
+}
 
 fn update_input(
     mut evr_motion: EventReader<MouseMotion>,
@@ -713,7 +741,7 @@ impl Block for SolidBlock {
         self.default_state.clone()
     }
 
-    fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
+    fn push_mesh(&self, mesh_builder: &mut MeshBuilder, level_of_detail: LOD, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
         Direction::iter().for_each(|dir| {
             if occlusion.visible(dir) {
                 // get the source face because the mesh_builder will orient that face
@@ -736,7 +764,7 @@ impl Block for StoneBricksBlock {
         blockstate!(stone_bricks)
     }
 
-    fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
+    fn push_mesh(&self, mesh_builder: &mut MeshBuilder, level_of_detail: LOD, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
         static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
             let sides_index = texreg::get_texture_index("stone_bricks");
             let y_index = texreg::get_texture_index("cement");
@@ -825,7 +853,7 @@ impl Block for DirtBlock {
         &Occluder::FULL_FACES
     }
 
-    fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
+    fn push_mesh(&self, mesh_builder: &mut MeshBuilder, level_of_detail: LOD, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
         static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
             let texindex = texreg::get_texture_index("dirt");
             let pos_y_mesh = MeshData {
@@ -959,7 +987,7 @@ impl Block for DebugBlock {
         BlockLayer::Other(0)
     }
 
-    fn push_mesh(&self, mesh_builder: &mut unvoga::core::voxel::rendering::meshbuilder::MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
+    fn push_mesh(&self, mesh_builder: &mut MeshBuilder, level_of_detail: LOD, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {
         static MESH_DATA: LazyLock<Faces<MeshData>> = LazyLock::new(|| {
             let pos_x_index = texreg::get_texture_index("pos_x");
             let pos_y_index = texreg::get_texture_index("pos_y");

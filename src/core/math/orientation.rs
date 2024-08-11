@@ -116,7 +116,8 @@ impl Orientation {
     }
 
     /// If you're using this method to transform mesh vertices, make sure that you 
-    /// change your indices if the face will be flipped (for backface culling).
+    /// reverse your indices if the face will be flipped (for backface culling). To
+    /// determine if your indices need to be inverted, simply XOR each axis of the [Orientation]'s [Flip].
     /// This method will rotate and then flip the coordinate.
     pub fn transform<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T, T)> + From<(T, T, T)>>(self, point: C) -> C {
         let rotated = self.rotation.rotate(point);
@@ -280,14 +281,12 @@ mod testing_sandbox {
         // First get the source face
         let source_face = orientation.source_face(face);
         // next, get the up, right, down, and left for the source face and arg face.
+        let face_up = face.up();
+        let face_right = face.right();
         let src_up = source_face.up();
         let src_right = source_face.right();
         let src_down = source_face.down();
         let src_left = source_face.left();
-        let face_up = face.up();
-        let face_right = face.right();
-        let face_down = face.down();
-        let face_left = face.left();
         // Next, reface the src_dir faces
         let rsrc_up = orientation.reface(src_up);
         let rsrc_right = orientation.reface(src_right);
@@ -326,8 +325,6 @@ mod testing_sandbox {
         // next, get the up, right, down, and left for the source face and arg face.
         let src_up = source_face.up();
         let src_right = source_face.right();
-        let src_down = source_face.down();
-        let src_left = source_face.left();
         let face_up = face.up();
         let face_right = face.right();
         let face_down = face.down();
@@ -335,10 +332,7 @@ mod testing_sandbox {
         // Next, reface the src_dir faces
         let rsrc_up = orientation.reface(src_up);
         let rsrc_right = orientation.reface(src_right);
-        let rsrc_down = orientation.reface(src_down);
-        let rsrc_left = orientation.reface(src_left);
         // Now match up the faces
-        
         let x_map = if rsrc_right == face_right {
             AxisMap::PosX
         } else if rsrc_right == face_down {
@@ -440,38 +434,37 @@ mod testing_sandbox {
     // you need to uncoment map_up2_coord_naive for this to work.
     // I commented it out because I don't need it anymore, but I'd like to keep
     // the code around in case I need it later as a reference.
-    // #[test]
-    // fn map_coord_gencode() {
-    //     const fn map_axismap(a: AxisMap) -> &'static str {
-    //         match a {
-    //             AxisMap::PosX => "x",
-    //             AxisMap::PosY => "y",
-    //             AxisMap::NegX => "-x",
-    //             AxisMap::NegY => "-y",
-    //         }
-    //     }
-    //     let output = {
-    //         use std::fmt::Write;
-    //         let mut output = String::new();
-    //         let mut count = 0usize;
-    //         for flipi in 0..8 { // flip
-    //             for roti in 0..24 { // rotation
-    //                 Direction::iter_index_order().for_each(|face| {
-    //                     count += 1;
-    //                     let map = map_face_coord_naive(Orientation::new(Rotation(roti as u8), Flip(flipi as u8)), face);
-    //                     // println!("({flipi}, {roti}, {face})");
-    //                     writeln!(output, "CoordMap::new(AxisMap::{:?}, AxisMap::{:?}),", map.x, map.y);
-    //                 });
-    //             }
-    //         }
-    //         output
-    //     };
-    //     use std::io::{Write, BufWriter};
-    //     use std::fs::File;
-    //     let mut writer = BufWriter::new(File::create("ignore/map_coord_table.rs").expect("Failed to open file"));
-    //     writer.write_all(output.as_bytes());
-    //     println!("Wrote the output to file at ./ignore/map_coord_table.rs");
-    // }
+    #[test]
+    fn map_coord_gencode() {
+        const fn map_axismap(a: AxisMap) -> &'static str {
+            match a {
+                AxisMap::PosX => "x",
+                AxisMap::PosY => "y",
+                AxisMap::NegX => "-x",
+                AxisMap::NegY => "-y",
+            }
+        }
+        let output = {
+            use std::fmt::Write;
+            let mut output = String::new();
+            let mut count = 0usize;
+            for flipi in 0..8 { // flip
+                for roti in 0..24 { // rotation
+                    Direction::iter_index_order().for_each(|face| {
+                        count += 1;
+                        let map = map_face_coord_naive(Orientation::new(Rotation(roti as u8), Flip(flipi as u8)), face);
+                        writeln!(output, "CoordMap::new(AxisMap::{:?}, AxisMap::{:?}),", map.x, map.y);
+                    });
+                }
+            }
+            output
+        };
+        use std::io::{Write, BufWriter};
+        use std::fs::File;
+        let mut writer = BufWriter::new(File::create("ignore/map_coord_table.rs").expect("Failed to open file"));
+        writer.write_all(output.as_bytes());
+        println!("Wrote the output to file at ./ignore/map_coord_table.rs");
+    }
     #[test]
     fn source_coord_gencode() {
         const fn map_axismap(a: AxisMap) -> &'static str {
@@ -491,7 +484,6 @@ mod testing_sandbox {
                     Direction::iter_index_order().for_each(|face| {
                         count += 1;
                         let map = source_face_coord_naive(Orientation::new(Rotation(roti as u8), Flip(flipi as u8)), face);
-                        // println!("({flipi}, {roti}, {face})");
                         writeln!(output, "CoordMap::new(AxisMap::{:?}, AxisMap::{:?}),", map.x, map.y);
                     });
                 }

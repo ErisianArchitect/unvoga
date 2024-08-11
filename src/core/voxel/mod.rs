@@ -20,6 +20,7 @@ pub mod faceflags;
 pub mod statevalue;
 pub mod blocklayer;
 pub mod procgen;
+pub mod level_of_detail;
 
 #[cfg(test)]
 mod tests {

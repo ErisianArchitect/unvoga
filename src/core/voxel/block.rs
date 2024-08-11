@@ -4,7 +4,7 @@ use bevy::math::Ray3d;
 
 use crate::{core::math::aabb::AABB, prelude::*};
 
-use super::{blocklayer::BlockLayer, blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, rendering::meshbuilder::MeshBuilder, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
+use super::{blocklayer::BlockLayer, blocks::Id, blockstate::BlockState, coord::Coord, direction::Direction, engine::VoxelEngine, faces::Faces, level_of_detail::LOD, lighting::lightargs::LightArgs, occluder::Occluder, occlusionshape::OcclusionShape, rendering::meshbuilder::MeshBuilder, tag::Tag, world::{occlusion::Occlusion, PlaceContext, VoxelWorld}};
 
 use crate::prelude::Rgb;
 
@@ -60,7 +60,7 @@ pub trait Block: Any {
     fn on_data_set(&self, world: &mut VoxelWorld, coord: Coord, state: Id, data: &mut Tag) {}
     fn on_data_delete(&self, world: &mut VoxelWorld, coord: Coord, state: Id, data: Tag) {}
     fn on_enabled_changed(&self, world: &mut VoxelWorld, coord: Coord, state: Id, enabled: bool) {}
-    fn push_mesh(&self, mesh_builder: &mut MeshBuilder, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {}
+    fn push_mesh(&self, mesh_builder: &mut MeshBuilder, level_of_detail: LOD, world: &VoxelWorld, coord: Coord, state: Id, occlusion: Occlusion, orientation: Orientation) {}
     // fn rotate(&self, coord: Coord, state: Id, rotation: Rotation) -> Id { state }
     fn default_state(&self) -> BlockState;
     fn raycast(&self, ray: Ray3d, world: &VoxelWorld, coord: Coord, state: Id, orientation: Orientation) -> Option<f32> {

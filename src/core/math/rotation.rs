@@ -81,6 +81,32 @@ impl Rotation {
         (self.0 & 0b11) as i32
     }
 
+    pub const fn reorient(self, rotation: Self) -> Self {
+        let up = self.up();
+        let fwd = self.forward();
+        let rot_up = rotation.reface(up);
+        let rot_fwd = rotation.reface(fwd);
+        let Some(rot) = Self::from_up_and_forward(rot_up, rot_fwd) else {
+            unreachable!()
+        };
+        rot
+    }
+
+    pub const fn deorient(self, rotation: Self) -> Self {
+        let up = self.up();
+        let fwd = self.forward();
+        let rot_up = rotation.source_face(up);
+        let rot_fwd = rotation.source_face(fwd);
+        let Some(rot) = Self::from_up_and_forward(rot_up, rot_fwd) else {
+            unreachable!()
+        };
+        rot
+    }
+
+    pub const fn invert(self) -> Self {
+        Self::UNROTATED.deorient(self)
+    }
+
     pub const fn up(self) -> Direction {
         let up = self.0 >> 2;
         match up {
@@ -107,30 +133,100 @@ impl Rotation {
         }
     }
 
-    pub const fn reorient(self, rotation: Self) -> Self {
-        let up = self.up();
-        let fwd = self.forward();
-        let rot_up = rotation.reface(up);
-        let rot_fwd = rotation.reface(fwd);
-        let Some(rot) = Self::from_up_and_forward(rot_up, rot_fwd) else {
-            unreachable!()
-        };
-        rot
+pub const fn left(self) -> Direction {
+    use Direction::*;
+    match self.up() {
+        NegX => match self.angle() {
+            0 => NegZ,
+            1 => PosY,
+            2 => PosZ,
+            3 => NegY,
+            _ => unreachable!()
+        }
+        NegY => match self.angle() {
+            0 => NegX,
+            1 => PosZ,
+            2 => PosX,
+            3 => NegZ,
+            _ => unreachable!()
+        }
+        NegZ => match self.angle() {
+            0 => PosX,
+            1 => PosY,
+            2 => NegX,
+            3 => NegY,
+            _ => unreachable!()
+        }
+        PosX => match self.angle() {
+            0 => PosZ,
+            1 => PosY,
+            2 => NegZ,
+            3 => NegY,
+            _ => unreachable!()
+        }
+        PosY => match self.angle() {
+            0 => NegX,
+            1 => NegZ,
+            2 => PosX,
+            3 => PosZ,
+            _ => unreachable!()
+        }
+        PosZ => match self.angle() {
+            0 => NegX,
+            1 => PosY,
+            2 => PosX,
+            3 => NegY,
+            _ => unreachable!()
+        }
     }
+}
 
-    pub const fn deorient(self, rotation: Self) -> Self {
-        let up = self.up();
-        let fwd = self.forward();
-        let rot_up = rotation.source_face(up);
-        let rot_fwd = rotation.source_face(fwd);
-        let Some(rot) = Self::from_up_and_forward(rot_up, rot_fwd) else {
-            unreachable!()
-        };
-        rot
-    }
-
-    pub const fn invert(self) -> Self {
-        Self::UNROTATED.deorient(self)
+    pub const fn right(self) -> Direction {
+        use Direction::*;
+        match self.up() {
+            NegX => match self.angle() {
+                0 => PosZ,
+                1 => NegY,
+                2 => NegZ,
+                3 => PosY,
+                _ => unreachable!()
+            }
+            NegY => match self.angle() {
+                0 => PosX,
+                1 => NegZ,
+                2 => NegX,
+                3 => PosZ,
+                _ => unreachable!()
+            }
+            NegZ => match self.angle() {
+                0 => NegX,
+                1 => NegY,
+                2 => PosX,
+                3 => PosY,
+                _ => unreachable!()
+            }
+            PosX => match self.angle() {
+                0 => NegZ,
+                1 => NegY,
+                2 => PosZ,
+                3 => PosY,
+                _ => unreachable!()
+            }
+            PosY => match self.angle() {
+                0 => PosX,
+                1 => PosZ,
+                2 => NegX,
+                3 => NegZ,
+                _ => unreachable!()
+            }
+            PosZ => match self.angle() {
+                0 => PosX,
+                1 => NegY,
+                2 => NegX,
+                3 => PosY,
+                _ => unreachable!()
+            }
+        }
     }
 
     pub const fn forward(self) -> Direction {
@@ -230,102 +326,6 @@ impl Rotation {
         }
     }
 
-    pub const fn left(self) -> Direction {
-        use Direction::*;
-        match self.up() {
-            NegX => match self.angle() {
-                0 => NegZ,
-                1 => PosY,
-                2 => PosZ,
-                3 => NegY,
-                _ => unreachable!()
-            }
-            NegY => match self.angle() {
-                0 => NegX,
-                1 => PosZ,
-                2 => PosX,
-                3 => NegZ,
-                _ => unreachable!()
-            }
-            NegZ => match self.angle() {
-                0 => PosX,
-                1 => PosY,
-                2 => NegX,
-                3 => NegY,
-                _ => unreachable!()
-            }
-            PosX => match self.angle() {
-                0 => PosZ,
-                1 => PosY,
-                2 => NegZ,
-                3 => NegY,
-                _ => unreachable!()
-            }
-            PosY => match self.angle() {
-                0 => NegX,
-                1 => NegZ,
-                2 => PosX,
-                3 => PosZ,
-                _ => unreachable!()
-            }
-            PosZ => match self.angle() {
-                0 => NegX,
-                1 => PosY,
-                2 => PosX,
-                3 => NegY,
-                _ => unreachable!()
-            }
-        }
-    }
-
-    pub const fn right(self) -> Direction {
-        use Direction::*;
-        match self.up() {
-            NegX => match self.angle() {
-                0 => PosZ,
-                1 => NegY,
-                2 => NegZ,
-                3 => PosY,
-                _ => unreachable!()
-            }
-            NegY => match self.angle() {
-                0 => PosX,
-                1 => NegZ,
-                2 => NegX,
-                3 => PosZ,
-                _ => unreachable!()
-            }
-            NegZ => match self.angle() {
-                0 => NegX,
-                1 => NegY,
-                2 => PosX,
-                3 => PosY,
-                _ => unreachable!()
-            }
-            PosX => match self.angle() {
-                0 => NegZ,
-                1 => NegY,
-                2 => PosZ,
-                3 => PosY,
-                _ => unreachable!()
-            }
-            PosY => match self.angle() {
-                0 => PosX,
-                1 => PosZ,
-                2 => NegX,
-                3 => NegZ,
-                _ => unreachable!()
-            }
-            PosZ => match self.angle() {
-                0 => PosX,
-                1 => NegY,
-                2 => NegX,
-                3 => PosY,
-                _ => unreachable!()
-            }
-        }
-    }
-
     /// Rotates `coord`.
     pub fn rotate<T: Copy + std::ops::Neg<Output = T>, C: Into<(T, T, T)> + From<(T, T, T)>>(self, coord: C) -> C {
         let (x, y, z): (T, T, T) = coord.into();
@@ -375,17 +375,17 @@ impl Rotation {
         })
     }
 
-    /// Rotates direction.
-    pub const fn reface(self, direction: Direction) -> Direction {
-        match direction {
-            Direction::NegX => self.left(),
-            Direction::NegY => self.down(),
-            Direction::NegZ => self.forward(),
-            Direction::PosX => self.right(),
-            Direction::PosY => self.up(),
-            Direction::PosZ => self.backward(),
-        }
+/// Rotates direction.
+pub const fn reface(self, direction: Direction) -> Direction {
+    match direction {
+        Direction::NegX => self.left(),
+        Direction::NegY => self.down(),
+        Direction::NegZ => self.forward(),
+        Direction::PosX => self.right(),
+        Direction::PosY => self.up(),
+        Direction::PosZ => self.backward(),
     }
+}
 
     /// Tells which [Direction] rotated to `destination`.
     pub const fn source_face(self, destination: Direction) -> Direction {
@@ -766,3 +766,38 @@ impl std::fmt::Display for Rotation {
         write!(f, "Rotation(up={},forward={},angle={})", self.up(), self.forward(), self.angle())
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use std::fmt::Write;
+//     #[test]
+//     fn source_face_gen() {
+//         let directions = [
+//             Direction::PosY,
+//             Direction::PosX,
+//             Direction::PosZ,
+//             Direction::NegY,
+//             Direction::NegX,
+//             Direction::NegZ
+//         ];
+//         let mut codegen = String::new();
+//         writeln!(codegen, "match self.up() {{");
+//         for up in directions {
+//             writeln!(codegen, "    Direction::{up:?} => match self.angle() {{");
+//             for angle in 0..4 {
+//                 writeln!(codegen, "        {angle} => match direction {{");
+//                 let rotation = Rotation::new(up, angle);
+//                 for face in directions {
+//                     let result = directions.into_iter().find(|&dir| face == rotation.reface(dir)).unwrap();
+//                     writeln!(codegen, "            Direction::{face:?} => Direction::{result},");
+//                 }
+//                 writeln!(codegen, "        }}");
+//             }
+//             writeln!(codegen, "        _ => unreachable!()");
+//             writeln!(codegen, "    }}");
+//         }
+//         writeln!(codegen, "}}");
+//         std::fs::write("./ignore/rotation_source_face.rs", codegen).expect("Failed to write file.");
+//     }
+// }

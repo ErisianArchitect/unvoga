@@ -131,6 +131,10 @@ impl Flip {
             _ => false,
         }
     }
+
+    pub const fn invert_indices(self) -> bool {
+        self.x() ^ self.y() ^ self.z()
+    }
 }
 
 impl std::ops::BitOr<Flip> for Flip {

@@ -1,12 +1,18 @@
 #![allow(unused)]
 use std::io::{Read, Write};
 
-use hashbrown::HashMap;
-use crate::prelude::*;
-use crate::core::{error::{Error, Result}, io::{Readable, Writeable}, math::bit::*, voxel::{axis::Axis, coord::Coord, direction::Direction, world::chunkcoord::ChunkCoord}};
 use crate::core::io::*;
+use crate::core::{
+    error::{Error, Result},
+    io::{Readable, Writeable},
+    math::bit::*,
+    voxel::{axis::Axis, coord::Coord, direction::Direction, world::chunkcoord::ChunkCoord},
+};
+use crate::prelude::*;
+use hashbrown::HashMap;
 pub trait NonByte {}
 pub trait Byte {}
+#[rustfmt::skip]
 macro_rules! tag_table {
     ($macro:path) => {
         $macro! {
@@ -185,7 +191,7 @@ macro_rules! table_impls {
                 })
             }
         }
-        
+
         impl Writeable for Array {
             fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
                 self.id().write_to(writer)?;
@@ -246,13 +252,17 @@ impl<'a, const SIZE: usize> From<[&'a str; SIZE]> for Array {
 
 impl<'a> From<Vec<&'a str>> for Tag {
     fn from(value: Vec<&'a str>) -> Self {
-        Tag::Array(Box::new(Array::String(value.into_iter().map(str::to_owned).collect())))
+        Tag::Array(Box::new(Array::String(
+            value.into_iter().map(str::to_owned).collect(),
+        )))
     }
 }
 
 impl<'a, const SIZE: usize> From<[&'a str; SIZE]> for Tag {
     fn from(value: [&'a str; SIZE]) -> Self {
-        Tag::Array(Box::new(Array::String(value.into_iter().map(str::to_owned).collect())))
+        Tag::Array(Box::new(Array::String(
+            value.into_iter().map(str::to_owned).collect(),
+        )))
     }
 }
 
@@ -330,5 +340,4 @@ fn types() {
     // from_impls!(@box_impl: Map Box<HashMap<String, Tag>>);
     let tag = Tag::from(hashbrown::HashMap::new());
     println!("{tag:?}");
-    
 }

@@ -106,16 +106,16 @@ impl Direction {
     pub const UP: Direction = Direction::PosY;
     pub const BACKWARD: Direction = Direction::PosZ;
 
-    pub const fn invert(self) -> Self {
-        match self {
-            Direction::NegX => Direction::PosX,
-            Direction::NegY => Direction::PosY,
-            Direction::NegZ => Direction::PosZ,
-            Direction::PosX => Direction::NegX,
-            Direction::PosY => Direction::NegY,
-            Direction::PosZ => Direction::NegZ,
-        }
+pub const fn invert(self) -> Self {
+    match self {
+        Direction::NegX => Direction::PosX,
+        Direction::NegY => Direction::PosY,
+        Direction::NegZ => Direction::PosZ,
+        Direction::PosX => Direction::NegX,
+        Direction::PosY => Direction::NegY,
+        Direction::PosZ => Direction::NegZ,
     }
+}
 
     pub const fn flip(self, flip: Flip) -> Self {
         use Direction::*;
@@ -143,7 +143,8 @@ impl Direction {
     pub fn iter() -> impl Iterator<Item = Direction> {
         Self::ALL.into_iter()
     }
-
+    
+    /// Iterates the [Direction] enum in the order of the variants' indices.
     pub fn iter_index_order() -> impl Iterator<Item = Direction> {
         Self::INDEX_ORDER.into_iter()
     }

@@ -2,7 +2,7 @@ use rollgrid::rollgrid2d::Bounds2D;
 
 use crate::{core::voxel::world::{VoxelWorld, WORLD_BOTTOM, WORLD_TOP}, prelude::Id};
 
-pub trait WorldGenerator: Sync + Send {
+pub trait WorldGenerator: Send + Sync {
     fn generate_chunk(&mut self, world: &mut VoxelWorld, area: Bounds2D) {}
 }
 
