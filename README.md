@@ -1,0 +1,1 @@
+I do not give permission for anyone to use this code. But you may view it at your leisure and get an idea of how it was done.
