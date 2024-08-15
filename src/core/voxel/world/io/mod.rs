@@ -15,7 +15,6 @@ use super::section::Section;
 use super::update::UpdateRef;
 use super::VoxelWorld;
 
-
 pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]>>, block_count: &mut u16) -> Result<()> {
     let mut state_count = [0u8; 2];
     reader.read_exact(&mut state_count[0..1])?;
@@ -114,7 +113,6 @@ pub fn read_section_blocks<R: Read>(reader: &mut R, blocks: &mut Option<Box<[Id]
     assert!(bitreader.accum_size == 0);
     Ok(())
 }
-
 
 pub fn write_section_blocks<W: Write>(writer: &mut W, blocks: &Option<Box<[Id]>>) -> Result<u64> {
     let Some(blocks) = blocks else {
@@ -241,7 +239,6 @@ pub fn write_section_blocks<W: Write>(writer: &mut W, blocks: &Option<Box<[Id]>>
 0b11111100 (3 bytes, not 4)*/
 /// Reads 4096 [Occlusion]s from a reader as 3072 bytes.
 // This function will likely want to be inlined
-
 pub fn read_section_occlusions<R: Read>(reader: &mut R, occlusions: &mut Option<Box<[Occlusion]>>, occlusion_count: &mut u16) -> Result<()> {
     let flag = bool::read_from(reader)?;
     *occlusion_count = 0;
@@ -285,7 +282,6 @@ pub fn read_section_occlusions<R: Read>(reader: &mut R, occlusions: &mut Option<
 }
 
 // This function will likely want to be inlined.
-
 pub fn write_section_occlusions<W: Write>(writer: &mut W, occlusions: &Option<Box<[Occlusion]>>) -> Result<u64> {
     let Some(occlusions) = occlusions else {
         return false.write_to(writer);
@@ -312,7 +308,6 @@ pub fn write_section_occlusions<W: Write>(writer: &mut W, occlusions: &Option<Bo
 }
 
 /// For reading both blocklight and skylight.
-
 pub fn read_section_light<R: Read>(reader: &mut R, block_light: &mut Option<Box<[u8]>>, light_count: &mut u16) -> Result<()> {
     let flag = bool::read_from(reader)?;
     *light_count = 0;
@@ -331,7 +326,6 @@ pub fn read_section_light<R: Read>(reader: &mut R, block_light: &mut Option<Box<
 }
 
 /// For writing both blocklight and skylight.
-
 pub fn write_section_light<W: Write>(writer: &mut W, block_light: &Option<Box<[u8]>>) -> Result<u64> {
     let Some(light) = block_light else {
         return false.write_to(writer);
@@ -340,7 +334,6 @@ pub fn write_section_light<W: Write>(writer: &mut W, block_light: &Option<Box<[u
     writer.write_all(light)?;
     Ok(2049)
 }
-
 
 pub fn read_block_data<R: Read>(reader: &mut R, block_data_refs: &mut Option<Box<[BlockDataRef]>>, container: &mut BlockDataContainer, data_count: &mut u16) -> Result<()> {
     container.clear();
@@ -365,7 +358,6 @@ pub fn read_block_data<R: Read>(reader: &mut R, block_data_refs: &mut Option<Box
     Ok(())
 }
 
-
 pub fn write_block_data<W: Write>(writer: &mut W, block_data_refs: &Option<Box<[BlockDataRef]>>, container: &BlockDataContainer, data_count: u16) -> Result<u64> {
     let Some(data) = block_data_refs else {
         return 0u16.write_to(writer);
@@ -388,7 +380,6 @@ pub fn write_block_data<W: Write>(writer: &mut W, block_data_refs: &Option<Box<[
 
 /// The enabled callback will receive the index (within the section) to enable a block.
 /// It's up to the caller to use that index to enable a block.
-
 pub fn read_enabled<R: Read, F: FnMut(u16)>(reader: &mut R, mut enable: F, enabled_count: &mut u16) -> Result<()> {
     let count = u16::read_from(reader)?;
     *enabled_count = count;
@@ -401,7 +392,6 @@ pub fn read_enabled<R: Read, F: FnMut(u16)>(reader: &mut R, mut enable: F, enabl
     }
     Ok(())
 }
-
 
 pub fn write_enabled<W: Write>(writer: &mut W, update_refs: &Option<Box<[UpdateRef]>>) -> Result<u64> {
     let Some(refs) = update_refs else {
