@@ -444,6 +444,7 @@ fn update_input(
 
     camrot.x -= mouse_motion.x * dt * 0.05;
     camrot.y += mouse_motion.y * dt * 0.05;
+    camrot.y = camrot.y.clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
     let mut transform = camera.get_single_mut().unwrap();
     transform.rotation = Quat::from_axis_angle(Vec3::Y, camrot.x) * Quat::from_axis_angle(Vec3::NEG_X, camrot.y);
     
@@ -467,11 +468,11 @@ fn update_input(
     }
 
     if keys.pressed(KeyCode::KeyE) {
-        translation += Vec3::Y * dt * move_speed;
+        translation += transform.up() * dt * move_speed;
     }
 
     if keys.pressed(KeyCode::KeyQ) {
-        translation += Vec3::NEG_Y * dt * move_speed;
+        translation += transform.down() * dt * move_speed;
     }
 
     if keys.pressed(KeyCode::KeyD) {
