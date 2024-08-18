@@ -106,16 +106,16 @@ impl Direction {
     pub const UP: Direction = Direction::PosY;
     pub const BACKWARD: Direction = Direction::PosZ;
 
-pub const fn invert(self) -> Self {
-    match self {
-        Direction::NegX => Direction::PosX,
-        Direction::NegY => Direction::PosY,
-        Direction::NegZ => Direction::PosZ,
-        Direction::PosX => Direction::NegX,
-        Direction::PosY => Direction::NegY,
-        Direction::PosZ => Direction::NegZ,
+    pub const fn invert(self) -> Self {
+        match self {
+            Direction::NegX => Direction::PosX,
+            Direction::NegY => Direction::PosY,
+            Direction::NegZ => Direction::PosZ,
+            Direction::PosX => Direction::NegX,
+            Direction::PosY => Direction::NegY,
+            Direction::PosZ => Direction::NegZ,
+        }
     }
-}
 
     pub const fn flip(self, flip: Flip) -> Self {
         use Direction::*;
@@ -127,6 +127,15 @@ pub const fn invert(self) -> Self {
             PosY if flip.y() => NegY,
             PosZ if flip.z() => NegZ,
             _ => self
+        }
+    }
+
+    pub const fn axis(self) -> Axis {
+        use Direction::*;
+        match self {
+            NegX | PosX => Axis::X,
+            NegY | PosY => Axis::Y,
+            NegZ | PosZ => Axis::Z,
         }
     }
 
