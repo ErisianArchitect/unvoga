@@ -7,6 +7,7 @@ use blocktypes::middle_wedge::MiddleWedge;
 use bevy_egui::egui::epaint::Shadow;
 use unvoga::core::voxel::level_of_detail::{self, LOD};
 use unvoga::core::voxel::rendering::meshbuilder::MeshBuilder;
+use unvoga::game::cameras::{CameraContoller, CameraType};
 
 // mod textureregistry;
 use std::cell::LazyCell;
@@ -374,11 +375,19 @@ fn setup(
     commands.insert_resource(world);
     commands.insert_resource(CameraLocation { position: Vec3::ZERO });
     commands.insert_resource(SelectedBlock(blockstate!(dirt).register()));
-    commands.insert_resource(DebugStuff::default())
+    commands.insert_resource(DebugStuff::default());
+    commands.insert_resource(SandboxResources {
+        camera_controller: CameraContoller::new(CameraType::Pan, Vec2::ZERO, 5f32, 0.05f32),
+    });
 }
 
 #[derive(Resource)]
 struct SelectedBlock(Id);
+
+#[derive(Resource)]
+struct SandboxResources {
+    camera_controller: CameraContoller,
+}
 
 #[derive(Resource, Default)]
 struct DebugStuff {
@@ -417,6 +426,7 @@ fn update_input(
     mut world: ResMut<VoxelWorld>,
     mut gizmos: Gizmos,
     mut selection: ResMut<SelectedBlock>,
+    mut sandbox: ResMut<SandboxResources>,
 ) {
     static KEY_BLOCKS: LazyLock<Vec<(KeyCode, Id)>> = LazyLock::new(|| {
         let mut items = Vec::new();
@@ -442,42 +452,58 @@ fn update_input(
     let mut mouse_motion: Vec2 = evr_motion.read()
         .map(|ev| ev.delta).sum();
 
-    camrot.x -= mouse_motion.x * dt * 0.05;
-    camrot.y += mouse_motion.y * dt * 0.05;
-    camrot.y = camrot.y.clamp(-89.0f32.to_radians(), 89.0f32.to_radians());
+    // camrot.x += mouse_motion.x * dt * 0.05;
+    // camrot.y += mouse_motion.y * dt * 0.05;
+    // camrot.y = camrot.y.clamp(-90f32.to_radians(), 90f32.to_radians());
     let mut transform = camera.get_single_mut().unwrap();
-    transform.rotation = Quat::from_axis_angle(Vec3::Y, camrot.x) * Quat::from_axis_angle(Vec3::NEG_X, camrot.y);
+    let mut controller = sandbox.camera_controller.begin_transform(transform);
+
+    controller.rotate(mouse_motion, dt, 1.0);
+    
+    // transform.rotation = Quat::from_axis_angle(Vec3::NEG_Y, camrot.x) * Quat::from_axis_angle(Vec3::NEG_X, camrot.y);
     
     let mut translation = Vec3::ZERO;
     const MOVE_SPEED: f32 = 7.0;
-    let move_speed = if keys.pressed(KeyCode::ShiftLeft) {
-        MOVE_SPEED * 5.0
+    let move_mult = if keys.pressed(KeyCode::ShiftLeft) {
+        8.0
     } else {
-        MOVE_SPEED
+        1.0
     };
+    if keys.just_pressed(KeyCode::ArrowRight) {
+        controller.controller.cam_type = match controller.controller.cam_type {
+            CameraType::Pan => CameraType::Free,
+            CameraType::Free => CameraType::Pan,
+        };
+    }
     if keys.pressed(KeyCode::KeyW) {
-        translation += transform.forward() * dt * move_speed;
+        // translation += transform.forward() * dt * move_speed;
+        translation += Vec3::NEG_Z;
     }
-
     if keys.pressed(KeyCode::KeyS) {
-        translation += transform.back() * dt * move_speed;
+        // translation += transform.back() * dt * move_speed;
+        translation += Vec3::Z;
     }
-
     if keys.pressed(KeyCode::KeyA) {
-        translation += transform.left() * dt * move_speed;
+        // translation += transform.left() * dt * move_speed;
+        translation += Vec3::NEG_X;
+    }
+    if keys.pressed(KeyCode::KeyD) {
+        // translation += transform.right() * dt * move_speed;
+        translation += Vec3::X;
     }
 
     if keys.pressed(KeyCode::KeyE) {
-        translation += transform.up() * dt * move_speed;
+        // translation += transform.up() * dt * move_speed;
+        translation += Vec3::Y;
     }
-
+    
     if keys.pressed(KeyCode::KeyQ) {
-        translation += transform.down() * dt * move_speed;
+        // translation += transform.down() * dt * move_speed;
+        translation += Vec3::NEG_Y;
     }
-
-    if keys.pressed(KeyCode::KeyD) {
-        translation += transform.right() * dt * move_speed;
-    }
+    controller.translate(if translation != Vec3::ZERO { translation.normalize() } else { translation }, dt, move_mult);
+    let mut transform = controller.end_transform();
+    // transform.translation += translation;
     if keys.pressed(KeyCode::KeyV) {
         let dynsize = world.dynamic_usage();
         println!("{dynsize}");
@@ -564,7 +590,6 @@ fn update_input(
             world.set_block(coord, new_state);
         }
     }
-    transform.translation += translation;
     campos.position = transform.translation;
     let (x, y, z) = (
         campos.position.x.floor() as i32,
