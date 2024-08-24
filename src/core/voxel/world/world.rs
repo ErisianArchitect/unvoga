@@ -883,8 +883,6 @@ impl VoxelWorld {
         if chunk.sections[section_index].dirty_id.null() {
             chunk.sections[section_index].dirty_id = self.dirty_queue.insert(section_coord);
         }
-        
-        // self.chunks.set(section_coord.xz(), chunk);
     }
 
     fn mark_modified(&mut self, chunk_coord: ChunkCoord) {
