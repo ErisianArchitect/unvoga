@@ -1,4 +1,4 @@
-#![allow(unused)]
+
 use bevy::math::Vec3;
 
 use crate::prelude::Direction;
@@ -25,12 +25,10 @@ impl Flip {
         self.0 & Flip::X.0 == Flip::X.0
     }
 
-    
     pub const fn y(self) -> bool {
         self.0 & Flip::Y.0 == Flip::Y.0
     }
 
-    
     pub const fn z(self) -> bool {
         self.0 & Flip::Z.0 == Flip::Z.0
     }

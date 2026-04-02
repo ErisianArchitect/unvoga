@@ -155,7 +155,6 @@ impl BlockSize {
         BlockSize(low as u8)
     }
 }
-    
 
 pub const fn block_size_notation(block_count: u64, exponent: u32, bit_size: u32) -> u64 {
     let max_block_size = 2u64.pow(bit_size)-1;

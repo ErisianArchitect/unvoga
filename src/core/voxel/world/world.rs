@@ -534,7 +534,7 @@ impl VoxelWorld {
         let mut load = self.load_queue.lend("loading some chunks in talk_to_bevy");
         let start_time = std::time::Instant::now();
         // We'll try 5 milliseconds for now. We only have 16 milliseconds of frame time.
-        while start_time.elapsed().as_millis() < 2 {
+        while start_time.elapsed().as_millis() <= 2 {
             if let Some((chunk_x, chunk_z)) = load.pop() {
                 let mut chunk = self.chunks.take((chunk_x, chunk_z)).expect("Chunk was not present");
                 chunk.load_id.swap_null();
@@ -549,6 +549,7 @@ impl VoxelWorld {
                         RegionFile::open_or_create(region_path).expect("Failed to open or create region file.")
                     } else {
                         chunk.edit_time = Timestamp::new(0);
+                        self.worldgen_queue.remove(chunk.world_gen_id);
                         chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
                         self.chunks.set((chunk_x, chunk_z), chunk);
                         continue;
@@ -557,6 +558,7 @@ impl VoxelWorld {
                 let result = self.load_chunk(&mut region, &mut chunk, chunk_x, chunk_z);
                 match result {
                     Err(Error::ChunkNotFound) => {
+                        self.worldgen_queue.remove(chunk.world_gen_id);
                         chunk.world_gen_id = self.worldgen_queue.insert((chunk_x, chunk_z));
                     }
                     Err(err) => panic!("{err}"),
@@ -593,6 +595,22 @@ impl VoxelWorld {
             }
         }
         self.load_queue.give(load);
+        let generator = self.world_generator.take();
+        if let Some(mut generator) = generator {
+            let mut worldgen_queue = self.worldgen_queue.lend("draining the worldgen queue in talk_to_bevy");
+            let start_time = std::time::Instant::now();
+    
+            while start_time.elapsed().as_millis() <= 2 {
+                if let Some((chunk_x, chunk_z)) = worldgen_queue.pop() {
+                    generator.generate_chunk(self, Bounds2D::new((chunk_x, chunk_z), (chunk_x + 16, chunk_z + 16)));
+                } else {
+                    break;
+                }
+            }
+    
+            self.worldgen_queue.give(worldgen_queue);
+            self.world_generator.replace(generator);
+        }
         let mut dirty = self.dirty_queue.lend("draining the dirty_queue in talk_to_bevy");
         let start_time = std::time::Instant::now();
         // TODO: Right now, despawning is broken under certain move condition.s
@@ -1339,10 +1357,10 @@ impl VoxelWorld {
 
     fn delete_data_internal<C: Into<(i32, i32, i32)>>(&mut self, coord: C, old_state: Id) {
         let coord: (i32, i32, i32) = coord.into();
-        let coord: Coord = coord.into();
         if !self.bounds().contains(coord) {
             return;
         }
+        let coord: Coord = coord.into();
         let chunk_x = coord.x >> 4;
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");

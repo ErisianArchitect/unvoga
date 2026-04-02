@@ -43,3 +43,20 @@ impl Fnv1a {
         self.0
     }
 }
+
+impl std::fmt::Display for Fnv1a {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.id())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn fnv1a_test() {
+        let hash1 = Fnv1a::from_str("Hello, world!");
+        let hash2 = Fnv1a::from_str("The quick brown fox jumps over the lazy dog.");
+        println!("{hash1}\n{hash2}");
+    }
+}

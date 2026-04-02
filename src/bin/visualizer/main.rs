@@ -241,6 +241,8 @@ fn menu(
     mut contexts: EguiContexts,
     mut menu_info: ResMut<MenuInfo>,
     mut orientations: ResMut<Orientations>,
+    mut rotation: ResMut<CameraRotation>,
+    mut anchor: Query<&mut Transform,With<CameraAnchor>>,
 ) {
     use bevy_egui::egui::{self, *};
     let resp = egui::panel::SidePanel::left("left_panel").show(contexts.ctx_mut(), |ui| {
@@ -332,7 +334,55 @@ fn menu(
                 ui.label("Error");
             },
         }
-
+        let mut transform = anchor.get_single_mut().unwrap();
+        let mut rot_x = rotation.x.to_degrees();
+        let mut rot_y = rotation.y.to_degrees();
+        let x_slider = egui::Slider::new(&mut rot_x, -360f32..=360f32).step_by(45f64);
+        let y_slider = egui::Slider::new(&mut rot_y, -360f32..=360f32).step_by(45f64);
+        let changedx = ui.add(x_slider).changed();
+        let changedy = ui.add(y_slider).changed();
+        let mut update_rot = |x: f32, y: f32| {
+            let x = x.to_radians();
+            let y = y.to_radians();
+            rotation.x = x;
+            rotation.y = y;
+            transform.rotation = Quat::from_axis_angle(Vec3::Y, rotation.x) * Quat::from_axis_angle(Vec3::NEG_X, rotation.y);
+        };
+        if changedx || changedy {
+            update_rot(rot_x, rot_y);
+        }
+        ui.horizontal(|ui| {
+            let mut btn = move |text: &str| {
+                let (rect, resp) = ui.allocate_exact_size(Vec2::new(60f32, 20f32), Sense::hover());
+                let button = egui::Button::new(text);
+                ui.put(rect, button).clicked()
+            };
+            if btn("NegX") {
+                update_rot(-90f32, 0f32);
+            }
+            if btn("NegY") {
+                update_rot(0f32, -90f32);
+            }
+            if btn("NegZ") {
+                update_rot(180f32, 0f32);
+            }
+        });
+        ui.horizontal(|ui| {
+            let mut btn = move |text: &str| {
+                let (rect, resp) = ui.allocate_exact_size(Vec2::new(60f32, 20f32), Sense::hover());
+                let button = egui::Button::new(text);
+                ui.put(rect, button).clicked()
+            };
+            if btn("PosX") {
+                update_rot(90f32, 0f32);
+            }
+            if btn("PosY") {
+                update_rot(0f32, 90f32);
+            }
+            if btn("PosZ") {
+                update_rot(0f32, 0f32);
+            }
+        });
         if ui.button("⊞").clicked() {
             orientations.0.push(edit);
         }

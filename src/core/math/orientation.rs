@@ -431,9 +431,6 @@ mod testing_sandbox {
     }
 
     // This is used to generate the table in maptable.rs.
-    // you need to uncoment map_up2_coord_naive for this to work.
-    // I commented it out because I don't need it anymore, but I'd like to keep
-    // the code around in case I need it later as a reference.
     #[test]
     fn map_coord_gencode() {
         const fn map_axismap(a: AxisMap) -> &'static str {

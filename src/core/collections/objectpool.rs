@@ -276,7 +276,7 @@ impl<M: Copy> PoolId<M> {
     
     #[must_use]
     pub fn generation(self) -> u64 {
-        self.0 >> Self::GENERATION_ID_OFFSET
+        self.0 >> Self::GENERATION_ID_OFFSET & Self::GENERATION_MAX
     }
 
     

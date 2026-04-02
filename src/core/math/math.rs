@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use bevy::math::{Vec2, Vec3, Vec4};
+use bevy::math::{*};
 
 pub fn index2<const W: i32>(x: i32, y: i32) -> usize {
     let x = x.rem_euclid(W);
@@ -217,6 +217,83 @@ impl CheckBetweenClosest for Vec3 {
 impl CheckBetweenClosest for Vec4 {
     fn check_between_closest(self, min: Self, max: Self) -> Option<Self> {
         check_between_vec4_closest(self, min, max)
+    }
+}
+
+pub fn raycast<F: FnMut(IVec3, u32) -> bool>(
+    ray_origin: Vec3,
+    ray_direction: Vec3,
+    cell_size: Vec3,
+    cell_offset: Vec3,
+    step_count: u32,
+    mut callback: F,
+) {
+    fn calc_step(cell_size: f32, magnitude: f32) -> f32 {
+        cell_size / magnitude.abs().max(<f32>::MIN_POSITIVE)
+    }
+    let delta = vec3(
+        calc_step(cell_size.x, ray_direction.x),
+        calc_step(cell_size.y, ray_direction.y),
+        calc_step(cell_size.z, ray_direction.z),
+    );
+
+    let sign = ray_direction.signum();
+
+    let step = ivec3(
+        sign.x as i32,
+        sign.y as i32,
+        sign.z as i32,
+    );
+
+    let origin = ray_origin - cell_offset;
+    let inner = origin.rem_euclid(cell_size);
+
+    fn calc_t_max(step: i32, cell_size: f32, p: f32, magnitude: f32) -> f32 {
+        if step > 0 {
+            (cell_size - p) / magnitude.abs().max(<f32>::MIN_POSITIVE)
+        } else if step < 0 {
+            p / magnitude.abs().max(<f32>::MIN_POSITIVE)
+        } else {
+            f32::INFINITY
+        }
+    }
+    let mut t_max = vec3(
+        calc_t_max(step.x, cell_size.x, inner.x, ray_direction.x),
+        calc_t_max(step.y, cell_size.y, inner.y, ray_direction.y),
+        calc_t_max(step.z, cell_size.z, inner.z, ray_direction.z),
+    );
+ 
+    let mut cell = (origin / cell_size).floor().as_ivec3();
+    callback(cell, 0);
+    for step_index in 1..step_count {
+        if t_max.x <= t_max.y && t_max.x <= t_max.z {
+            t_max.x += delta.x;
+            cell.x += step.x;
+        } else if t_max.y <= t_max.z {
+            t_max.y += delta.y;
+            cell.y += step.y;
+        } else {
+            t_max.z += delta.z;
+            cell.z += step.z;
+        }
+        // if t_max.x <= t_max.y {
+        //     if t_max.x <= t_max.z {
+        //         t_max.x += delta.x;
+        //         cell.x += step.x;
+        //     } else {
+        //         t_max.z += delta.z;
+        //         cell.z += step.z;
+        //     }
+        // } else {
+        //     if t_max.y <= t_max.z {
+        //         t_max.y += delta.y;
+        //         cell.y += step.y;
+        //     } else {
+        //         t_max.z += delta.z;
+        //         cell.z += step.z;
+        //     }
+        // }
+        callback(cell, step_index);
     }
 }
 

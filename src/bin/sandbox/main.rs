@@ -5,7 +5,9 @@ mod worldgentest;
 
 use blocktypes::middle_wedge::MiddleWedge;
 use bevy_egui::egui::epaint::Shadow;
+use unvoga::core::math::math;
 use unvoga::core::voxel::level_of_detail::{self, LOD};
+use unvoga::core::voxel::procgen::worldgenerator::{FlatLayer, FlatWorldGenerator};
 use unvoga::core::voxel::rendering::meshbuilder::MeshBuilder;
 use unvoga::game::cameras::{CameraContoller, CameraType};
 
@@ -507,6 +509,13 @@ fn update_input(
     if keys.pressed(KeyCode::KeyV) {
         let dynsize = world.dynamic_usage();
         println!("{dynsize}");
+    }
+
+    if keys.pressed(KeyCode::KeyB) {
+        math::raycast(transform.translation + transform.down() * 1.5, transform.forward().into(), Vec3::ONE, Vec3::ZERO, 1000, |p, _| {
+            world.set_block(p, selection.0);
+            true
+        });
     }
     const BOUND_SIZE: i32 = 32;
     const X_BOUND: Range<i32> = -BOUND_SIZE..BOUND_SIZE;

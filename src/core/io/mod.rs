@@ -7,6 +7,25 @@ use std::io::{
 
 use crate::core::error::{Error, Result};
 use crate::core::math::num::*;
+use crate::prelude::{BitSize, GetBit, SetBit};
+use crate::{core::{math::bit::{BitFlags128, BitFlags16, BitFlags32, BitFlags64, BitFlags8}, voxel::{axis::Axis, direction::Direction, rendering::color::{Rgb, Rgba}, tag::{Array, Byte, NonByte, Tag}}}, for_each_int_type};
+use bevy::math::*;
+use bytemuck::NoUninit;
+use hashbrown::HashMap;
+use itertools::Itertools;
+use paste::paste;
+use rollgrid::{rollgrid2d::Bounds2D, rollgrid3d::Bounds3D};
+use voxel::direction::Cardinal;
+use voxel::faceflags::FaceFlags;
+
+use super::math::{
+    coordmap::{unpack_flip_and_rotation, pack_flip_and_rotation},
+    flip::Flip,
+    rotation::Rotation,
+    orientation::Orientation,
+};
+use super::math::num::UnsignedNum;
+use super::*;
 
 // pub struct BitUnpacker<T> {
 //     bit_width: u32,
@@ -91,27 +110,7 @@ pub trait Writeable {
 //     }
 // }
 
-use crate::prelude::{BitSize, GetBit, SetBit};
-use crate::{core::{math::bit::{BitFlags128, BitFlags16, BitFlags32, BitFlags64, BitFlags8}, voxel::{axis::Axis, direction::Direction, rendering::color::{Rgb, Rgba}, tag::{Array, Byte, NonByte, Tag}}}, for_each_int_type};
-use bevy::math::*;
-use bytemuck::NoUninit;
-use hashbrown::HashMap;
-use itertools::Itertools;
-use paste::paste;
-use rollgrid::{rollgrid2d::Bounds2D, rollgrid3d::Bounds3D};
-use voxel::direction::Cardinal;
-use voxel::faceflags::FaceFlags;
-
-use super::math::{
-    coordmap::{unpack_flip_and_rotation, pack_flip_and_rotation},
-    flip::Flip,
-    rotation::Rotation,
-    orientation::Orientation,
-};
-use super::math::num::UnsignedNum;
-use super::*;
-
-const MAX_LEN: usize = 0xFFFFFF;
+const MAX_ARRAY_LENGTH: usize = 0xFFFFFF;
 
 macro_rules! num_io {
     ($type:ty) => {
@@ -732,7 +731,7 @@ impl Readable for String {
 
 impl Writeable for String {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::StringTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -744,7 +743,7 @@ impl Writeable for String {
 
 impl Writeable for &str {
     fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::StringTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -769,7 +768,7 @@ impl<T: Readable + NonByte> Readable for Vec<T> {
 
 impl<T: Writeable + NonByte> Writeable for Vec<T> {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::ArrayTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -806,7 +805,7 @@ impl Readable for Vec<bool> {
 
 impl Writeable for Vec<bool> {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::ArrayTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -829,7 +828,7 @@ impl Readable for Vec<BitFlags8> {
 
 impl Writeable for Vec<BitFlags8> {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::ArrayTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -851,7 +850,7 @@ impl Readable for Vec<u8> {
 
 impl Writeable for Vec<u8> {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::ArrayTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -872,7 +871,7 @@ impl Readable for Vec<i8> {
 
 impl Writeable for Vec<i8> {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::ArrayTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -908,7 +907,7 @@ impl Readable for Vec<Direction> {
 
 impl Writeable for Vec<Direction> {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::ArrayTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -938,7 +937,7 @@ impl Readable for Vec<Cardinal> {
 
 impl Writeable for Vec<Cardinal> {
     fn write_to<W: Write>(&self, writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::ArrayTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -960,7 +959,7 @@ impl Readable for Vec<Rotation> {
 
 impl Writeable for Vec<Rotation> {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::ArrayTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();
@@ -1120,7 +1119,7 @@ impl Readable for Vec<Axis> {
 
 impl Writeable for Vec<Axis> {
     fn write_to<W: Write>(&self, mut writer: &mut W) -> Result<u64> {
-        if self.len() > MAX_LEN {
+        if self.len() > MAX_ARRAY_LENGTH {
             return Err(Error::ArrayTooLong);
         }
         let buf = (self.len() as u32).to_be_bytes();

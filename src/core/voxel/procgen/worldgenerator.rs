@@ -51,15 +51,15 @@ impl<L: Into<FlatLayer>> FromIterator<L> for FlatWorldGenerator {
 
 impl WorldGenerator for FlatWorldGenerator {
     fn generate_chunk(&mut self, world: &mut VoxelWorld, area: Bounds2D) {
-        for (x, z) in area.iter() {
-            let mut y_bottom = WORLD_BOTTOM;
-            for layer in self.layers.iter() {
-                let y_top = (y_bottom + layer.height as i32).min(WORLD_TOP);
-                for y in y_bottom..y_top {
+        let mut y_bottom = WORLD_BOTTOM;
+        for layer in self.layers.iter() {
+            let y_top = (y_bottom + layer.height as i32).min(WORLD_TOP);
+            for y in y_bottom..y_top {
+                for (x, z) in area.iter() {
                     world.set_block((x, y, z), layer.block);
                 }
-                y_bottom = y_top;
             }
+            y_bottom = y_top;
         }
     }
 }

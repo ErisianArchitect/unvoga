@@ -10,12 +10,14 @@ pub struct Rotation(pub u8);
 
 impl Rotation {
     pub const UNROTATED: Rotation = Rotation::new(Direction::PosY, 0);
+    #[must_use]
     pub const fn new(up: Direction, angle: i32) -> Self {
         let up = up as u8;
         let angle = angle.rem_euclid(4) as u8;
         Self(angle | up << 2)
     }
 
+    #[must_use]
     pub const fn from_up_and_forward(up: Direction, forward: Direction) -> Option<Rotation> {
         Some(Rotation::new(up, match up {
             Direction::NegX => match forward {
@@ -133,53 +135,53 @@ impl Rotation {
         }
     }
 
-pub const fn left(self) -> Direction {
-    use Direction::*;
-    match self.up() {
-        NegX => match self.angle() {
-            0 => NegZ,
-            1 => PosY,
-            2 => PosZ,
-            3 => NegY,
-            _ => unreachable!()
-        }
-        NegY => match self.angle() {
-            0 => NegX,
-            1 => PosZ,
-            2 => PosX,
-            3 => NegZ,
-            _ => unreachable!()
-        }
-        NegZ => match self.angle() {
-            0 => PosX,
-            1 => PosY,
-            2 => NegX,
-            3 => NegY,
-            _ => unreachable!()
-        }
-        PosX => match self.angle() {
-            0 => PosZ,
-            1 => PosY,
-            2 => NegZ,
-            3 => NegY,
-            _ => unreachable!()
-        }
-        PosY => match self.angle() {
-            0 => NegX,
-            1 => NegZ,
-            2 => PosX,
-            3 => PosZ,
-            _ => unreachable!()
-        }
-        PosZ => match self.angle() {
-            0 => NegX,
-            1 => PosY,
-            2 => PosX,
-            3 => NegY,
-            _ => unreachable!()
+    pub const fn left(self) -> Direction {
+        use Direction::*;
+        match self.up() {
+            NegX => match self.angle() {
+                0 => NegZ,
+                1 => PosY,
+                2 => PosZ,
+                3 => NegY,
+                _ => unreachable!()
+            }
+            NegY => match self.angle() {
+                0 => NegX,
+                1 => PosZ,
+                2 => PosX,
+                3 => NegZ,
+                _ => unreachable!()
+            }
+            NegZ => match self.angle() {
+                0 => PosX,
+                1 => PosY,
+                2 => NegX,
+                3 => NegY,
+                _ => unreachable!()
+            }
+            PosX => match self.angle() {
+                0 => PosZ,
+                1 => PosY,
+                2 => NegZ,
+                3 => NegY,
+                _ => unreachable!()
+            }
+            PosY => match self.angle() {
+                0 => NegX,
+                1 => NegZ,
+                2 => PosX,
+                3 => PosZ,
+                _ => unreachable!()
+            }
+            PosZ => match self.angle() {
+                0 => NegX,
+                1 => PosY,
+                2 => PosX,
+                3 => NegY,
+                _ => unreachable!()
+            }
         }
     }
-}
 
     pub const fn right(self) -> Direction {
         use Direction::*;
@@ -375,17 +377,17 @@ pub const fn left(self) -> Direction {
         })
     }
 
-/// Rotates direction.
-pub const fn reface(self, direction: Direction) -> Direction {
-    match direction {
-        Direction::NegX => self.left(),
-        Direction::NegY => self.down(),
-        Direction::NegZ => self.forward(),
-        Direction::PosX => self.right(),
-        Direction::PosY => self.up(),
-        Direction::PosZ => self.backward(),
+    /// Rotates direction.
+    pub const fn reface(self, direction: Direction) -> Direction {
+        match direction {
+            Direction::NegX => self.left(),
+            Direction::NegY => self.down(),
+            Direction::NegZ => self.forward(),
+            Direction::PosX => self.right(),
+            Direction::PosY => self.up(),
+            Direction::PosZ => self.backward(),
+        }
     }
-}
 
     /// Tells which [Direction] rotated to `destination`.
     pub const fn source_face(self, destination: Direction) -> Direction {
