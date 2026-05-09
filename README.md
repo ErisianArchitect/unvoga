@@ -40,6 +40,8 @@ cargo test --lib
 cargo bench --bench chunk_occlusion   # voxel meshing perf
 ```
 
+Toolchain is pinned to Rust 1.94.0 via `rust-toolchain.toml` (edition 2024).
+
 For release, remove the `dynamic_linking` feature in `Cargo.toml`:
 
 ```toml
@@ -56,6 +58,7 @@ bevy = { version = "0.16", features = ["dynamic_linking"] }  # drop the feature
 - `assets/shaders/voxel/voxel.wgsl` — the chunk shader
 - `benches/` — criterion suites driving the perf work
 - `docs/lookup_table_audit.md` — orientation lookup table audit coverage
+- `tooling/` — Blender source files for block models (see `tooling/README.md`)
 
 ## Notable bugs the fork fixed
 

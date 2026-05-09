@@ -27,7 +27,13 @@ bevy = { version = "0.16", features = ["dynamic_linking"] }  # remove for releas
 
 - Bevy 0.16, bevy_egui 0.34
 - hashbrown with `serde` feature
-- Rust edition 2021
+- Rust edition 2024, toolchain 1.94.0 (pinned via `rust-toolchain.toml`)
+
+## Edition 2024 gotchas
+
+- `gen` is a reserved keyword — `rng.gen()` must be `rng.r#gen()`.
+- `mismatched_lifetime_syntaxes` lint fires when a struct hides a lifetime
+  that's elided in `&self`. Write `Ref<'_, T>` not `Ref<T>`.
 
 ## Architecture
 
@@ -69,6 +75,10 @@ commands.spawn((
 
 ## Known issues
 
+- Bevy 0.16 deprecation warnings (migrate before bumping to 0.17):
+  `Query::get_single_mut` → `single_mut`,
+  `EntityCommands::despawn_recursive` → `despawn`,
+  egui `Frame::rounding` → `corner_radius`.
 - 2 pre-existing test failures: `sandbox::write_read_test` and
   `core::voxel::region::regionfile::tests::write_read_test` —
   Tag round-trip via RegionFile drops Flip arrays / corrupts U8 buffers.

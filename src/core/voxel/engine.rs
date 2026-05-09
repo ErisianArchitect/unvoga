@@ -20,11 +20,11 @@ impl VoxelEngine {
     //     self.blocks.borrow_mut()
     // }
 
-    pub fn world(&self) -> Ref<VoxelWorld> {
+    pub fn world(&self) -> Ref<'_, VoxelWorld> {
         self.world.borrow()
     }
 
-    pub fn world_mut(&self) -> RefMut<VoxelWorld> {
+    pub fn world_mut(&self) -> RefMut<'_, VoxelWorld> {
         self.world.borrow_mut()
     }
 }
