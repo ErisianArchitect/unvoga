@@ -2,12 +2,13 @@
 //!
 //! Demo bin: builds a `CityTile` from the procedural generator, rasterizes
 //! buildings/roads/places into voxel blocks, opens a `VoxelWorld` and renders
-//! it with the same camera/material setup as `sandbox`.
+//! it with a fly camera.
 
 use std::path::PathBuf;
 
 use bevy::input::mouse::MouseMotion;
 use bevy::math::{vec2, vec3};
+use bevy::pbr::{AmbientLight, DirectionalLight, DistanceFog, FogFalloff};
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PresentMode, PrimaryWindow};
 
@@ -17,7 +18,6 @@ use unvoga::core::city::{
     VoxelizeConfig,
 };
 use unvoga::core::util::textureregistry as texreg;
-use unvoga::core::voxel::block::Block;
 use unvoga::core::voxel::blocks::{self, Id};
 use unvoga::core::voxel::procgen::worldgenerator::FlatWorldGenerator;
 use unvoga::core::voxel::rendering::voxelmaterial::VoxelMaterial;
@@ -26,6 +26,7 @@ use unvoga::game::cameras::{CameraContoller, CameraType};
 use unvoga::prelude::SolidBlock;
 
 const BLOCKS_DIR: &str = "./assets/debug/textures/blocks/";
+const RENDER_DISTANCE: u8 = 6;
 
 macro_rules! reg_tex {
     ($name:ident) => {
@@ -34,6 +35,17 @@ macro_rules! reg_tex {
             PathBuf::from(BLOCKS_DIR).join(format!("{}.png", stringify!($name))),
         )
     };
+}
+
+#[derive(Resource)]
+struct CityPalette {
+    ground: Id,
+    sand: Id,
+    road: Id,
+    sidewalk: Id,
+    roof: Id,
+    poi: Id,
+    building: [Id; 4],
 }
 
 fn main() {
@@ -55,10 +67,15 @@ fn main() {
             ..default()
         }))
         .add_plugins(MaterialPlugin::<VoxelMaterial>::default())
+        .insert_resource(AmbientLight {
+            color: Color::srgb(0.85, 0.88, 0.95),
+            brightness: 250.0,
+            ..default()
+        })
+        .insert_resource(ClearColor(Color::srgb(0.55, 0.68, 0.85)))
         .add_systems(Startup, setup)
         .add_systems(Update, fly_camera)
         .add_systems(PostUpdate, drive_world)
-        .insert_resource(ClearColor(Color::srgb(0.45, 0.55, 0.75)))
         .run();
 }
 
@@ -80,6 +97,8 @@ fn setup(
     reg_tex!(dirt);
     reg_tex!(stone);
     reg_tex!(sand);
+    reg_tex!(stone_bricks);
+    reg_tex!(cement);
     reg_tex!(marble_01);
     reg_tex!(marble_02);
     reg_tex!(metal_grid);
@@ -90,6 +109,13 @@ fn setup(
     blocks::register_block(SolidBlock::single("dirt", blockstate!(dirt), texreg::get_texture_index("dirt")));
     blocks::register_block(SolidBlock::single("stone", blockstate!(stone), texreg::get_texture_index("stone")));
     blocks::register_block(SolidBlock::single("sand", blockstate!(sand), texreg::get_texture_index("sand")));
+    blocks::register_block(SolidBlock::single("cement", blockstate!(cement), texreg::get_texture_index("cement")));
+    blocks::register_block(SolidBlock::vertical_block(
+        "stone_bricks",
+        blockstate!(stone_bricks),
+        texreg::get_texture_index("cement"),
+        texreg::get_texture_index("stone_bricks"),
+    ));
     blocks::register_block(SolidBlock::single("marble_01", blockstate!(marble_01), texreg::get_texture_index("marble_01")));
     blocks::register_block(SolidBlock::single("marble_02", blockstate!(marble_02), texreg::get_texture_index("marble_02")));
     blocks::register_block(SolidBlock::single("metal_grid", blockstate!(metal_grid), texreg::get_texture_index("metal_grid")));
@@ -101,23 +127,46 @@ fn setup(
         texreg::build_texture_array(256, 256).expect("build texture array"),
     );
 
-    // Tile + voxelize.
+    let palette = CityPalette {
+        ground: blockstate!(dirt).register(),
+        sand: blockstate!(sand).register(),
+        road: blockstate!(stone).register(),
+        sidewalk: blockstate!(cement).register(),
+        roof: blockstate!(stone_bricks).register(),
+        poi: blockstate!(metal_grid).register(),
+        building: [
+            blockstate!(marble_01).register(),
+            blockstate!(marble_02).register(),
+            blockstate!(fancy_wood_blue).register(),
+            blockstate!(fancy_wood_red).register(),
+        ],
+    };
+
+    // Tile + voxelize. Smaller tile + higher vox/m = same world span, more detail.
+    let demo_cfg = DemoCityConfig {
+        tile_size_m: 256.0,
+        block_size_m: 32.0,
+        ..DemoCityConfig::default()
+    };
+    let vox_cfg = VoxelizeConfig {
+        vox_per_meter: 0.5,
+        building_palette_size: palette.building.len() as u8,
+        ..VoxelizeConfig::default()
+    };
     let tile = generate_demo_tile(
         CityTileId::new(0, 0, 0),
         GeoPoint::new(25.7617, -80.1918),
-        DemoCityConfig::default(),
+        demo_cfg,
     );
-    let cfg = VoxelizeConfig::default();
-    let center_vox = (tile.tile_size_m * cfg.vox_per_meter * 0.5) as i32;
+    let center_vox = (tile.tile_size_m * vox_cfg.vox_per_meter * 0.5) as i32;
 
-    // Ground generator fills the bedrock; voxelize_tile paints on top.
-    let stone = blockstate!(stone).register();
-    let dirt = blockstate!(dirt).register();
+    let stone_id = blockstate!(stone).register();
+    let dirt_id = blockstate!(dirt).register();
     let generator: Box<dyn unvoga::core::voxel::procgen::worldgenerator::WorldGenerator> =
-        Box::new(FlatWorldGenerator::from_iter([(396u16, stone), (3, dirt)]));
+        Box::new(FlatWorldGenerator::from_iter([(396u16, stone_id), (3, dirt_id)]));
     let mut world = VoxelWorld::open(
         "ignore/cityvox",
-        4,
+        RENDER_DISTANCE,
         (center_vox, 0, center_vox),
         texture_array,
         &mut commands,
@@ -126,32 +175,32 @@ fn setup(
         Some(generator),
     );
 
-    let road_id = blockstate!(stone).register();
-    let bldg_a = blockstate!(marble_01).register();
-    let bldg_b = blockstate!(marble_02).register();
-    let bldg_c = blockstate!(fancy_wood_blue).register();
-    let poi_id = blockstate!(metal_grid).register();
-    let dirt_id = dirt;
-
-    let bldg_palette = [bldg_a, bldg_b, bldg_c];
-    let mut bldg_pick = 0usize;
-    voxelize_tile(&tile, &cfg, |x, y, z, kind| {
+    voxelize_tile(&tile, &vox_cfg, |x, y, z, kind| {
         let id = match kind {
-            BlockKind::Ground => dirt_id,
-            BlockKind::Road => road_id,
-            BlockKind::Building => {
-                // Cycle palette per visited column for visual variety.
-                let pick = bldg_palette[bldg_pick % bldg_palette.len()];
-                if y % 4 == 0 { bldg_pick = bldg_pick.wrapping_add(1); }
-                pick
-            }
-            BlockKind::Poi => poi_id,
+            BlockKind::Ground => palette.ground,
+            BlockKind::Sand => palette.sand,
+            BlockKind::Road => palette.road,
+            BlockKind::Sidewalk => palette.sidewalk,
+            BlockKind::Building { palette: p } => palette.building[p as usize % palette.building.len()],
+            BlockKind::Roof => palette.roof,
+            BlockKind::Poi => palette.poi,
         };
-        // Lift everything one block above world y=0 so dirt bedrock is visible.
+        // Lift one block above world y=0 so the dirt bedrock is visible.
         world.set_block((x, y + 1, z), id);
     });
 
-    // Camera: offset back + up looking at city center.
+    // Sun.
+    commands.spawn((
+        DirectionalLight {
+            color: Color::srgb(1.0, 0.96, 0.86),
+            illuminance: 12_000.0,
+            shadows_enabled: false,
+            ..default()
+        },
+        Transform::from_xyz(0.0, 50.0, 0.0).looking_at(vec3(0.4, -1.0, 0.25), Vec3::Y),
+    ));
+
+    // Camera with MSAA + fog.
     commands.spawn((
         Camera3d::default(),
         Projection::from(PerspectiveProjection {
@@ -160,13 +209,19 @@ fn setup(
             far: 2000.0,
             near: 0.05,
         }),
-        Msaa::Off,
+        Msaa::Sample4,
+        DistanceFog {
+            color: Color::srgb(0.55, 0.68, 0.85),
+            falloff: FogFalloff::Linear { start: 80.0, end: 220.0 },
+            ..default()
+        },
         Transform::from_xyz(center_vox as f32 - 60.0, 50.0, center_vox as f32 + 90.0)
             .looking_at(vec3(center_vox as f32, 8.0, center_vox as f32), Vec3::Y),
         CameraMarker,
     ));
 
     commands.insert_resource(world);
+    commands.insert_resource(palette);
     commands.insert_resource(CamRes {
         controller: CameraContoller::new(CameraType::Free, vec2(0.0, 0.0), 18.0, 0.05),
     });
