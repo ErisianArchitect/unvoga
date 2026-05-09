@@ -82,3 +82,38 @@ commands.spawn((
 ## Testing notes
 
 `ignore/` directory used as scratch for test region files. Tests assume cwd = repo root.
+
+## Sandbox runtime gotchas (macOS)
+
+- Cursor mode: use `CursorGrabMode::Confined`, NOT `Locked`. Locked
+  misroutes clicks off-window on macOS Metal/winit.
+- Don't set `RenderPlugin { synchronous_pipeline_compilation: true }`.
+  Blocks the game thread per shader compile on macOS.
+- Render distance > ~8 stresses the chunk pool. Sandbox uses 4.
+- Wipe a world: `rm -rf ignore/worldgen` (regen on next launch).
+- Esc saves world + AppExit::Success. Background bin via
+  `./target/debug/sandbox &` and kill via `pkill -f target/debug/sandbox`.
+
+## Chunk meshing patterns (Bevy 0.16)
+
+- Spawn render chunks with the populated mesh on frame 1. Spawning
+  with `Mesh::new()` + filling later in same frame causes a 1-frame
+  empty render.
+- Share one VoxelMaterial across chunks via `VoxelWorld::shared_material`.
+  Per-chunk materials = pipeline recompile per spawn = visible flicker.
+- Mesh updates: build to scratch, `*meshes.get_mut(handle) = new_mesh`.
+  Atomic swap; sequential `insert_attribute` calls can leave a
+  transient inconsistent state during render extract.
+
+## ObjectPool invariants
+
+- `pop()` writes `usize::MAX` into `indices[id]` to invalidate the slot.
+  `remove()` is idempotent — tolerates stale `pool_index >= pool.len()`.
+- Don't use `static mut` for the block registry; trait `Block: Send + Sync`
+  is required since `OnceLock<Mutex<Registry>>` storage.
+
+## Bench profile cost
+
+Switching `cargo bench` <-> `cargo build` triggers a full recompile of
+`bevy_render`, `bevy_pbr`, `bevy_ui`, `bevy_egui` (~3-5 min). Stay in
+one profile when iterating.
