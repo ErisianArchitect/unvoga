@@ -324,11 +324,15 @@ fn setup(
     let texture_array = images.add(texreg::build_texture_array(256, 256).expect("Failed to build texture array"));
     // blocks::register_block(RotatedBlock);
     // std::fs::remove_dir_all("ignore/worldgen");
-    // NOTE: chunk load/unload bookkeeping in objectpool.rs:67 is buggy
-    // (pre-existing, not caused by Bevy 0.16 bump). Both world generation
-    // and direct set_block calls trigger an index-out-of-bounds panic in
-    // talk_to_bevy. Engine launches with empty world but cannot render
-    // terrain until that bug is fixed. Tracked for follow-up work.
+    let stone = blockstate!(stone).register();
+    let dirt = blockstate!(dirt).register();
+    let sand = blockstate!(sand).register();
+    let generator: Box<dyn unvoga::core::voxel::procgen::worldgenerator::WorldGenerator> =
+        Box::new(FlatWorldGenerator::from_iter([
+            (396u16, stone),
+            (3, dirt),
+            (1, sand),
+        ]));
     let mut world = VoxelWorld::open(
         "ignore/worldgen",
         4,
@@ -337,7 +341,7 @@ fn setup(
         &mut commands,
         &mut meshes,
         &mut materials,
-        None,
+        Some(generator),
     );
     // let dirt = blockstate!(dirt).register();
     // let bricks = blockstate!(stone_bricks).register();
@@ -376,8 +380,8 @@ fn setup(
     ));
 
     let mut primary = window.get_single_mut().unwrap();
-    primary.cursor_options.grab_mode = CursorGrabMode::None;
-    primary.cursor_options.visible = true;
+    primary.cursor_options.grab_mode = CursorGrabMode::Locked;
+    primary.cursor_options.visible = false;
     commands.insert_resource(CameraRotation::default());
     commands.insert_resource(world);
     commands.insert_resource(CameraLocation { position: Vec3::ZERO });

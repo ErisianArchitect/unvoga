@@ -58,21 +58,30 @@ impl<T,M: Copy> ObjectPool<T,M> {
             return;
         }
         if id.pool_id() != self.id {
-            panic!("Id does not belong to this pool.");
+            return;
         }
         if id.index() >= self.indices.len() {
-            panic!("Out of bounds");
+            return;
         }
         let pool_index = self.indices[id.index()];
+        // Tolerate stale slot-indices (e.g. id was already popped via pop()):
+        // pop() shrinks `pool` without updating `indices`, so a previously
+        // valid pool_index can now be past the end. Treat as already-removed.
+        if pool_index >= self.pool.len() {
+            return;
+        }
         if self.pool[pool_index].0.0 != id.0 {
-            panic!("Dead pool ID");
+            return;
         }
         self.pool.swap_remove(pool_index);
         if pool_index == self.pool.len() {
+            self.indices[id.index()] = usize::MAX;
+            self.unused.push(id);
             return;
         }
         let index_index = self.pool[pool_index].0;
         self.indices[index_index.index()] = pool_index;
+        self.indices[id.index()] = usize::MAX;
         self.unused.push(id);
     }
 
@@ -85,6 +94,8 @@ impl<T,M: Copy> ObjectPool<T,M> {
 
     pub fn pop(&mut self) -> Option<T> {
         let (id, value) = self.pool.pop()?;
+        // Mark the slot invalid so a later remove(id) is a no-op.
+        self.indices[id.index()] = usize::MAX;
         self.unused.push(id);
         Some(value)
     }
@@ -113,10 +124,13 @@ impl<T,M: Copy> ObjectPool<T,M> {
 
     #[must_use]
     pub fn get(&self, id: PoolId<M>) -> Option<&T> {
-        if id.null() || id.pool_id() != self.id {
+        if id.null() || id.pool_id() != self.id || id.index() >= self.indices.len() {
             return None;
         }
         let pool_index = self.indices[id.index()];
+        if pool_index >= self.pool.len() {
+            return None;
+        }
         if self.pool[pool_index].0.0 != id.0 {
             return None;
         }
@@ -125,10 +139,13 @@ impl<T,M: Copy> ObjectPool<T,M> {
 
     #[must_use]
     pub fn get_mut(&mut self, id: PoolId<M>) -> Option<&mut T> {
-        if id.null() || id.pool_id() != self.id {
+        if id.null() || id.pool_id() != self.id || id.index() >= self.indices.len() {
             return None;
         }
         let pool_index = self.indices[id.index()];
+        if pool_index >= self.pool.len() {
+            return None;
+        }
         if self.pool[pool_index].0.0 != id.0 {
             return None;
         }

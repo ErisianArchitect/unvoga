@@ -658,6 +658,7 @@ impl VoxelWorld {
                             MeshMaterial3d(material.clone()),
                             Transform::from_xyz(x, y, z),
                             aabb,
+                            Visibility::Visible,
                             RenderChunkMarker
                         )).id();
                         render_chunk.replace(RenderChunk {
@@ -680,8 +681,10 @@ impl VoxelWorld {
                     continue;
                 };
                 if blocks_dirty {
-                    let mesh = meshes.get_mut(render_chunk_mut.mesh.id()).expect("Failed to get the mesh");
-                    MeshBuilder::build_mesh(mesh, |build| {
+                    // Build mesh in scratch then atomic-swap: avoids one-frame
+                    // visual artifact where attribute insert order leaves the
+                    // mesh transiently inconsistent during render extract.
+                    let new_mesh = MeshBuilder::create_mesh(RenderAssetUsages::all(), |build| {
                         for y in 0..16 {
                             for z in 0..16 {
                                 'xloop: for x in 0..16 {
@@ -695,13 +698,13 @@ impl VoxelWorld {
                                     let occlusion = self.get_occlusion(block_coord);
                                     build.set_offset(offset);
                                     build.set_orientation(orientation);
-                                    // TODO: Determine distance of chunk to determine LOD
-                                    //       Add queue for updating LOD
                                     state.block().push_mesh(build, LOD::Level0, self, block_coord.into(), state, occlusion, orientation);
                                 }
                             }
                         }
                     });
+                    let mesh = meshes.get_mut(render_chunk_mut.mesh.id()).expect("Failed to get the mesh");
+                    *mesh = new_mesh;
                 }
                 if light_map_dirty {
                     // TODO: Rebuild lightmap
@@ -1169,7 +1172,7 @@ impl VoxelWorld {
         let chunk_z = coord.z >> 4;
         let chunk = self.chunks.get_mut((chunk_x, chunk_z)).expect("Chunk was None");
         let change = chunk.hide_face(coord, face);
-        if !change.change {
+        if change.change {
             self.mark_modified(coord.chunk_coord());
             if self.render_bounds().contains(coord) {
                 let section_coord = coord.section_coord();
