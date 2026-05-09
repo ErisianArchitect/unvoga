@@ -813,6 +813,7 @@ mod testing_sandbox {
     // TODO: Remove this sandbox when it is no longer in use.
     use super::*;
     #[test]
+    #[ignore = "manual sandbox: requires test.simp asset file"]
     fn sandbox() {
         let config = NoiseGenConfig::import("test.simp").expect("Failed to import");
         let sampler = NoiseGen::from_config(config, "Hello, world!");

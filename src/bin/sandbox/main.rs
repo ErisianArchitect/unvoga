@@ -59,6 +59,12 @@ impl BlockRegistry {
 static BLOCKS: LazyLock<BlockRegistry> = LazyLock::new(BlockRegistry::new);
 
 pub fn main() {
+    if std::env::var_os("BEVY_ASSET_ROOT").is_none()
+        && std::env::var_os("CARGO_MANIFEST_DIR").is_none()
+    {
+        // SAFETY: process startup, single-threaded
+        unsafe { std::env::set_var("BEVY_ASSET_ROOT", env!("CARGO_MANIFEST_DIR")); }
+    }
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(bevy::window::Window {
@@ -645,8 +651,9 @@ fn bitmask_test() {
 }
 
 #[test]
-fn write_read_test() -> Result<()> {
-    let path: PathBuf = "ignore/test.rg".into();
+fn write_read_test() -> unvoga::core::error::Result<()> {
+    std::fs::create_dir_all("ignore").ok();
+    let path: PathBuf = "ignore/test_sandbox_bin.rg".into();
     use rand::prelude::*;
     use rand::rngs::OsRng;
     let mut seed = [0u8; 32];

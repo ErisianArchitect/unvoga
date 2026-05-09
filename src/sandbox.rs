@@ -131,7 +131,8 @@ fn bitmask_test() {
 
 #[test]
 fn write_read_test() -> Result<()> {
-    let path: PathBuf = "ignore/test.rg".into();
+    std::fs::create_dir_all("ignore").ok();
+    let path: PathBuf = "ignore/test_sandbox.rg".into();
     use rand::prelude::*;
     use rand::rngs::OsRng;
     let mut seed = [0u8; 32];

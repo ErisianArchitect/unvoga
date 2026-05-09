@@ -33,7 +33,7 @@ use crate::prelude::{f32_not_zero, ResultExtension, SwapVal};
 use super::chunk::Chunk;
 
 use crate::core::voxel::tag::Tag;
-use crate::core::error::*;
+use crate::core::error::{Error, Result as VoxelResult};
 
 // Make sure this value is always a multiple of 16 and
 // preferably a multiple of 64.
@@ -209,7 +209,7 @@ impl VoxelWorld {
                 } else {
                     chunk.edit_time = Timestamp::new(0);
                     self.chunks.set((chunk_x, chunk_z), chunk);
-                    return Result::Ok(());
+                    return Ok(());
                 }
             };
             let result = region.read((chunk_x & 31, chunk_z & 31), |reader| {
@@ -250,7 +250,7 @@ impl VoxelWorld {
             chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
             self.chunks.set((chunk_x, chunk_z), chunk);
             self.regions.set((region_x, region_z), region);
-            Result::<(), Error>::Ok(())
+            VoxelResult::<()>::Ok(())
         });
         self
     }
@@ -767,10 +767,10 @@ impl VoxelWorld {
         let result = regions.try_reposition((region_x, region_z), |old_pos, (x, z), region| {
             let rg_path = self.get_region_path(x, z);
             if rg_path.is_file() {
-                Result::<_, Error>::Ok(Some(RegionFile::open(rg_path)?))
+                VoxelResult::<_>::Ok(Some(RegionFile::open(rg_path)?))
             } else {
                 // There's no region file, so just return None. We're not reusing RegionFile instances.
-                Result::<_, Error>::Ok(None)
+                VoxelResult::<_>::Ok(None)
             }
         }).handle_err(|err| {
             panic!("Error from regions.try_reposition: {err}");
@@ -833,7 +833,7 @@ impl VoxelWorld {
     }
 
     #[must_use]
-    pub fn save_world(&mut self) -> Result<()> {
+    pub fn save_world(&mut self) -> VoxelResult<()> {
         self.save_queue.drain().try_for_each(|coord| {
             let (chunk_x, chunk_z) = coord.xz();
             let mut chunks = self.chunks.lend("chunks in save_world");

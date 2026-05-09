@@ -458,6 +458,7 @@ mod testing_sandbox {
         };
         use std::io::{Write, BufWriter};
         use std::fs::File;
+        std::fs::create_dir_all("ignore").ok();
         let mut writer = BufWriter::new(File::create("ignore/map_coord_table.rs").expect("Failed to open file"));
         writer.write_all(output.as_bytes());
         println!("Wrote the output to file at ./ignore/map_coord_table.rs");
@@ -489,6 +490,7 @@ mod testing_sandbox {
         };
         use std::io::{Write, BufWriter};
         use std::fs::File;
+        std::fs::create_dir_all("ignore").ok();
         let mut writer = BufWriter::new(File::create("ignore/source_face_coord_table.rs").expect("Failed to open file"));
         writer.write_all(output.as_bytes());
         println!("Wrote the output to file at ./ignore/source_face_coord_table.rs");

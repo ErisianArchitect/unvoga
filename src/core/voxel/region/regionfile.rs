@@ -208,7 +208,8 @@ mod tests {
     use super::*;
     #[test]
     fn write_read_test() -> Result<()> {
-        let path: PathBuf = "ignore/test.rg".into();
+        std::fs::create_dir_all("ignore").ok();
+        let path: PathBuf = "ignore/test_regionfile.rg".into();
         use rand::prelude::*;
         let mut seed = [0u8; 32];
         OsRng.fill_bytes(&mut seed);

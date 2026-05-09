@@ -41,6 +41,11 @@ mod cleanup {
 }
 
 fn main() {
+    if std::env::var_os("BEVY_ASSET_ROOT").is_none()
+        && std::env::var_os("CARGO_MANIFEST_DIR").is_none()
+    {
+        unsafe { std::env::set_var("BEVY_ASSET_ROOT", env!("CARGO_MANIFEST_DIR")); }
+    }
     // sandbox::sandbox();
     // return;
     // TODO: Read from configuration file.
