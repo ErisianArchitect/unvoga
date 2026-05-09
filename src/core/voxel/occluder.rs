@@ -3,6 +3,31 @@ use crate::prelude::*;
 
 use super::{direction::Direction, occlusionshape::OcclusionShape};
 
+/// Expand an 8-bit row to a 16-bit row by doubling each bit:
+/// bit i in the input becomes bits 2i and 2i+1 in the output.
+/// Used for S8x8 -> S16x16 mask expansion in fast paths.
+#[inline]
+fn expand_byte_to_u16(b: u8) -> u16 {
+    let mut x = b as u16;
+    x = (x | (x << 4)) & 0x0F0F;
+    x = (x | (x << 2)) & 0x3333;
+    x = (x | (x << 1)) & 0x5555;
+    x | (x << 1)
+}
+
+/// Row-mask for an OcclusionRect at row `y` in 16x16 coord space.
+/// Returns 0 if y is outside [top, bottom); otherwise a u16 with bits
+/// set in [left, right).
+#[inline]
+fn rect_row_mask(rect: OcclusionRect, y: u8) -> u16 {
+    if y < rect.top || y >= rect.bottom {
+        return 0;
+    }
+    let lo = rect.left as u32;
+    let hi = rect.right as u32;
+    ((1u32 << hi).wrapping_sub(1u32 << lo)) as u16
+}
+
 pub struct Occluder {
     pub neg_x: OcclusionShape,
     pub neg_y: OcclusionShape,
@@ -102,6 +127,12 @@ impl Occluder {
             },
             OcclusionShape::Rect(shape) => match r_occl {
                 OcclusionShape::S16x16(other) => {
+                    // Fast path: default orientations -> row-mask AND-NOT.
+                    if orientation == Orientation::default() && other_orientation == Orientation::default() {
+                        return (0..16u8).all(|y| {
+                            (rect_row_mask(*shape, y) & !other.0[y as usize]) == 0
+                        });
+                    }
                     // OcclusionShape::Rect(shape) => match other {
                     let shape = shape.transform_face(orientation, face);
                     for y in shape.top..shape.bottom {
@@ -197,6 +228,14 @@ impl Occluder {
                     true
                 },
                 OcclusionShape::S8x8(other) => {
+                    // Fast path: default orientations -> expand other(S8) to 16x16
+                    // row-by-row and bitwise AND-NOT.
+                    if orientation == Orientation::default() && other_orientation == Orientation::default() {
+                        return (0..16usize).all(|y| {
+                            let byte = ((other.0 >> ((y / 2) * 8)) & 0xFF) as u8;
+                            (shape.0[y] & !expand_byte_to_u16(byte)) == 0
+                        });
+                    }
                     // OcclusionShape::S16x16(shape) => match other {
                     for y in 0..16 {
                         let oy = y / 2;
@@ -254,6 +293,12 @@ impl Occluder {
                     true
                 },
                 OcclusionShape::Rect(other) => {
+                    // Fast path: default orientations -> per-row mask AND-NOT.
+                    if orientation == Orientation::default() && other_orientation == Orientation::default() {
+                        return (0..16u8).all(|y| {
+                            (shape.0[y as usize] & !rect_row_mask(*other, y)) == 0
+                        });
+                    }
                     // OcclusionShape::S16x16(shape) => match other {
                     let other = other.transform_face(other_orientation, other_face);
                     for y in 0..16 {
@@ -273,6 +318,14 @@ impl Occluder {
             },
             OcclusionShape::S8x8(shape) => match r_occl {
                 OcclusionShape::S16x16(other) => {
+                    // Fast path: default orientations -> expand S8 row to 16 wide,
+                    // bitwise AND-NOT each S16 row.
+                    if orientation == Orientation::default() && other_orientation == Orientation::default() {
+                        return (0..16usize).all(|y| {
+                            let byte = ((shape.0 >> ((y / 2) * 8)) & 0xFF) as u8;
+                            (expand_byte_to_u16(byte) & !other.0[y]) == 0
+                        });
+                    }
                     // OcclusionShape::S8x8(shape) => match other {
                     for y in 0..8 {
                         let oy = y * 2;
@@ -296,8 +349,12 @@ impl Occluder {
                         }
                     }
                     true
-                },            
+                },
                 OcclusionShape::S8x8(other) => {
+                    // Fast path: default orientations -> single u64 AND-NOT.
+                    if orientation == Orientation::default() && other_orientation == Orientation::default() {
+                        return (shape.0 & !other.0) == 0;
+                    }
                     // OcclusionShape::S8x8(shape) => match other {
                     for y in 0..8 {
                         for x in 0..8 {
@@ -627,10 +684,36 @@ impl std::ops::IndexMut<Direction> for Occluder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::voxel::occlusionshape::{OcclusionShape, OcclusionShape16x16};
+    use crate::core::voxel::occlusionshape::{
+        OcclusionShape, OcclusionShape16x16, OcclusionShape8x8,
+    };
 
     fn occluder_with(s: OcclusionShape) -> Occluder {
         Occluder::new(s.clone(), s.clone(), s.clone(), s.clone(), s.clone(), s)
+    }
+
+    #[test]
+    fn expand_byte_matches_naive() {
+        for b in 0u16..256 {
+            let b = b as u8;
+            let expected: u16 = (0..8).fold(0u16, |acc, i| {
+                if b & (1 << i) != 0 { acc | (0b11u16 << (i * 2)) } else { acc }
+            });
+            assert_eq!(expand_byte_to_u16(b), expected, "byte {b:08b}");
+        }
+    }
+
+    #[test]
+    fn rect_row_mask_basic() {
+        let r = OcclusionRect::new(2, 3, 5, 4); // left=2 right=7 top=3 bottom=7
+        assert_eq!(rect_row_mask(r, 2), 0);
+        assert_eq!(rect_row_mask(r, 3), 0b0000_0000_0111_1100);
+        assert_eq!(rect_row_mask(r, 6), 0b0000_0000_0111_1100);
+        assert_eq!(rect_row_mask(r, 7), 0);
+        let full = OcclusionRect::new(0, 0, 16, 16);
+        for y in 0..16 {
+            assert_eq!(rect_row_mask(full, y), 0xFFFF, "y={y}");
+        }
     }
 
     /// Slow-path reference: per-pixel iteration without the bitwise fast-path.
