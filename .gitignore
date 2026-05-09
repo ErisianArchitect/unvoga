@@ -5,3 +5,4 @@
 .vscode/
 *.code-workspace
 jupyter.ipynb
+*.blend1

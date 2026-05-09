@@ -5508,7 +5508,7 @@ dependencies = [
  "gltf",
  "hashbrown 0.14.5",
  "image",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "noise",
  "paste",
  "rand 0.8.5",
@@ -5518,7 +5518,7 @@ dependencies = [
  "sha2",
  "splines",
  "tap",
- "thiserror 1.0.61",
+ "thiserror 2.0.18",
  "tracing",
 ]
 

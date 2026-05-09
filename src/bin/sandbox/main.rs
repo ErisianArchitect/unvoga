@@ -672,7 +672,7 @@ fn write_read_test() -> unvoga::core::error::Result<()> {
         let mut region = RegionFile::create(&path)?;
         for z in 0..32 {
             for x in 0..32 {
-                let array = Tag::from(Array::U8((0u32..4096*511+1234).map(|i| rng.gen()).collect()));
+                let array = Tag::from(Array::U8((0u32..4096*511+1234).map(|i| rng.r#gen()).collect()));
                 let position = Tag::IVec2(IVec2::new(x as i32, z as i32));
                 let tag = Tag::from(HashMap::from([
                     ("array".to_owned(), array.clone()),
@@ -688,7 +688,7 @@ fn write_read_test() -> unvoga::core::error::Result<()> {
         let mut region = RegionFile::open(&path)?;
         for z in 0..32 {
             for x in 0..32 {
-                let array = Box::new(Array::U8((0u32..4096*511+1234).map(|i| rng.gen()).collect()));
+                let array = Box::new(Array::U8((0u32..4096*511+1234).map(|i| rng.r#gen()).collect()));
                 let position = IVec2::new(x as i32, z as i32);
                 let flips =  Tag::from([Flip::X, Flip::Y, Flip::Z, Flip::X | Flip::Z, Flip::X | Flip::Z, Flip::X | Flip::Z]);
                 let read_tag: Tag = region.read_value((x, z))?;
