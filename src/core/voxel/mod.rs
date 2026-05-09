@@ -21,6 +21,7 @@ pub mod statevalue;
 pub mod blocklayer;
 pub mod procgen;
 pub mod level_of_detail;
+pub mod block_types;
 
 #[cfg(test)]
 mod tests {
