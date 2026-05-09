@@ -270,8 +270,20 @@ impl CoordMap {
 }
 
 #[cfg(test)]
-mod testing_sandbox {
-    use bevy::math::vec2;
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+
+    fn all_rotations() -> impl Iterator<Item = Rotation> {
+        Direction::iter().flat_map(|up| (0..4).map(move |angle| Rotation::new(up, angle)))
+    }
+
+    fn all_orientations() -> impl Iterator<Item = Orientation> {
+        all_rotations().flat_map(|rotation| {
+            (0..8).map(move |flip| Orientation::new(rotation, Flip(flip)))
+        })
+    }
 
     // I used this to generate the table in maptable.rs and I don't need it anymore, but I'm going
     // to keep it around just in case.
@@ -357,58 +369,145 @@ mod testing_sandbox {
         }
     }
 
+    fn direction_coord(direction: Direction) -> (i8, i8, i8) {
+        match direction {
+            Direction::NegX => (-1, 0, 0),
+            Direction::NegY => (0, -1, 0),
+            Direction::NegZ => (0, 0, -1),
+            Direction::PosX => (1, 0, 0),
+            Direction::PosY => (0, 1, 0),
+            Direction::PosZ => (0, 0, 1),
+        }
+    }
+
+    fn coord_direction(coord: (i8, i8, i8)) -> Option<Direction> {
+        match coord {
+            (-1, 0, 0) => Some(Direction::NegX),
+            (0, -1, 0) => Some(Direction::NegY),
+            (0, 0, -1) => Some(Direction::NegZ),
+            (1, 0, 0) => Some(Direction::PosX),
+            (0, 1, 0) => Some(Direction::PosY),
+            (0, 0, 1) => Some(Direction::PosZ),
+            _ => None,
+        }
+    }
+
     #[test]
-    fn check_solution() {
-        use Direction::*;
-        let (up, angle, flip, face) = (
-            PosX, 3, Flip::XY,
-            NegZ
-        );
-        let orientation = Orientation::new(Rotation::new(up, angle), flip);
-        // let coordmap = map_face_coord_naive(orientation, face);
-        // let table_index = maptable::map_face_coord_table_index(orientation.rotation, orientation.flip, face);
-        // let table_map = maptable::MAP_COORD_TABLE[table_index];
-        // assert_eq!(coordmap, table_map);
-        let coord = (-1, -2);
-        // let mapped = orientation.transform(coord);
-        // println!("{coord:?} {mapped:?}");
-        let mapc = map_face_coord_naive(orientation, face).map(coord);
-        let mapcsrc = source_face_coord_naive(orientation, face).map(mapc);
-        let naive = source_face_coord_naive(orientation, face).map(coord);
-        let mapped = orientation.source_face_coord(face, coord);
-        assert_eq!(naive, mapped);
-        // let unmapped = orientation.source_face_coord(face, coord);
-        let src = orientation.source_face(face);
-        // println!("Source: {src}");
-        println!("    Original: {coord:?}");
-        println!("  Map Source: {mapcsrc:?}");
-        println!("Naive Source: {naive:?}");
-        println!("         Map: {mapc:?}");
-        let pos_z_up = Direction::PosZ.up();
-        println!("PosZ Up: {pos_z_up}");
-        let up_reface = orientation.reface(pos_z_up);
-        println!("Reface: {up_reface}");
-        let mut count = 0usize;
-        Direction::iter().for_each(|up| {
-            (0..4).for_each(|angle| {
-                (0..8).map(|i| Orientation::new(Rotation::new(up, angle), Flip(i))).for_each(|orient| {
-                    Direction::iter().for_each(|face| {
-                        for y in -8..8 { for x in -8..8 { 
-                            count += 1;
-                            let coord = (x, y);
-                            let source = orientation.source_face_coord(face, coord);
-                            let map = orientation.map_face_coord(face, coord);
-                            let map2 = map_face_coord_naive(orientation, face).map(coord);
-                            assert_eq!(map, map2);
-                            let map_src = orientation.source_face_coord(face, map);
-                            assert_eq!(map_src, coord);
-                        }}
-                        // assert_eq!(map, source);
-                    });
-                })
-            })
-        });
-        println!("Count: {count}");
+    fn rotation_tables_are_complete_unique_and_invertible() {
+        let mut seen = HashSet::new();
+
+        for rotation in all_rotations() {
+            assert_eq!(rotation.left().invert(), rotation.right(), "{rotation}");
+            assert_eq!(rotation.down().invert(), rotation.up(), "{rotation}");
+            assert_eq!(rotation.forward().invert(), rotation.backward(), "{rotation}");
+
+            let signature = Direction::iter()
+                .map(|face| rotation.reface(face) as u8)
+                .collect::<Vec<_>>();
+            assert!(seen.insert(signature), "duplicate rotation mapping for {rotation}");
+
+            for face in Direction::iter() {
+                let rotated_coord = rotation.rotate(direction_coord(face));
+                let rotated_face = coord_direction(rotated_coord)
+                    .expect("rotating a face normal should produce another face normal");
+                assert_eq!(rotated_face, rotation.reface(face), "{rotation} {face}");
+                assert_eq!(rotation.source_face(rotation.reface(face)), face, "{rotation} {face}");
+                assert_eq!(rotation.reface(rotation.source_face(face)), face, "{rotation} {face}");
+            }
+        }
+
+        assert_eq!(seen.len(), 24);
+    }
+
+    #[test]
+    fn from_up_and_forward_matches_rotation_set() {
+        for up in Direction::iter() {
+            for forward in Direction::iter() {
+                let expected = all_rotations()
+                    .find(|rotation| rotation.up() == up && rotation.forward() == forward);
+                assert_eq!(
+                    Rotation::from_up_and_forward(up, forward),
+                    expected,
+                    "up={up} forward={forward}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn orientation_pack_reface_transform_and_inverse_are_consistent() {
+        for orientation in all_orientations() {
+            assert_eq!(Orientation::unpack(orientation.pack()), orientation, "{orientation}");
+
+            let inverse = orientation.invert();
+            assert_eq!(orientation.reorient(inverse), Orientation::UNORIENTED, "{orientation}");
+            assert_eq!(orientation.deorient(orientation), Orientation::UNORIENTED, "{orientation}");
+
+            for face in Direction::iter() {
+                let transformed_coord = orientation.transform(direction_coord(face));
+                let transformed_face = coord_direction(transformed_coord)
+                    .expect("orienting a face normal should produce another face normal");
+                assert_eq!(transformed_face, orientation.reface(face), "{orientation} {face}");
+                assert_eq!(orientation.source_face(orientation.reface(face)), face, "{orientation} {face}");
+                assert_eq!(orientation.reface(orientation.source_face(face)), face, "{orientation} {face}");
+            }
+        }
+    }
+
+    #[test]
+    fn orientation_composition_round_trips() {
+        for orient1 in all_orientations() {
+            for orient2 in all_orientations() {
+                assert_eq!(orient1.reorient(orient2).deorient(orient2), orient1);
+                assert_eq!(orient1.deorient(orient2).reorient(orient2), orient1);
+            }
+        }
+    }
+
+    #[test]
+    fn face_coord_tables_match_algorithmic_reference() {
+        let sample_coords = [
+            (-8, -8),
+            (-5, 3),
+            (-1, -2),
+            (0, 0),
+            (4, -7),
+            (7, 7),
+        ];
+
+        for orientation in all_orientations() {
+            for face in Direction::iter() {
+                let expected_map = map_face_coord_naive(orientation, face);
+                let expected_source = source_face_coord_naive(orientation, face);
+
+                for coord in sample_coords {
+                    assert_eq!(
+                        orientation.map_face_coord(face, coord),
+                        expected_map.map(coord),
+                        "{orientation} {face} map {coord:?}",
+                    );
+                    assert_eq!(
+                        orientation.source_face_coord(face, coord),
+                        expected_source.map(coord),
+                        "{orientation} {face} source {coord:?}",
+                    );
+
+                    let target_coord = orientation.map_face_coord(face, coord);
+                    assert_eq!(
+                        orientation.source_face_coord(face, target_coord),
+                        coord,
+                        "{orientation} {face} source(map(coord))",
+                    );
+
+                    let source_coord = orientation.source_face_coord(face, coord);
+                    assert_eq!(
+                        orientation.map_face_coord(face, source_coord),
+                        coord,
+                        "{orientation} {face} map(source(coord))",
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -432,6 +531,7 @@ mod testing_sandbox {
 
     // This is used to generate the table in maptable.rs.
     #[test]
+    #[ignore]
     fn map_coord_gencode() {
         const fn map_axismap(a: AxisMap) -> &'static str {
             match a {
@@ -464,6 +564,7 @@ mod testing_sandbox {
         println!("Wrote the output to file at ./ignore/map_coord_table.rs");
     }
     #[test]
+    #[ignore]
     fn source_coord_gencode() {
         const fn map_axismap(a: AxisMap) -> &'static str {
             match a {
@@ -496,17 +597,6 @@ mod testing_sandbox {
         println!("Wrote the output to file at ./ignore/source_face_coord_table.rs");
     }
 
-    use crate::core::math::orient_table;
-
-    use super::*;
-    #[test]
-    fn sandbox() {
-        // let coord = Orientation::default().map_face_coord(Direction::NegX, (3, 5));
-        // let orientation = Orientation::new(Rotation::new(Direction::NegY, 1), Flip::X | Flip::Y | Flip::Z);
-        // let face = Direction::NegY;
-        // let coordmap = map_face_coord_naive(orientation, face);
-        // println!("Expect (NegY, NegX) got {coordmap:?}");
-    }
 }
 
 impl std::fmt::Display for Orientation {

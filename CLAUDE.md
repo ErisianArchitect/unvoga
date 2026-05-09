@@ -112,6 +112,19 @@ commands.spawn((
 - Don't use `static mut` for the block registry; trait `Block: Send + Sync`
   is required since `OnceLock<Mutex<Registry>>` storage.
 
+## Orientation system
+
+- `src/core/math/orientation.rs`, `rotation.rs`, and `orient_table.rs`
+  use lookup tables intentionally. The tables cost some memory, but they
+  make voxel orientation transforms fast, explicit, and practical for cases
+  that are otherwise easy to get subtly wrong.
+- Do not casually replace the lookup-table approach with ad hoc math.
+  Future cleanup should focus on generator/verifier tooling so the tables
+  are reproducible and exhaustively checked against algorithmically generated
+  data.
+- If touching orientation behavior, add or preserve exhaustive tests around
+  rotations, flips, winding/culling, face remaps, and inverse transforms.
+
 ## Bench profile cost
 
 Switching `cargo bench` <-> `cargo build` triggers a full recompile of

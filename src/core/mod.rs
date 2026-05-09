@@ -1,4 +1,5 @@
 #![allow(unused)]
+pub mod city;
 pub mod collections;
 pub mod error;
 pub mod io;
@@ -16,9 +17,7 @@ Maybe a water engine
 
 */
 
-pub struct Foo {
-    
-}
+pub struct Foo {}
 
 /*
 Keyboard shortcuts to practice:

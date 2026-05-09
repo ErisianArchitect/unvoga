@@ -12,6 +12,8 @@ you click. Working on it.
 
 ```bash
 cargo run --bin sandbox
+cargo run --bin citygen   # emit a demo public-data-style city tile as JSON
+cargo run --bin city_viewer
 ```
 
 Run from the repo root (Bevy resolves assets relative to cwd).
@@ -47,11 +49,13 @@ bevy = { version = "0.16", features = ["dynamic_linking"] }  # drop the feature
 ## What's in here
 
 - `src/core/voxel/` — block/state/region/world/meshing/occlusion/lighting
+- `src/core/city/` — geospatial projection, city tile data, demo city generation
 - `src/core/math/` — orientation, rotation, flip, bit primitives
 - `src/bin/sandbox/` — interactive test app
 - `src/bin/visualizer/` — face/orientation debug viewer
 - `assets/shaders/voxel/voxel.wgsl` — the chunk shader
 - `benches/` — criterion suites driving the perf work
+- `docs/lookup_table_audit.md` — orientation lookup table audit coverage
 
 ## Notable bugs the fork fixed
 
