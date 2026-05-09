@@ -54,7 +54,7 @@ struct Fragment {
 
 @vertex
 fn vertex(input: Vertex) -> Fragment {
-    var model = mesh_functions::get_model_matrix(input.instance_index);
+    var model = mesh_functions::get_world_from_local(input.instance_index);
     var output: Fragment;
     output.position = mesh_functions::mesh_position_local_to_clip(
         model,
