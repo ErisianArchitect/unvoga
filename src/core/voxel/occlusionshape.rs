@@ -598,6 +598,7 @@ impl OcclusionRect {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OcclusionShape {
     S16x16(OcclusionShape16x16),
     S8x8(OcclusionShape8x8),
