@@ -444,12 +444,13 @@ for_each_int_type!(__movebits_impls);
 
 impl<T: BitSize + GetBit + SetBit + Copy> MoveBits for T {
     fn move_bits<I: MoveBitsIteratorItem, It: IntoIterator<Item = I>>(self, source_indices: It) -> Self {
+        let source = self;
         source_indices.into_iter()
             .map(I::translate)
             .enumerate()
             .take(Self::BITSIZE as usize)
             .fold(self, |value, (index, swap_index)| {
-                let on = value.get_bit(swap_index);
+                let on = source.get_bit(swap_index);
                 value.set_bit(index, on)
             })
     }

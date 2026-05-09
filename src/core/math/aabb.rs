@@ -159,7 +159,7 @@ mod tests {
     use super::*;
     #[test]
     fn intersect_test() {
-        let ray = Ray3d::new(vec3(-5.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0).normalize());
+        let ray = Ray3d::new(vec3(-5.0, 0.0, 0.0), bevy::math::Dir3::new(vec3(1.0, 0.0, 0.0)).unwrap());
         
         let aabb = AABB::from_bounds(Vec3::splat(1.0) * -0.5, Vec3::splat(1.0) * 0.5);
         if let Some(point) = aabb.intersection_point(ray) {

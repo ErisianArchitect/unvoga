@@ -31,10 +31,8 @@ impl<T,M: Copy> ObjectPool<T,M> {
 
     #[must_use]
     fn next_id() -> u64 {
-        static mut ID: AtomicU64 = AtomicU64::new(0);
-        unsafe {
-            ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
-        }
+        static ID: AtomicU64 = AtomicU64::new(0);
+        ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Insertion order is not maintained.

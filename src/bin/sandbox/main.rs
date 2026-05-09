@@ -70,7 +70,7 @@ pub fn main() {
             }),
             ..default()
         }))
-        .add_plugins(EguiPlugin)
+        .add_plugins(EguiPlugin { enable_multipass_for_primary_context: false })
         .add_plugins(MaterialPlugin::<VoxelMaterial>::default())
         .add_systems(Startup, setup)
         .add_systems(Update, update_input)
@@ -78,8 +78,7 @@ pub fn main() {
         .insert_resource(Assets::<VoxelMaterial>::default())
         .insert_resource(Assets::<Mesh>::default())
         // .insert_resource(Assets::<Image>::default())
-        .insert_resource(ClearColor(Color::rgb(0.2,0.2,0.2)))
-        .insert_resource(Msaa::Off)
+        .insert_resource(ClearColor(Color::srgb(0.2,0.2,0.2)))
         .run();
     // BLOCKS.foo();
     // return;
@@ -344,35 +343,30 @@ fn setup(
     // }
     let rot = Quat::from_axis_angle(Vec3::Y, 0.0) * Quat::from_axis_angle(Vec3::NEG_X, 0.0);
     commands.spawn((
-        Camera3dBundle {
-            projection: PerspectiveProjection {
-                fov: 70.0,
-                aspect_ratio: 1.0,
-                far: 1000.0,
-                near: 0.01,
-            }.into(),
-            transform: Transform::from_xyz(0.0, 0.0, 0.0)
-                .with_rotation(rot),
-            ..default()
-        },
+        Camera3d::default(),
+        Projection::from(PerspectiveProjection {
+            fov: 70.0,
+            aspect_ratio: 1.0,
+            far: 1000.0,
+            near: 0.01,
+        }),
+        Msaa::Off,
+        Transform::from_xyz(0.0, 0.0, 0.0).with_rotation(rot),
         CameraMarker
     ));
 
-    commands.spawn(
-        SpriteBundle {
-            texture: asset_server.load("debug/textures/cube_sides/pos_y.png"),
-            transform: Transform::from_xyz(0.0, 0.0, 0.0),
-            sprite: Sprite {
-                anchor: bevy::sprite::Anchor::Center,
-                ..Default::default()
-            },
+    commands.spawn((
+        Sprite {
+            image: asset_server.load("debug/textures/cube_sides/pos_y.png"),
+            anchor: bevy::sprite::Anchor::Center,
             ..Default::default()
-        }
-    );
+        },
+        Transform::from_xyz(0.0, 0.0, 0.0),
+    ));
 
     let mut primary = window.get_single_mut().unwrap();
-    primary.cursor.grab_mode = CursorGrabMode::Locked;
-    primary.cursor.visible = false;
+    primary.cursor_options.grab_mode = CursorGrabMode::Locked;
+    primary.cursor_options.visible = false;
     commands.insert_resource(CameraRotation::default());
     commands.insert_resource(world);
     commands.insert_resource(CameraLocation { position: Vec3::ZERO });
@@ -448,9 +442,9 @@ fn update_input(
     });
     if keys.just_pressed(KeyCode::Escape) {
         world.save_world();
-        app_exit_events.send(bevy::app::AppExit);
+        app_exit_events.send(bevy::app::AppExit::Success);
     }
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     let mut mouse_motion: Vec2 = evr_motion.read()
         .map(|ev| ev.delta).sum();
 
@@ -564,9 +558,9 @@ fn update_input(
     //     }
     // }
     if let Some(RaycastResult { hit_point, coord, direction, id }) = world.raycast(Ray3d::new(transform.translation, transform.forward().into()), 500.0) {
-        gizmos.arrow(hit_point, hit_point + Vec3::X * 0.25, Color::RED);
-        gizmos.arrow(hit_point, hit_point + Vec3::Y * 0.25, Color::GREEN);
-        gizmos.arrow(hit_point, hit_point + Vec3::Z * 0.25, Color::BLUE);
+        gizmos.arrow(hit_point, hit_point + Vec3::X * 0.25, Color::srgb(1.0, 0.0, 0.0));
+        gizmos.arrow(hit_point, hit_point + Vec3::Y * 0.25, Color::srgb(0.0, 1.0, 0.0));
+        gizmos.arrow(hit_point, hit_point + Vec3::Z * 0.25, Color::srgb(0.0, 0.0, 1.0));
         if mouse_buttons.just_pressed(MouseButton::Left) {
             if let Some(direction) = direction {
                 let next = coord + direction;
@@ -620,16 +614,17 @@ fn update_bevy(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
+    mut storage_buffers: ResMut<Assets<bevy::render::storage::ShaderStorageBuffer>>,
     mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
     mut world: ResMut<VoxelWorld>,
     keys: Res<ButtonInput<KeyCode>>,
 ) {
     // I for Ingage (lol, yes I know it's spelled wrong)
-    
+
     // let now = Instant::now();
     // let state = world.world.get_block((0,0,0));
     // world.world.set_block((0, 0, 0), if state.is_air() { blockstate!(dirt).register() } else { Id::AIR });
-    world.talk_to_bevy(commands, meshes, materials, render_chunks);
+    world.talk_to_bevy(commands, meshes, materials, storage_buffers, render_chunks);
     // let elapsed = now.elapsed();
     // println!("Frame time: {}", elapsed.as_secs_f64());
 }

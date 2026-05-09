@@ -1,7 +1,8 @@
 #![allow(unused)]
 use std::path::{PathBuf, Path};
 
-use bevy::render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, ShaderType, TextureDimension, TextureFormat}, texture::{Image, ImageSampler}};
+use bevy::image::{Image, ImageSampler};
+use bevy::render::{render_asset::RenderAssetUsages, render_resource::{Extent3d, ShaderType, TextureDimension, TextureFormat}};
 use image::{
     buffer::ConvertBuffer, DynamicImage, GenericImageView, ImageBuffer, ImageError, Pixel, RgbImage, Rgba, RgbaImage
 };

@@ -16,7 +16,7 @@ mod sealed {
     impl<B: Block> Sealed for B {}
 }
 
-pub trait Block: Any {
+pub trait Block: Any + Send + Sync {
     fn name(&self) -> &str;
     fn on_register(&mut self) {}
     /// The occluder that occludes
@@ -27,9 +27,7 @@ pub trait Block: Any {
     fn occludee(&self, world: &VoxelWorld, state: Id) -> &Occluder {
         &Occluder::FULL_FACES
     }
-    fn material(&self, world: &VoxelWorld, coord: Coord, state: Id, face: Direction) -> () {
-        todo!()
-    }
+    fn material(&self, world: &VoxelWorld, coord: Coord, state: Id, face: Direction) -> () {}
     fn color(&self, world: &VoxelWorld, coord: Coord, state: Id, face: Direction) -> Rgb {
         Rgb::new(255, 0, 255)
     }

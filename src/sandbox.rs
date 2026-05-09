@@ -200,12 +200,12 @@ mod testing_sandbox {
     use super::*;
     #[test]
     fn sandbox() {
-        static mut DATA: OnceLock<Vec<OnDrop>> = OnceLock::new();
-        unsafe {
-            DATA.set(Vec::new());
-            let Some(data) = DATA.get_mut() else {
-                panic!();
-            };
+        use std::sync::Mutex;
+        static DATA: Mutex<Option<Vec<OnDrop>>> = Mutex::new(None);
+        {
+            let mut guard = DATA.lock().unwrap();
+            *guard = Some(Vec::new());
+            let data = guard.as_mut().unwrap();
             data.push(OnDrop(0));
             data.push(OnDrop(1));
             data.push(OnDrop(2));
@@ -214,10 +214,9 @@ mod testing_sandbox {
             data[2].reset();
             data[2] = OnDrop(0);
             println!("After First Removal");
-            DATA.take();
-            println!("After Take");
         }
-
+        DATA.lock().unwrap().take();
+        println!("After Take");
     }
 }
 

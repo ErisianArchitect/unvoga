@@ -120,8 +120,8 @@ impl Occluder {
                     // OcclusionShape::Rect(shape) => match other {
                     let shape = shape.transform_face(orientation, face);
                     let sample = shape.downsample(8);
-                    for y in shape.top..shape.bottom {
-                        for x in shape.left..shape.right {
+                    for y in sample.top..sample.bottom {
+                        for x in sample.left..sample.right {
                             let (ox, oy) = (x as i8 - 4, y as i8 - 4);
                             let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
                             let (ox, oy) = ((ox + 4) as usize, (oy + 4) as usize);
@@ -136,8 +136,8 @@ impl Occluder {
                     // OcclusionShape::Rect(shape) => match other {
                     let shape = shape.transform_face(orientation, face);
                     let sample = shape.downsample(4);
-                    for y in shape.top..shape.bottom {
-                        for x in shape.left..shape.right {
+                    for y in sample.top..sample.bottom {
+                        for x in sample.left..sample.right {
                             let (ox, oy) = (x as i8 - 2, y as i8 - 2);
                             let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
                             let (ox, oy) = ((ox + 2) as usize, (oy + 2) as usize);
@@ -152,8 +152,8 @@ impl Occluder {
                     // OcclusionShape::Rect(shape) => match other {
                     let shape = shape.transform_face(orientation, face);
                     let sample = shape.downsample(2);
-                    for y in shape.top..shape.bottom {
-                        for x in shape.left..shape.right {
+                    for y in sample.top..sample.bottom {
+                        for x in sample.left..sample.right {
                             let (ox, oy) = (x as i8 - 1, y as i8 - 1);
                             let (ox, oy) = other_orientation.source_face_coord(other_face, (ox, oy));
                             let (ox, oy) = ((ox + 1) as usize, (oy + 1) as usize);

@@ -250,7 +250,7 @@ impl VoxelWorld {
             chunk.edit_time = region.get_timestamp((chunk_x & 31, chunk_z & 31));
             self.chunks.set((chunk_x, chunk_z), chunk);
             self.regions.set((region_x, region_z), region);
-            Ok(())
+            Result::<(), Error>::Ok(())
         });
         self
     }
@@ -529,6 +529,7 @@ impl VoxelWorld {
         mut commands: Commands,
         mut meshes: ResMut<Assets<Mesh>>,
         mut materials: ResMut<Assets<VoxelMaterial>>,
+        mut storage_buffers: ResMut<Assets<bevy::render::storage::ShaderStorageBuffer>>,
         mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
     ) {
         let mut load = self.load_queue.lend("loading some chunks in talk_to_bevy");
@@ -644,7 +645,7 @@ impl VoxelWorld {
                         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all());
                         MeshBuilder::build_mesh(&mut mesh, |build| ());
                         let mesh = meshes.add(mesh);
-                        let material = materials.add(VoxelMaterial::new(self.array_texture.clone()));
+                        let material = materials.add(VoxelMaterial::new(self.array_texture.clone(), &mut storage_buffers));
                         let (x, y, z) = (
                             (coord.x * 16) as f32,
                             (coord.y * 16) as f32,
@@ -653,12 +654,9 @@ impl VoxelWorld {
                         use bevy::render::primitives::Aabb;
                         let aabb = Aabb::from_min_max(vec3(0.0, 0.0, 0.0), vec3(16.0, 16.0, 16.0));
                         let entity = commands.spawn((
-                            MaterialMeshBundle {
-                                mesh: mesh.clone(),
-                                transform: Transform::from_xyz(x, y, z),
-                                material: material.clone(),
-                                ..Default::default()
-                            },
+                            Mesh3d(mesh.clone()),
+                            MeshMaterial3d(material.clone()),
+                            Transform::from_xyz(x, y, z),
                             aabb,
                             RenderChunkMarker
                         )).id();
@@ -674,7 +672,7 @@ impl VoxelWorld {
                 } else {
                     if let Some(unload_chunk) = render_chunk.take() {
                         self.move_render_chunk_queue.remove(unload_chunk.move_id);
-                        commands.entity(unload_chunk.entity).despawn_recursive();
+                        commands.entity(unload_chunk.entity).despawn();
                     }
                 }
                 let Some(render_chunk_mut) = render_chunk.as_mut() else {
@@ -769,10 +767,10 @@ impl VoxelWorld {
         let result = regions.try_reposition((region_x, region_z), |old_pos, (x, z), region| {
             let rg_path = self.get_region_path(x, z);
             if rg_path.is_file() {
-                Result::Ok(Some(RegionFile::open(rg_path)?))
+                Result::<_, Error>::Ok(Some(RegionFile::open(rg_path)?))
             } else {
                 // There's no region file, so just return None. We're not reusing RegionFile instances.
-                Ok(None)
+                Result::<_, Error>::Ok(None)
             }
         }).handle_err(|err| {
             panic!("Error from regions.try_reposition: {err}");

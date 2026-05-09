@@ -560,7 +560,7 @@ impl OcclusionRect {
         let xmin = x1.min(x2);
         let ymin = y1.min(y2);
         let xmax = x1.max(x2);
-        let ymax = x1.max(x2);
+        let ymax = y1.max(y2);
         Self {
             left: xmin as u8,
             top: ymin as u8,

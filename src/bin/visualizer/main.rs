@@ -15,7 +15,7 @@ use unvoga::core::voxel::{block::Block, blocks::{self, Id}, coord::Coord, faces:
 use std::fmt::{Debug, Display};
 
 use bevy::{
-    asset::LoadState, math::{vec2, vec3, vec4}, prelude::*, render::{camera::ScalingMode, mesh::{Indices, MeshVertexAttribute, MeshVertexAttributeId}, render_asset::RenderAssetUsages, render_resource::{AsBindGroup, VertexFormat}, texture::ImageSampler}, window::PresentMode
+    asset::LoadState, image::ImageSampler, math::{vec2, vec3, vec4}, prelude::*, render::{camera::ScalingMode, mesh::{Indices, MeshVertexAttribute, MeshVertexAttributeId}, render_asset::RenderAssetUsages, render_resource::{AsBindGroup, VertexFormat}}, window::PresentMode
 };
 
 // use bevy::ecs::component::Component;
@@ -58,7 +58,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(EguiPlugin)
+        .add_plugins(EguiPlugin { enable_multipass_for_primary_context: false })
         .add_plugins(MaterialPlugin::<VoxelMaterial>::default())
         .insert_resource(LoadingState { tile_stack_texture: None })
         .insert_state(GameState::LoadingScreen)
@@ -76,7 +76,7 @@ fn main() {
         .insert_resource(Assets::<VoxelMaterial>::default())
         .insert_resource(Assets::<Mesh>::default())
         // .insert_resource(Assets::<Image>::default())
-        .insert_resource(ClearColor(Color::rgb(0.2,0.2,0.2)))
+        .insert_resource(ClearColor(Color::srgb(0.2,0.2,0.2)))
         // .insert_resource(Msaa::Off)
         .run();
 }
@@ -86,6 +86,7 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut storage_buffers: ResMut<Assets<bevy::render::storage::ShaderStorageBuffer>>,
     mut giz_store: ResMut<GizmoConfigStore>,
 ) {
     for (_, config, _) in giz_store.iter_mut() {
@@ -100,17 +101,9 @@ fn setup(
         "./assets/debug/textures/blocks/neg_z.png",
     ];
     let cube_sides_texarray = images.add(unvoga::core::util::texture_array::create_texture_array_from_paths(256, 256, side_texture_paths).expect("Failed to create texture array."));
-    let material = materials.add(VoxelMaterial {
-        array_texture: cube_sides_texarray.clone(),
-        light_level: 1.0,
-        lightmap: vec![],
-        lightmap_pad_pos_x: vec![],
-        lightmap_pad_neg_x: vec![],
-        lightmap_pad_pos_y: vec![],
-        lightmap_pad_neg_y: vec![],
-        lightmap_pad_pos_z: vec![],
-        lightmap_pad_neg_z: vec![],
-    });
+    let mut vox_mat_inst = VoxelMaterial::new(cube_sides_texarray.clone(), &mut storage_buffers);
+    vox_mat_inst.light_level = 1.0;
+    let material = materials.add(vox_mat_inst);
     // Now to build the mesh. I'm going to assume the orientation code works because why not?
     let pos_y_mesh = MeshData {
         vertices: vec![
@@ -168,38 +161,30 @@ fn setup(
         mesh: meshes.add(cube_mesh),
     };
     commands.spawn((
-        MaterialMeshBundle {
-            mesh: mesh_holder.mesh.clone(),
-            material: material,
-            transform: Transform::from_xyz(0.0, 0.0, 0.0),
-            ..default()
-        },
+        Mesh3d(mesh_holder.mesh.clone()),
+        MeshMaterial3d(material),
+        Transform::from_xyz(0.0, 0.0, 0.0),
         VisualCube,
     ));
     let rot = Quat::from_axis_angle(Vec3::Y, 45.0f32.to_radians()) * Quat::from_axis_angle(Vec3::NEG_X, 45.0f32.to_radians());
     commands.insert_resource(mesh_holder);
     commands.spawn((
-        TransformBundle::from_transform(
-            Transform::from_xyz(0.0, 0.0, 0.0)
-                // .with_rotation(rot)
-        ),
+        Transform::from_xyz(0.0, 0.0, 0.0),
+        Visibility::default(),
         CameraAnchor,
     )).with_children(|parent| {
-        let camera3d_bundle = Camera3dBundle {
-                projection: PerspectiveProjection {
-                    fov: 45.0,
-                    aspect_ratio: 1.0,
-                    far: 1000.0,
-                    near: 0.01,
-                }.into(),
-                transform: Transform::from_xyz(0.0, 0.0, CAMERA_DISTANCE)
-                    .looking_at(Vec3::ZERO, Vec3::Y),
-                exposure: Exposure::SUNLIGHT,
-                tonemapping: Tonemapping::BlenderFilmic,
-                ..default()
-            };
         parent.spawn((
-            camera3d_bundle,
+            Camera3d::default(),
+            Projection::from(PerspectiveProjection {
+                fov: 45.0,
+                aspect_ratio: 1.0,
+                far: 1000.0,
+                near: 0.01,
+            }),
+            Transform::from_xyz(0.0, 0.0, CAMERA_DISTANCE)
+                .looking_at(Vec3::ZERO, Vec3::Y),
+            Exposure::SUNLIGHT,
+            Tonemapping::BlenderFilmic,
         ));
     });
     commands.insert_resource(CameraRotation { x: 0.0, y: 0.0 });
@@ -470,7 +455,7 @@ update(
             new_orient.flip.invert_z();
         }
         if mouse_buttons.pressed(MouseButton::Left) {
-            let delta = time.delta_seconds();
+            let delta = time.delta_secs();
             let mut transform = anchor.get_single_mut().expect("Failed to get anchor.");
             let mut mouse_motion: Vec2 = evr_motion.read()
                 .map(|ev| ev.delta).sum();
@@ -488,9 +473,9 @@ update(
     }
     const GIZLEN: f32 = 0.2;
     if menu_info.draw_gizmos {
-        gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::X * GIZLEN, Color::RED);
-        gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Y * GIZLEN, Color::GREEN);
-        gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Z * GIZLEN, Color::BLUE);
+        gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::X * GIZLEN, Color::srgb(1.0, 0.0, 0.0));
+        gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Y * GIZLEN, Color::srgb(0.0, 1.0, 0.0));
+        gizmos.arrow(Vec3::ZERO, Vec3::ZERO + Vec3::Z * GIZLEN, Color::srgb(0.0, 0.0, 1.0));
     }
 }
 
@@ -636,7 +621,7 @@ fn loading_screen(
 ) {
     if let Some(tex) = &mut load_state.tile_stack_texture {
         if !tex.loaded()
-        && asset_server.load_state(tex.handle().id()) == LoadState::Loaded {
+        && matches!(asset_server.load_state(tex.handle().id()), LoadState::Loaded) {
             tex.mark_loaded();
             let handle = tex.handle().clone();
             let mut image = images.get_mut(&handle).expect("Expected the handle to be valid.");
@@ -660,6 +645,7 @@ fn main_menu(
     mut next_state: ResMut<NextState<GameState>>,
     voxel_resources: Res<VoxelWorldResources>,
     mut voxel_materials: ResMut<Assets<VoxelMaterial>>,
+    mut storage_buffers: ResMut<Assets<bevy::render::storage::ShaderStorageBuffer>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut movers: Query<&mut Transform, With<Mover>>,
     mut vox_data: ResMut<VoxelData>,
@@ -686,9 +672,9 @@ fn main_menu(
                         fn mapindex(x: usize, y: usize) -> usize {
                             x | (y << 4)
                         }
-                        for i in (0..256) {
-                            let level = rand::random::<u8>().rem_euclid(16) as f32 / 15.0;
-                            material.lightmap[i] = level;
+                        if let Some(buf) = storage_buffers.get_mut(&material.lightmap) {
+                            let data: Vec<f32> = (0..256).map(|_| rand::random::<u8>().rem_euclid(16) as f32 / 15.0).collect();
+                            buf.set_data(data);
                         }
                         // material.lightmap[mapindex(0, 0)] = rand::random::<f32>().rem_euclid(1.0);
                         // material.lightmap[mapindex(1, 0)] = rand::random::<f32>().rem_euclid(1.0);
@@ -752,6 +738,7 @@ fn on_enter_main_menu(
     mut std_materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut images: ResMut<Assets<Image>>,
+    mut storage_buffers: ResMut<Assets<bevy::render::storage::ShaderStorageBuffer>>,
     voxel_resources: Res<VoxelWorldResources>,
 ) {
     let side_texture_paths = vec![
@@ -816,28 +803,18 @@ fn on_enter_main_menu(
         let shade: f32 = rand::random();
         shade.rem_euclid(1.0)
     }).collect();
-    let vox_mat = materials.add(VoxelMaterial { 
-        array_texture: cube_sides_texarray,
-        light_level: 1.0,
-        lightmap,
-        lightmap_pad_pos_x: vec![],
-        lightmap_pad_neg_x: vec![],
-        lightmap_pad_pos_y: vec![],
-        lightmap_pad_neg_y: vec![],
-        lightmap_pad_pos_z: vec![],
-        lightmap_pad_neg_z: vec![],
-    });
+    let mut vox_mat_inst = VoxelMaterial::new(cube_sides_texarray, &mut storage_buffers);
+    vox_mat_inst.light_level = 1.0;
+    vox_mat_inst.lightmap = storage_buffers.add(bevy::render::storage::ShaderStorageBuffer::from(lightmap));
+    let vox_mat = materials.add(vox_mat_inst);
     // vox_data.as_mut().vox_mat = Some(vox_mat.clone());
     let mesh_holder = MeshHolder {
         mesh: meshes.add(mesh),
     };
     commands.spawn((
-        MaterialMeshBundle {
-            mesh: mesh_holder.mesh.clone(),
-            material: vox_mat,
-            transform: trans,
-            ..default()
-        },
+        Mesh3d(mesh_holder.mesh.clone()),
+        MeshMaterial3d(vox_mat),
+        trans,
         cleanup::Menu,
         Mover,
     ));
@@ -858,29 +835,21 @@ fn on_enter_main_menu(
     let cam_rot = Quat::from_axis_angle(Vec3::Y, 45.0f32.to_radians()) * Quat::from_axis_angle(Vec3::NEG_X, 25.0f32.to_radians());
     //Quat::from_euler(EulerRot::XYZ, -45.0f32.to_radians(), 45.0f32.to_radians(), 0.0)
     commands.spawn((
-        TransformBundle::from_transform(
-            Transform::from_xyz(0.0, 0.0, 0.0)
-                .with_rotation(cam_rot)
-        ),
+        Transform::from_xyz(0.0, 0.0, 0.0).with_rotation(cam_rot),
+        Visibility::default(),
         CameraAnchor
         ))
         .with_children(|parent| {
             parent.spawn((
-                Camera3dBundle {
-                    // projection: OrthographicProjection {
-                    //     scaling_mode: ScalingMode::FixedVertical(32.0),
-                    //     ..Default::default()
-                    // }.into(),
-                    projection: PerspectiveProjection {
-                        fov: 45.0,
-                        aspect_ratio: 1.0,
-                        far: 1000.0,
-                        near: 0.01,
-                    }.into(),
-                    transform: Transform::from_xyz(0.0, 0.0, 5.0)
-                        .looking_at(vec3(0.0, 0.0, 0.0), Vec3::Y),
-                    ..default()
-                },
+                Camera3d::default(),
+                Projection::from(PerspectiveProjection {
+                    fov: 45.0,
+                    aspect_ratio: 1.0,
+                    far: 1000.0,
+                    near: 0.01,
+                }),
+                Transform::from_xyz(0.0, 0.0, 5.0)
+                    .looking_at(vec3(0.0, 0.0, 0.0), Vec3::Y),
                 cleanup::Menu
             ));
         });
