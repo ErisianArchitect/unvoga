@@ -7,7 +7,7 @@ use blocktypes::middle_wedge::MiddleWedge;
 use bevy_egui::egui::epaint::Shadow;
 use unvoga::core::math::math;
 use unvoga::core::voxel::level_of_detail::{self, LOD};
-use unvoga::core::voxel::procgen::worldgenerator::{FlatLayer, FlatWorldGenerator};
+use unvoga::core::voxel::procgen::worldgenerator::WorldGenerator;
 use unvoga::core::voxel::rendering::meshbuilder::MeshBuilder;
 use unvoga::game::cameras::{CameraContoller, CameraType};
 
@@ -263,6 +263,9 @@ fn setup(
     reg_block_tex!(marble_02);
     reg_block_tex!(checkered);
     reg_block_tex!(dirt);
+    reg_block_tex!(dirt_rocks);
+    reg_block_tex!(glugglug);
+    reg_block_tex!(grass);
     reg_block_tex!(stone);
     reg_block_tex!(darkstone);
     reg_block_tex!(sand);
@@ -312,6 +315,12 @@ fn setup(
     blocks::register_block(SolidBlock::single("dirt", blockstate!(dirt), texreg::get_texture_index("dirt")));
     blocks::register_block(SolidBlock::single("stone", blockstate!(stone), texreg::get_texture_index("stone")));
     blocks::register_block(SolidBlock::single("sand", blockstate!(sand), texreg::get_texture_index("sand")));
+    blocks::register_block(SolidBlock::single("tee", blockstate!(tee), texreg::get_texture_index("cement")));
+    blocks::register_block(SolidBlock::single("fairway", blockstate!(fairway), texreg::get_texture_index("grass")));
+    blocks::register_block(SolidBlock::single("first_cut", blockstate!(first_cut), texreg::get_texture_index("glugglug")));
+    blocks::register_block(SolidBlock::single("green", blockstate!(green), texreg::get_texture_index("fancy_wood_green")));
+    blocks::register_block(SolidBlock::single("rough", blockstate!(rough), texreg::get_texture_index("glugglug")));
+    blocks::register_block(SolidBlock::single("bunker", blockstate!(bunker), texreg::get_texture_index("sand")));
     blocks::register_block(SolidBlock::single("metal_grid", blockstate!(metal_grid), texreg::get_texture_index("metal_grid")));
     blocks::register_block(SolidBlock::single("marble_01", blockstate!(marble_01), texreg::get_texture_index("marble_01")));
     blocks::register_block(SolidBlock::single("marble_02", blockstate!(marble_02), texreg::get_texture_index("marble_02")));
@@ -324,19 +333,11 @@ fn setup(
     let texture_array = images.add(texreg::build_texture_array(256, 256).expect("Failed to build texture array"));
     // blocks::register_block(RotatedBlock);
     // std::fs::remove_dir_all("ignore/worldgen");
-    let stone = blockstate!(stone).register();
-    let dirt = blockstate!(dirt).register();
-    let sand = blockstate!(sand).register();
-    let generator: Box<dyn unvoga::core::voxel::procgen::worldgenerator::WorldGenerator> =
-        Box::new(FlatWorldGenerator::from_iter([
-            (396u16, stone),
-            (3, dirt),
-            (1, sand),
-        ]));
+    let generator: Box<dyn WorldGenerator> = Box::new(worldgentest::GolfCourseGenerator::new());
     let mut world = VoxelWorld::open(
-        "ignore/worldgen",
-        4,
-        (0, 0, 0),
+        "ignore/golf_course_preview_v4",
+        6,
+        (0, 0, 32),
         texture_array.clone(),
         &mut commands,
         &mut meshes,
@@ -356,7 +357,9 @@ fn setup(
     //         }
     //     }
     // }
-    let rot = Quat::from_axis_angle(Vec3::Y, 0.0) * Quat::from_axis_angle(Vec3::NEG_X, 0.0);
+    let preview_camera_rotation = Vec2::new(std::f32::consts::PI, 0.24);
+    let preview_camera_transform = Transform::from_xyz(0.0, 16.0, 8.0)
+        .looking_at(bevy::prelude::Vec3::new(0.0, 0.0, 72.0), bevy::prelude::Vec3::Y);
     commands.spawn((
         Camera3d::default(),
         Projection::from(PerspectiveProjection {
@@ -366,7 +369,7 @@ fn setup(
             near: 0.01,
         }),
         Msaa::Off,
-        Transform::from_xyz(0.0, 8.0, 30.0).looking_at(bevy::prelude::Vec3::new(0.0, 0.0, 0.0), bevy::prelude::Vec3::Y),
+        preview_camera_transform,
         CameraMarker
     ));
 
@@ -388,7 +391,7 @@ fn setup(
     commands.insert_resource(SelectedBlock(blockstate!(dirt).register()));
     commands.insert_resource(DebugStuff::default());
     commands.insert_resource(SandboxResources {
-        camera_controller: CameraContoller::new(CameraType::Pan, Vec2::ZERO, 5f32, 0.05f32),
+        camera_controller: CameraContoller::new(CameraType::Pan, preview_camera_rotation, 5f32, 0.05f32),
     });
 }
 
@@ -550,21 +553,6 @@ fn update_input(
                 }
             }
         }
-    }
-    if keys.just_pressed(KeyCode::KeyT) {
-        worldgentest::generate_world(&mut world);
-        // let dirt = blockstate!(stone_bricks).register();
-        // let Bounds3D { min, max } = world.render_bounds();
-        // let x_range = min.0..max.0;
-        // let z_range = min.2..max.2;
-        // let y_range = min.1..min.1 + 16;
-        // for y in y_range.clone() {
-        //     for z in z_range.clone() {
-        //         for x in x_range.clone() {
-        //             world.set_block((x, y, z), dirt);
-        //         }
-        //     }
-        // }
     }
     // if keys.just_pressed(KeyCode::KeyR) {
     //     let ray = Ray3d::new(Vec3::ZERO, Vec3::NEG_Z);

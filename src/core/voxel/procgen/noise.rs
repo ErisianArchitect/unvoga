@@ -173,8 +173,192 @@ impl NoiseGenConfig {
 
     pub fn import<P: AsRef<Path>>(path: P) -> Result<Self, Box<bincode::ErrorKind>> {
         let data = std::fs::read(path)?;
-        bincode::deserialize(&data)
+        match bincode::deserialize(&data) {
+            Ok(config) => Ok(config),
+            Err(err) => parse_legacy_without_distortion(&data).or(Err(err)),
+        }
     }
+}
+
+struct LegacyReader<'a> {
+    data: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> LegacyReader<'a> {
+    fn new(data: &'a [u8]) -> Self {
+        Self { data, offset: 0 }
+    }
+
+    fn finish(self) -> Result<(), Box<bincode::ErrorKind>> {
+        if self.offset == self.data.len() {
+            Ok(())
+        } else {
+            Err(legacy_parse_error("trailing bytes in legacy noise generator"))
+        }
+    }
+
+    fn read<const N: usize>(&mut self) -> Result<[u8; N], Box<bincode::ErrorKind>> {
+        let end = self.offset + N;
+        let Some(bytes) = self.data.get(self.offset..end) else {
+            return Err(legacy_parse_error("unexpected end of legacy noise generator"));
+        };
+        self.offset = end;
+        Ok(bytes.try_into().expect("slice length is fixed"))
+    }
+
+    fn bool(&mut self) -> Result<bool, Box<bincode::ErrorKind>> {
+        match self.read::<1>()?[0] {
+            0 => Ok(false),
+            1 => Ok(true),
+            value => Err(legacy_parse_error(format!("invalid legacy bool encoding {value}"))),
+        }
+    }
+
+    fn u32(&mut self) -> Result<u32, Box<bincode::ErrorKind>> {
+        Ok(u32::from_le_bytes(self.read()?))
+    }
+
+    fn u64(&mut self) -> Result<u64, Box<bincode::ErrorKind>> {
+        Ok(u64::from_le_bytes(self.read()?))
+    }
+
+    fn f64(&mut self) -> Result<f64, Box<bincode::ErrorKind>> {
+        Ok(f64::from_le_bytes(self.read()?))
+    }
+
+    fn vec<T>(&mut self, mut read_item: impl FnMut(&mut Self) -> Result<T, Box<bincode::ErrorKind>>) -> Result<Vec<T>, Box<bincode::ErrorKind>> {
+        let len = self.u64()? as usize;
+        let mut items = Vec::with_capacity(len);
+        for _ in 0..len {
+            items.push(read_item(self)?);
+        }
+        Ok(items)
+    }
+
+    fn string(&mut self) -> Result<String, Box<bincode::ErrorKind>> {
+        let len = self.u64()? as usize;
+        let end = self.offset + len;
+        let Some(bytes) = self.data.get(self.offset..end) else {
+            return Err(legacy_parse_error("unexpected end of legacy string"));
+        };
+        self.offset = end;
+        String::from_utf8(bytes.to_vec())
+            .map_err(|err| legacy_parse_error(format!("invalid legacy string: {err}")))
+    }
+}
+
+fn parse_legacy_without_distortion(data: &[u8]) -> Result<NoiseGenConfig, Box<bincode::ErrorKind>> {
+    let mut reader = LegacyReader::new(data);
+    let config = read_legacy_noise_gen_config(&mut reader)?;
+    reader.finish()?;
+    Ok(config)
+}
+
+fn read_legacy_noise_gen_config(reader: &mut LegacyReader) -> Result<NoiseGenConfig, Box<bincode::ErrorKind>> {
+    Ok(NoiseGenConfig {
+        simplexes: reader.vec(read_legacy_simplex_config)?,
+        octave_gen: read_legacy_octave_gen_without_distortion(reader)?,
+    })
+}
+
+fn read_legacy_simplex_config(reader: &mut LegacyReader) -> Result<SimplexConfig, Box<bincode::ErrorKind>> {
+    Ok(SimplexConfig {
+        enabled: reader.bool()?,
+        intervals: reader.vec(read_legacy_interval_config_without_distortion)?,
+        octave_gen: read_legacy_octave_gen_without_distortion(reader)?,
+        seed: reader.string()?,
+        weight: reader.f64()?,
+    })
+}
+
+fn read_legacy_interval_config_without_distortion(reader: &mut LegacyReader) -> Result<NoiseGenIntervalConfig, Box<bincode::ErrorKind>> {
+    Ok(NoiseGenIntervalConfig {
+        enabled: reader.bool()?,
+        spline: read_legacy_spline_config(reader)?,
+        octaves: reader.u32()?,
+        octave_gen: read_legacy_octave_gen_without_distortion(reader)?,
+        invert: reader.bool()?,
+        bounds: read_legacy_noise_bounds(reader)?,
+        weight: reader.f64()?,
+    })
+}
+
+fn read_legacy_spline_config(reader: &mut LegacyReader) -> Result<SplineConfig, Box<bincode::ErrorKind>> {
+    Ok(SplineConfig {
+        enabled: reader.bool()?,
+        spline: reader.vec(read_legacy_interp_key)?,
+    })
+}
+
+fn read_legacy_interp_key(reader: &mut LegacyReader) -> Result<InterpKey, Box<bincode::ErrorKind>> {
+    Ok(InterpKey {
+        x: reader.f64()?,
+        y: reader.f64()?,
+        interpolation: read_legacy_interpolation(reader)?,
+    })
+}
+
+fn read_legacy_octave_gen_without_distortion(reader: &mut LegacyReader) -> Result<OctaveGen, Box<bincode::ErrorKind>> {
+    Ok(OctaveGen {
+        persistence: reader.f64()?,
+        lacunarity: reader.f64()?,
+        initial_amplitude: reader.f64()?,
+        scale: reader.f64()?,
+        x_mult: reader.f64()?,
+        y_mult: reader.f64()?,
+        rotation: reader.f64()?,
+        blend_mode: read_legacy_octave_blend(reader)?,
+        offset: (reader.f64()?, reader.f64()?),
+        distortion: None,
+    })
+}
+
+fn read_legacy_noise_bounds(reader: &mut LegacyReader) -> Result<NoiseBounds, Box<bincode::ErrorKind>> {
+    Ok(NoiseBounds {
+        low: read_legacy_noise_bound(reader)?,
+        high: read_legacy_noise_bound(reader)?,
+    })
+}
+
+fn read_legacy_noise_bound(reader: &mut LegacyReader) -> Result<NoiseBound, Box<bincode::ErrorKind>> {
+    Ok(NoiseBound {
+        t: reader.f64()?,
+        mode: read_legacy_noise_bound_mode(reader)?,
+    })
+}
+
+fn read_legacy_interpolation(reader: &mut LegacyReader) -> Result<Interpolation, Box<bincode::ErrorKind>> {
+    match reader.u32()? {
+        0 => Ok(Interpolation::CatmullRom),
+        1 => Ok(Interpolation::Cosine),
+        2 => Ok(Interpolation::Linear),
+        value => Err(legacy_parse_error(format!("invalid legacy interpolation {value}"))),
+    }
+}
+
+fn read_legacy_octave_blend(reader: &mut LegacyReader) -> Result<OctaveBlend, Box<bincode::ErrorKind>> {
+    match reader.u32()? {
+        0 => Ok(OctaveBlend::Scale),
+        1 => Ok(OctaveBlend::Multiply),
+        2 => Ok(OctaveBlend::Average),
+        3 => Ok(OctaveBlend::Min),
+        4 => Ok(OctaveBlend::Max),
+        value => Err(legacy_parse_error(format!("invalid legacy octave blend {value}"))),
+    }
+}
+
+fn read_legacy_noise_bound_mode(reader: &mut LegacyReader) -> Result<NoiseBoundMode, Box<bincode::ErrorKind>> {
+    match reader.u32()? {
+        0 => Ok(NoiseBoundMode::Clamp),
+        1 => Ok(NoiseBoundMode::Cutoff),
+        2 => Ok(NoiseBoundMode::Range),
+        value => Err(legacy_parse_error(format!("invalid legacy noise bound mode {value}"))),
+    }
+}
+
+fn legacy_parse_error(message: impl Into<String>) -> Box<bincode::ErrorKind> {
+    Box::new(bincode::ErrorKind::Custom(message.into()))
 }
 
 struct NoiseLayer {

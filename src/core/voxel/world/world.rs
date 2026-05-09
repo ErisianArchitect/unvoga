@@ -621,7 +621,9 @@ impl VoxelWorld {
     
             while start_time.elapsed().as_millis() <= 2 {
                 if let Some((chunk_x, chunk_z)) = worldgen_queue.pop() {
-                    generator.generate_chunk(self, Bounds2D::new((chunk_x, chunk_z), (chunk_x + 16, chunk_z + 16)));
+                    let block_x = chunk_x * 16;
+                    let block_z = chunk_z * 16;
+                    generator.generate_chunk(self, Bounds2D::new((block_x, block_z), (block_x + 16, block_z + 16)));
                 } else {
                     break;
                 }
