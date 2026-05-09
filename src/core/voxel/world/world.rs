@@ -111,6 +111,21 @@ pub struct VoxelWorld {
     pub world_generator: Option<Box<dyn WorldGenerator>>,
 }
 
+impl VoxelWorld {
+    fn promote_pending_render_meshes(&mut self, commands: &mut Commands) {
+        for (_, render_chunk) in self.render_chunks.iter_mut() {
+            let Some(render_chunk) = render_chunk else {
+                continue;
+            };
+            let Some(mesh) = render_chunk.pending_mesh.take() else {
+                continue;
+            };
+            commands.entity(render_chunk.entity).insert(Mesh3d(mesh.clone()));
+            render_chunk.mesh = mesh;
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RaycastResult {
     pub hit_point: Vec3,
@@ -534,6 +549,7 @@ impl VoxelWorld {
         mut storage_buffers: ResMut<Assets<bevy::render::storage::ShaderStorageBuffer>>,
         mut render_chunks: Query<&mut Transform, With<RenderChunkMarker>>,
     ) {
+        self.promote_pending_render_meshes(&mut commands);
         let mut load = self.load_queue.lend("loading some chunks in talk_to_bevy");
         let start_time = std::time::Instant::now();
         // We'll try 5 milliseconds for now. We only have 16 milliseconds of frame time.
@@ -642,9 +658,8 @@ impl VoxelWorld {
                 //     panic!("Render chunk out of bounds");
                 // };
                 let mut render_chunk = self.render_chunks.take(coord);
-                // Build the section mesh first (always, if section exists).
-                // Spawning a new entity already includes the populated mesh,
-                // and existing entities get an in-place swap.
+                // Build the section mesh first. New render chunks spawn with
+                // populated meshes; existing chunks stage a handle swap below.
                 let needs_mesh_rebuild = blocks_dirty || (make_render_chunk && render_chunk.is_none());
                 let mut new_mesh = if needs_mesh_rebuild {
                     Some(MeshBuilder::create_mesh(RenderAssetUsages::all(), |build| {
@@ -702,6 +717,7 @@ impl VoxelWorld {
                         render_chunk.replace(RenderChunk {
                             mesh: mesh,
                             material: material,
+                            pending_mesh: None,
                             move_id: PoolId::NULL,
                             entity,
                         });
@@ -716,11 +732,11 @@ impl VoxelWorld {
                     self.render_chunks.set_opt(coord, render_chunk);
                     continue;
                 };
-                // If we built a new mesh and didn't already consume it for spawn,
-                // atomic-swap into the existing asset.
+                // Stage existing chunk edits under a new handle. Bevy removes a
+                // modified mesh from RenderAssets before the replacement is
+                // prepared, which can make the visible chunk blink for a frame.
                 if let Some(new_mesh) = new_mesh {
-                    let mesh = meshes.get_mut(render_chunk_mut.mesh.id()).expect("Failed to get the mesh");
-                    *mesh = new_mesh;
+                    render_chunk_mut.pending_mesh = Some(meshes.add(new_mesh));
                 }
                 if light_map_dirty {
                     // TODO: Rebuild lightmap
@@ -1630,6 +1646,7 @@ pub struct RenderChunk {
     pub entity: Entity,
     pub mesh: Handle<Mesh>,
     pub material: Handle<VoxelMaterial>,
+    pub pending_mesh: Option<Handle<Mesh>>,
     pub move_id: PoolId<MoveRenderChunkMarker>,
 }
 
