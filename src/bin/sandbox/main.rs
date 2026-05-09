@@ -380,7 +380,7 @@ fn setup(
     ));
 
     let mut primary = window.get_single_mut().unwrap();
-    primary.cursor_options.grab_mode = CursorGrabMode::Locked;
+    primary.cursor_options.grab_mode = CursorGrabMode::Confined;
     primary.cursor_options.visible = false;
     commands.insert_resource(CameraRotation::default());
     commands.insert_resource(world);

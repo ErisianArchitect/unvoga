@@ -80,6 +80,7 @@ pub struct RenderChunkMarker;
 #[derive(Resource)]
 pub struct VoxelWorld {
     pub array_texture: Handle<Image>,
+    pub shared_material: Option<Handle<VoxelMaterial>>,
     /// Determines if the render world has been initialized.
     // pub initialized: bool,
     // pub dirty_sections: Vec<Coord>,
@@ -171,6 +172,7 @@ impl VoxelWorld {
         let mut load_queue = Lend::new(ObjectPool::new());
         Self {
             array_texture: array_texture.clone(),
+            shared_material: None,
             subworld_directory: main_world,
             dirty_queue: Lend::new(ObjectPool::new()),
             save_queue: ObjectPool::new(),
@@ -640,12 +642,48 @@ impl VoxelWorld {
                 //     panic!("Render chunk out of bounds");
                 // };
                 let mut render_chunk = self.render_chunks.take(coord);
+                // Build the section mesh first (always, if section exists).
+                // Spawning a new entity already includes the populated mesh,
+                // and existing entities get an in-place swap.
+                let needs_mesh_rebuild = blocks_dirty || (make_render_chunk && render_chunk.is_none());
+                let mut new_mesh = if needs_mesh_rebuild {
+                    Some(MeshBuilder::create_mesh(RenderAssetUsages::all(), |build| {
+                        for y in 0..16 {
+                            for z in 0..16 {
+                                'xloop: for x in 0..16 {
+                                    let block_coord = (sect_x * 16 + x, sect_y * 16 + y, sect_z * 16 + z);
+                                    let offset = vec3(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
+                                    let state = self.get_block(block_coord);
+                                    if state == Id::AIR {
+                                        continue 'xloop;
+                                    }
+                                    let orientation = state.block().orientation(self, block_coord.into(), state);
+                                    let occlusion = self.get_occlusion(block_coord);
+                                    build.set_offset(offset);
+                                    build.set_orientation(orientation);
+                                    state.block().push_mesh(build, LOD::Level0, self, block_coord.into(), state, occlusion, orientation);
+                                }
+                            }
+                        }
+                    }))
+                } else {
+                    None
+                };
                 if make_render_chunk {
                     if render_chunk.is_none() {
-                        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::all());
-                        MeshBuilder::build_mesh(&mut mesh, |build| ());
-                        let mesh = meshes.add(mesh);
-                        let material = materials.add(VoxelMaterial::new(self.array_texture.clone(), &mut storage_buffers));
+                        // Spawn with the populated mesh on frame 1 — no empty-mesh
+                        // frame to flicker through.
+                        let mesh = meshes.add(new_mesh.take().expect("needs_mesh_rebuild was true on spawn"));
+                        // Share a single VoxelMaterial across chunks. Per-chunk
+                        // materials caused pipeline recompiles and flicker on
+                        // newly spawned chunks.
+                        let material = if let Some(m) = &self.shared_material {
+                            m.clone()
+                        } else {
+                            let m = materials.add(VoxelMaterial::new(self.array_texture.clone(), &mut storage_buffers));
+                            self.shared_material = Some(m.clone());
+                            m
+                        };
                         let (x, y, z) = (
                             (coord.x * 16) as f32,
                             (coord.y * 16) as f32,
@@ -667,8 +705,6 @@ impl VoxelWorld {
                             move_id: PoolId::NULL,
                             entity,
                         });
-                        // Some()
-                        // let render_chunk = self.render_chunks.get_mut(coord).expect("Failed to get render chunk");
                     }
                 } else {
                     if let Some(unload_chunk) = render_chunk.take() {
@@ -680,29 +716,9 @@ impl VoxelWorld {
                     self.render_chunks.set_opt(coord, render_chunk);
                     continue;
                 };
-                if blocks_dirty {
-                    // Build mesh in scratch then atomic-swap: avoids one-frame
-                    // visual artifact where attribute insert order leaves the
-                    // mesh transiently inconsistent during render extract.
-                    let new_mesh = MeshBuilder::create_mesh(RenderAssetUsages::all(), |build| {
-                        for y in 0..16 {
-                            for z in 0..16 {
-                                'xloop: for x in 0..16 {
-                                    let block_coord = (sect_x * 16 + x, sect_y * 16 + y, sect_z * 16 + z);
-                                    let offset = vec3(x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5);
-                                    let state = self.get_block(block_coord);
-                                    if state == Id::AIR {
-                                        continue 'xloop;
-                                    }
-                                    let orientation = state.block().orientation(self, block_coord.into(), state);
-                                    let occlusion = self.get_occlusion(block_coord);
-                                    build.set_offset(offset);
-                                    build.set_orientation(orientation);
-                                    state.block().push_mesh(build, LOD::Level0, self, block_coord.into(), state, occlusion, orientation);
-                                }
-                            }
-                        }
-                    });
+                // If we built a new mesh and didn't already consume it for spawn,
+                // atomic-swap into the existing asset.
+                if let Some(new_mesh) = new_mesh {
                     let mesh = meshes.get_mut(render_chunk_mut.mesh.id()).expect("Failed to get the mesh");
                     *mesh = new_mesh;
                 }
