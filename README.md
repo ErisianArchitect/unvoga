@@ -90,9 +90,10 @@ matching equivalence tests.
 
 ## Status
 
-Not playable. Engine launches, terrain renders, blocks place/remove,
-but chunk-edit flicker isn't fully nailed yet and the chunk-pool
-churn under high render distance is fragile. Patches welcome.
+Not playable. Engine launches, terrain renders, blocks place/remove
+without flicker (fixed: populate mesh on spawn + share material across
+chunks). Chunk-pool churn under high render distance is still fragile.
+Patches welcome.
 
 ## License
 
